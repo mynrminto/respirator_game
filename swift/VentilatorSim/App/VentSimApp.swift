@@ -10,79 +10,99 @@ struct VentSimApp: App {
 
 struct RootView: View {
     @State private var controller: SimulationController?
+    @State private var showingCourse = false
+    @State private var showingCases = false
 
     var body: some View {
         Group {
             if let controller {
                 VentilatorScreen(controller: controller)
             } else {
-                ScenarioListView(onStart: { scenario, settings in
-                    self.controller = SimulationController(scenario: scenario, settings: settings)
-                }, onStartLesson: { lesson in
-                    let created = SimulationController(scenario: lesson.scenario,
-                                                       settings: VentilatorSettings())
-                    created.startLesson(lesson)
-                    self.controller = created
-                })
-                .preferredColorScheme(Chrome.colorScheme)
+                TitleView(onStartLesson: { start(lesson: $0) },
+                          onOpenCourse: { showingCourse = true },
+                          onOpenCases: { showingCases = true })
+                    .sheet(isPresented: $showingCourse) {
+                        LessonCourseView { start(lesson: $0) }
+                    }
+                    .sheet(isPresented: $showingCases) {
+                        ScenarioListView(onStart: { scenario, settings in
+                            showingCases = false
+                            controller = SimulationController(scenario: scenario, settings: settings)
+                        })
+                    }
             }
         }
         // 見た目に合わせて、標準のボタンや選択の色もそろえる。
         .tint(Chrome.accent)
     }
+
+    private func start(lesson: Lesson) {
+        showingCourse = false
+        let created = SimulationController(scenario: lesson.scenario,
+                                           settings: VentilatorSettings())
+        created.startLesson(lesson)
+        controller = created
+    }
 }
 
 /// 症例を選び、予測体重から初期設定を決めるところまで。
+/// タイトル画面から「症例で練習」で開く。
 struct ScenarioListView: View {
     var onStart: (Scenario, VentilatorSettings) -> Void
-    var onStartLesson: (Lesson) -> Void
     @State private var selected: Scenario?
-    @State private var showingCourse = false
+    @Environment(\.dismiss) private var dismiss
+
+    /// 症例ごとの顔色。Web 版の PATIENT_TONE と同じ。
+    private func tone(_ id: String) -> PatientView.Tone {
+        switch id {
+        case "ards", "asthma": return .bad
+        case "copd": return .mid
+        default: return .ok
+        }
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Text("教育用です。実在の人工呼吸器の動作を簡略化したモデルであり、表示される数値も実機・実患者とは異なります。臨床判断には使用しないでください。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Section {
-                    Button { showingCourse = true } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(LessonLibrary.chapters.count) 章 \(LessonLibrary.all.count) レッスン")
-                                .font(.caption2).foregroundStyle(.secondary)
-                            Text("学習コースを始める").font(.headline)
-                            Text("基礎 → 初期設定 → モード → 血液ガス → トラブル → 離脱")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                } header: {
-                    Text("はじめての方へ")
-                } footer: {
-                    Text("波形の読み方から血液ガス、離脱までを、実機の画面を操作しながら順に覚えられます。")
-                }
-                Section("症例を選ぶ") {
                     ForEach(ScenarioLibrary.all) { scenario in
                         Button { selected = scenario } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(scenario.tag).font(.caption2).foregroundStyle(.secondary)
-                                Text(scenario.title).font(.headline)
-                                Text(scenario.oneLine).font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                CharacterBadge(size: 46, ring: Chrome.accent.opacity(0.3),
+                                               background: Chrome.panel2) {
+                                    PatientView(tone: tone(scenario.id))
+                                }
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(scenario.tag)
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(Chrome.isPop ? Color.white : Color.secondary)
+                                        .padding(.horizontal, Chrome.isPop ? 8 : 0)
+                                        .padding(.vertical, Chrome.isPop ? 2 : 0)
+                                        .background { if Chrome.isPop { Capsule().fill(Chrome.accent) } }
+                                    Text(scenario.title)
+                                        .font(Chrome.label(16, weight: .bold))
+                                    Text(scenario.oneLine)
+                                        .font(.caption).foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
+                            .padding(.vertical, 2)
                         }
                     }
+                } footer: {
+                    Text("レッスンを離れて、自由に操作できます。教育用のモデルなので、数値は実機・実患者とは異なります。")
                 }
             }
-            .navigationTitle("人工呼吸器シミュレーター")
+            .navigationTitle("症例で練習")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
+            }
             .sheet(item: $selected) { scenario in
                 SetupView(scenario: scenario) { settings in
                     selected = nil
                     onStart(scenario, settings)
                 }
-            }
-            .sheet(isPresented: $showingCourse) {
-                LessonCourseView { onStartLesson($0) }
             }
         }
     }

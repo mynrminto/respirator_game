@@ -10,6 +10,19 @@ struct LessonCoachView: View {
     private var tint: Color {
         Chrome.chapterColor(controller.lessonChapter?.id ?? "ch1")
     }
+    /// みどり先生の表情。今の場面に合わせて変える。
+    private var mood: CharacterMood {
+        switch controller.lessonPhase {
+        case .done, .feedback:
+            return .happy
+        case .task:
+            if let runtime = controller.lessonRuntime, runtime.task?.quiz != nil {
+                return runtime.lastAnswerWasWrong ? .sad : .think
+            }
+            if (controller.engine.alarms.map(\.severity).max() ?? 0) >= 2 { return .alert }
+            return .normal
+        }
+    }
     @State private var collapsed = false
     @State private var showingBrief = false
     @State private var showingCourse = false
@@ -21,9 +34,15 @@ struct LessonCoachView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header(lesson: lesson, runtime: runtime)
                 if !collapsed {
-                    content(for: runtime)
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, 8)
+                    HStack(alignment: .top, spacing: 9) {
+                        CharacterBadge(size: 40, ring: Chrome.isPop ? tint.opacity(0.5) : nil,
+                                       background: Coach.choice) {
+                            DoctorView(mood: mood)
+                        }
+                        content(for: runtime)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 8)
                 }
             }
             .background(
