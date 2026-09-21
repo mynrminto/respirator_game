@@ -19,11 +19,14 @@ Sources/VentilatorCore/
 Tests/VentilatorCoreTests/
   VentilatorCoreTests.swift 解析解との突き合わせ（Swift Testing）
 App/                        SwiftUI の画面。Xcode の App ターゲットに追加して使う
+                            （SwiftPM のターゲットには入れていないので swift test では検査されない）
   VentSimApp.swift          エントリポイント、症例選択、初期設定
-  SimulationController.swift  CADisplayLink で駆動、波形リングバッファ、時間倍率
-  VentilatorScreen.swift    人工呼吸器画面（波形・実測値・設定・手技）
-  WaveformView.swift        Canvas によるスイープ波形
-  ParameterStepper.swift    モードごとの設定項目
+  SimulationController.swift  CADisplayLink で駆動、波形リングバッファ、トレンド、ループ、ダイヤル状態
+  VentilatorScreen.swift    人工呼吸器の筐体（ステータス帯・画面・モード・設定キー・ハードキー・ダイヤル）
+  DeviceChrome.swift        筐体の配色と、キーと計測値タイルの部品
+  WaveformView.swift        Canvas によるスイープ波形、P–V / F–V ループ、トレンド
+  KnobView.swift            ロータリーダイヤル（回して「確定」で反映）
+  ParameterStepper.swift    モードごとの設定項目の定義と、初期設定画面用のステッパ
   Sheets.swift              血液ガスと離脱のシート
 ```
 
@@ -73,3 +76,14 @@ swift test
 
 教育用です。実在の人工呼吸器の動作を簡略化したモデルであり、表示される数値も
 実機・実患者とは異なります。臨床判断には使用しないでください。
+
+## 画面の考え方
+
+実機の人工呼吸器と同じ構成にしています。縦スクロールはしません。
+
+- 設定は**キーを押す → ダイヤルを回す → 確定**の 3 段階です。回している間は値が琥珀色になり、
+  確定するまで患者には反映されません。実機が誤操作を防ぐためにやっていることをそのまま入れています。
+- 吸気ポーズと呼気ポーズは押した瞬間ではなく、次の吸気末／呼気末で実行されます。
+  途中で止めると、プラトー圧も total PEEP も違う時点の圧を測ってしまうためです。
+- 早送り（× 1 / × 10 / × 60）、血液ガス、離脱、鎮静はシミュレーター側の操作なので、
+  機器のキーとは色を分けています。

@@ -72,6 +72,60 @@ final class SimulationController {
     /// 5 Hz で更新する表示用スナップショット。60 fps で View を無効化しないための仕切り。
     private(set) var tickCount: Int = 0
 
+    // MARK: - 機器としての状態
+
+    enum Screen: String, CaseIterable, Identifiable {
+        case waveforms, loops, trend
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .waveforms: return "波形"
+            case .loops: return "ループ"
+            case .trend: return "トレンド"
+            }
+        }
+    }
+
+    struct TrendSample: Identifiable {
+        let id = UUID()
+        let time: Double
+        let peak: Double
+        let plateau: Double?
+        let tidal: Double
+        let spo2: Double
+    }
+
+    /// ループ表示の 1 点。容量は呼気終末を 0 とした値で持つ。
+    struct LoopPoint {
+        let volume: Double
+        let pressure: Double
+        let flow: Double
+    }
+
+    var screen: Screen = .waveforms
+    /// 波形停止。実機の freeze と同じで、計測と換気は止めない。
+    var waveformsFrozen = false
+    private(set) var alarmSilencedUntil: Double = -1
+    var isAlarmSilenced: Bool { alarmSilencedUntil > engine.clock }
+
+    private(set) var trend: [TrendSample] = []
+    private(set) var currentLoop: [LoopPoint] = []
+    private(set) var previousLoop: [LoopPoint] = []
+
+    /// ダイヤルで操作中の設定項目と、確定前の値。実機と同じく確定するまで反映しない。
+    private(set) var selectedParameterID: String?
+    private(set) var pendingValue: Double?
+
+    var selectedParameter: VentilatorParameter? {
+        guard let id = selectedParameterID else { return nil }
+        return VentilatorParameter.all.first { $0.id == id }
+    }
+    /// 確定していない変更があるか。
+    var hasPendingChange: Bool {
+        guard let parameter = selectedParameter, let pending = pendingValue else { return false }
+        return abs(pending - parameter.read(engine.settings)) > 1e-9
+    }
+
     /// 設定は engine が持っているが、SwiftUI から双方向に束縛できるようここを窓口にする。
     /// getter で settingsVersion を読むことで、書き込みのたびに View が更新される。
     var settings: VentilatorSettings {
@@ -88,6 +142,10 @@ final class SimulationController {
 
     @ObservationIgnored let trace = WaveformTrace()
     @ObservationIgnored private var sampleAccumulator: Double = 0
+    @ObservationIgnored private var trendAccumulator: Double = 4
+    @ObservationIgnored private var loopBuffer: [LoopPoint] = []
+    @ObservationIgnored private var loopBaseline: Double = 0
+    @ObservationIgnored private var lastPhase: VentilatorEngine.Phase = .expiration
     @ObservationIgnored private var displaySync: Double = 0
     @ObservationIgnored private var link: AnyObject?
     @ObservationIgnored private var lastTimestamp: CFTimeInterval = 0
@@ -139,18 +197,35 @@ final class SimulationController {
         let steps = max(1, min(1400, Int((simulated / nominal).rounded(.up))))
         let dt = simulated / Double(steps)
 
+        let sampling = (speed == .realtime) && !waveformsFrozen
         for _ in 0..<steps {
             engine.step(dt: dt)
-            guard speed == .realtime else { continue }
-            sampleAccumulator += dt
-            if sampleAccumulator >= trace.sampleInterval {
-                sampleAccumulator -= trace.sampleInterval
-                trace.push(pressure: engine.airwayPressure,
-                           flow: engine.flow * 60,
-                           volume: (engine.volume - engine.patient.compliance * engine.settings.peep) * 1000)
+            let relativeVolume = (engine.volume - engine.patient.compliance * engine.settings.peep) * 1000
+            if sampling {
+                sampleAccumulator += dt
+                if sampleAccumulator >= trace.sampleInterval {
+                    sampleAccumulator -= trace.sampleInterval
+                    trace.push(pressure: engine.airwayPressure,
+                               flow: engine.flow * 60,
+                               volume: relativeVolume)
+                }
+                if loopBuffer.count < 2000 {
+                    loopBuffer.append(LoopPoint(volume: relativeVolume - loopBaseline,
+                                                pressure: engine.airwayPressure,
+                                                flow: engine.flow * 60))
+                }
             }
+            // 吸気の立ち上がりでループを 1 本ぶん区切る
+            if engine.phase == .inspiration && lastPhase != .inspiration {
+                if loopBuffer.count > 12 { previousLoop = loopBuffer }
+                loopBuffer = []
+                loopBaseline = relativeVolume
+            }
+            lastPhase = engine.phase
         }
+        currentLoop = loopBuffer
 
+        recordTrend(simulated: simulated)
         updateTimers(simulated: simulated)
 
         displaySync += realSeconds
@@ -158,6 +233,69 @@ final class SimulationController {
             displaySync = 0
             tickCount &+= 1
         }
+    }
+
+    private func recordTrend(simulated: Double) {
+        trendAccumulator += simulated
+        guard trendAccumulator >= 5 else { return }
+        trendAccumulator = 0
+        trend.append(TrendSample(time: engine.clock,
+                                 peak: engine.measured.peakPressure,
+                                 plateau: engine.measured.plateauPressure,
+                                 tidal: engine.measured.tidalVolumeExp,
+                                 spo2: engine.spo2))
+        if trend.count > 900 { trend.removeFirst() }
+    }
+
+    // MARK: - ダイヤル操作
+
+    /// 設定キーを押す。もう一度押すと選択を外す。
+    func select(parameterID: String) {
+        if selectedParameterID == parameterID {
+            selectedParameterID = nil
+            pendingValue = nil
+            return
+        }
+        selectedParameterID = parameterID
+        pendingValue = VentilatorParameter.all.first { $0.id == parameterID }?.read(engine.settings)
+    }
+
+    /// ダイヤルを 1 目盛り回す。確定するまで患者には届かない。
+    func nudge(_ direction: Double) {
+        guard let parameter = selectedParameter else { return }
+        let current = pendingValue ?? parameter.read(engine.settings)
+        let stepped = ((current + direction * parameter.step) / parameter.step).rounded() * parameter.step
+        pendingValue = min(max(stepped, parameter.range.lowerBound), parameter.range.upperBound)
+    }
+
+    func commitPending() {
+        guard let parameter = selectedParameter, let pending = pendingValue, hasPendingChange else { return }
+        var updated = engine.settings
+        parameter.write(&updated, pending)
+        settings = updated
+        append("\(parameter.label) を \(pending.formatted(.number.precision(.fractionLength(parameter.digits)))) \(parameter.unit) に変更")
+    }
+
+    func change(mode: VentilationMode) {
+        guard engine.settings.mode != mode else { return }
+        var updated = engine.settings
+        updated.mode = mode
+        settings = updated
+        selectedParameterID = nil
+        pendingValue = nil
+        append("モードを \(mode.rawValue) に変更")
+    }
+
+    // MARK: - 機器のキー
+
+    func requestHold(_ kind: VentilatorEngine.HoldKind) {
+        engine.requestHold(kind)
+        append(kind == .inspiratory ? "吸気ポーズを予約（次の吸気末で測定）"
+                                    : "呼気ポーズを予約（次の呼気末で測定）")
+    }
+
+    func toggleAlarmSilence() {
+        alarmSilencedUntil = isAlarmSilenced ? -1 : engine.clock + 120
     }
 
     private func updateTimers(simulated: Double) {

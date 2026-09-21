@@ -83,6 +83,11 @@ public final class VentilatorEngine {
     private var lastCycleTime: Double = 0
     private var hold: (kind: HoldKind, elapsed: Double)?
     private var pendingHold: HoldKind?
+
+    /// 実行中のポーズ。画面でキーを点灯させるために読む。
+    public var activeHold: HoldKind? { hold?.kind }
+    /// 次の吸気末／呼気末に実行されるのを待っているポーズ。
+    public var awaitingHold: HoldKind? { pendingHold }
     private var lastBreathWasSpontaneous = false
 
     private var neuralTime: Double = 0
