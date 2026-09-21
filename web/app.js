@@ -7,6 +7,101 @@
   var $ = function (id) { return document.getElementById(id); };
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
+  /* ===================== テーマ =====================
+   * 見た目は CSS のカスタムプロパティだけで決まる。キャンバス（波形・ループ・
+   * トレンド・ダイヤル）も同じ値を読むので、テーマを変えると一斉に変わる。 */
+  var THEME_KEY = 'ventsim.theme.v1';
+  var PAL = {};
+
+  function readPal() {
+    var cs = getComputedStyle(document.documentElement);
+    function v(name, fb) { var s = cs.getPropertyValue(name).trim(); return s || fb; }
+    PAL = {
+      bg: v('--scope-bg', '#04070A'),
+      grid: v('--scope-grid', '#0E1A24'),
+      grid2: v('--scope-grid2', '#101C26'),
+      zero: v('--scope-zero', '#1B2A36'),
+      peep: v('--scope-peep', '#2E4A2E'),
+      axis: v('--scope-axis', '#4A5765'),
+      label: v('--scope-label', '#9FB0C2'),
+      faint: v('--scope-faint', '#39485A'),
+      cursor: v('--scope-cursor', '200,230,255'),
+      glow: parseFloat(v('--scope-glow', '0')) || 0,
+      paw: v('--paw', '#F5B429'), paw2: v('--paw-dim', '#B98514'),
+      flow: v('--flow', '#2FD8A8'), vol: v('--vol', '#8FA8FF'), spo2: v('--spo2', '#59D8EA'),
+      good: v('--good', '#3ECB80'), warn: v('--warn', '#FFB03A'), crit: v('--crit', '#FF4B57'),
+      accent: v('--accent', '#2FD8A8'),
+      knobTrack: v('--knob-track', '#1B2530'), knobTick: v('--knob-tick', '#2A3542'),
+      knobPtr: v('--knob-ptr', '#C8D6E4')
+    };
+    LANES[0].css = PAL.paw; LANES[1].css = PAL.flow; LANES[2].css = PAL.vol;
+  }
+
+  function currentTheme() { return document.documentElement.getAttribute('data-theme') || 'pop'; }
+
+  function applyTheme(name, redraw) {
+    document.documentElement.setAttribute('data-theme', name === 'device' ? 'device' : 'pop');
+    var b = $('btnTheme');
+    if (b) b.textContent = name === 'device' ? '実機' : 'ポップ';
+    try { window.localStorage.setItem(THEME_KEY, currentTheme()); } catch (err) { /* 記録できなくても動く */ }
+    readPal();
+    if (redraw) { fitAll(); paintDial(); }
+  }
+
+  function initTheme() {
+    var saved = null;
+    try { saved = window.localStorage.getItem(THEME_KEY); } catch (err) { saved = null; }
+    applyTheme(saved === 'device' ? 'device' : 'pop', false);
+    $('btnTheme').onclick = function () {
+      applyTheme(currentTheme() === 'pop' ? 'device' : 'pop', true);
+    };
+  }
+
+  /* ===================== 達成の演出 ===================== */
+  var CONFETTI = ['#FF5E8A', '#FFB020', '#12C48B', '#5B7CFA', '#FF8A3D', '#8B6BFF'];
+
+  function reducedMotion() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (err) { return false; }
+  }
+
+  function confetti(n) {
+    if (reducedMotion()) return;
+    var host = $('fx');
+    if (!host) return;
+    var w = window.innerWidth, cx = w / 2, cy = window.innerHeight * 0.34;
+    for (var i = 0; i < n; i++) {
+      var p = el('i');
+      var ang = (Math.PI * 2 * i) / n + Math.random() * 0.4;
+      var dist = 90 + Math.random() * 190;
+      p.style.left = Math.round(cx + (Math.random() - 0.5) * 120) + 'px';
+      p.style.top = Math.round(cy) + 'px';
+      p.style.background = CONFETTI[i % CONFETTI.length];
+      p.style.setProperty('--dx', Math.round(Math.cos(ang) * dist) + 'px');
+      p.style.setProperty('--dy', Math.round(Math.abs(Math.sin(ang)) * dist + 180) + 'px');
+      p.style.setProperty('--rot', Math.round(Math.random() * 900 - 450) + 'deg');
+      p.style.animationDelay = (Math.random() * 0.18).toFixed(2) + 's';
+      host.appendChild(p);
+    }
+    setTimeout(function () { host.innerHTML = ''; }, 2000);
+  }
+
+  function toast(msg) {
+    var t = el('div', 'toast', msg);
+    document.body.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 2000);
+  }
+
+  function celebrate(msg) {
+    confetti(28);
+    toast(msg);
+    var c = $('coach');
+    if (c) {
+      c.classList.remove('cheer');
+      void c.offsetWidth;
+      c.classList.add('cheer');
+    }
+  }
+
   /* ===================== 状態 ===================== */
   var S = {
     eng: null, scen: null,
@@ -104,6 +199,7 @@
 
   /* ===================== 起動 ===================== */
   function boot() {
+    initTheme();
     buildVals();
     loadScenario(SC.SCENARIOS[0], false);
     buildTabs(); bindHard(); bindKnob(); bindCoach();
@@ -268,12 +364,12 @@
     var cx = w / 2, cy = h / 2, R = w / 2 - 2;
     var a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
     x.lineWidth = 3; x.lineCap = 'round';
-    x.strokeStyle = '#1B2530'; x.beginPath(); x.arc(cx, cy, R - 1, a0, a1); x.stroke();
+    x.strokeStyle = PAL.knobTrack; x.beginPath(); x.arc(cx, cy, R - 1, a0, a1); x.stroke();
     if (f > 0) {
-      x.strokeStyle = dirty ? '#F5B429' : '#2FD8A8';
+      x.strokeStyle = dirty ? PAL.paw : PAL.accent;
       x.beginPath(); x.arc(cx, cy, R - 1, a0, a0 + (a1 - a0) * f); x.stroke();
     }
-    x.strokeStyle = '#2A3542'; x.lineWidth = 1;
+    x.strokeStyle = PAL.knobTick; x.lineWidth = 1;
     for (var i = 0; i <= 10; i++) {
       var a = a0 + (a1 - a0) * (i / 10);
       x.beginPath();
@@ -282,7 +378,7 @@
       x.stroke();
     }
     var ap = a0 + (a1 - a0) * f;
-    x.strokeStyle = dirty ? '#F5B429' : '#C8D6E4'; x.lineWidth = 2.5;
+    x.strokeStyle = dirty ? PAL.paw : PAL.knobPtr; x.lineWidth = 2.5;
     x.beginPath();
     x.moveTo(cx + Math.cos(ap) * (R - 22), cy + Math.sin(ap) * (R - 22));
     x.lineTo(cx + Math.cos(ap) * (R - 10), cy + Math.sin(ap) * (R - 10));
@@ -549,7 +645,7 @@
   function drawScope() {
     if (!ctx) return;
     var w = cvW, h = cvH, x = ctx;
-    x.fillStyle = '#04070A'; x.fillRect(0, 0, w, h);
+    x.fillStyle = PAL.bg; x.fillRect(0, 0, w, h);
     var padL = 36, padR = 6, padT = 2, padB = 2;
     var lh = (h - padT - padB) / 3;
     var rg = laneRanges();
@@ -562,28 +658,28 @@
         return function (v) { return y1 - 4 - (v - lo) / span * (lh - 10); };
       })(y1, span, r.lo, lh);
 
-      x.strokeStyle = '#0E1A24'; x.lineWidth = 1;
+      x.strokeStyle = PAL.grid; x.lineWidth = 1;
       for (var s = 0; s <= SWEEP_SEC; s++) {
         var gx = Math.round(padL + xw * (s / SWEEP_SEC)) + .5;
         x.beginPath(); x.moveTo(gx, y0 + 2); x.lineTo(gx, y1 - 2); x.stroke();
       }
       if (li) {
-        x.strokeStyle = '#101C26';
+        x.strokeStyle = PAL.grid2;
         x.beginPath(); x.moveTo(0, Math.round(y0) + .5); x.lineTo(w, Math.round(y0) + .5); x.stroke();
       }
 
       var zy = toY(0);
-      x.strokeStyle = '#1B2A36'; x.setLineDash([3, 4]);
+      x.strokeStyle = PAL.zero; x.setLineDash([3, 4]);
       x.beginPath(); x.moveTo(padL, zy); x.lineTo(w - padR, zy); x.stroke();
       x.setLineDash([]);
       if (li === 0) {
         var py = toY(S.eng.s.peep);
-        x.strokeStyle = '#2E4A2E'; x.setLineDash([2, 5]);
+        x.strokeStyle = PAL.peep; x.setLineDash([2, 5]);
         x.beginPath(); x.moveTo(padL, py); x.lineTo(w - padR, py); x.stroke();
         x.setLineDash([]);
       }
 
-      x.fillStyle = '#4A5765'; x.font = '9px "Barlow Semi Condensed", sans-serif'; x.textAlign = 'right';
+      x.fillStyle = PAL.axis; x.font = '9px "Barlow Semi Condensed", sans-serif'; x.textAlign = 'right';
       x.fillText(String(Math.round(r.hi)), padL - 4, y0 + 11);
       x.fillText(String(Math.round(r.lo)), padL - 4, y1 - 4);
       x.textAlign = 'left';
@@ -591,7 +687,7 @@
       x.fillStyle = lane.css; x.globalAlpha = .9;
       x.fillText(lane.label, padL + 5, y0 + 11);
       var lw = x.measureText(lane.label).width;
-      x.globalAlpha = .5; x.fillStyle = '#7E8EA0';
+      x.globalAlpha = .55; x.fillStyle = PAL.faint;
       x.fillText(lane.unit, padL + 11 + lw, y0 + 11);
       x.globalAlpha = 1;
 
@@ -608,15 +704,17 @@
           if (!started) { x.moveTo(px, py2); started = true; } else x.lineTo(px, py2);
         }
         x.strokeStyle = lane.css;
-        if (pass === 0) { x.globalAlpha = .16; x.lineWidth = 4.5; }
-        else { x.globalAlpha = 1; x.lineWidth = 1.5; }
+        if (pass === 0) { x.globalAlpha = PAL.glow ? .22 : .16; x.lineWidth = PAL.glow ? 5.5 : 4.5; }
+        else { x.globalAlpha = 1; x.lineWidth = PAL.glow ? 2 : 1.5; }
+        if (PAL.glow && pass === 1) { x.shadowColor = lane.css; x.shadowBlur = PAL.glow; }
         x.stroke();
+        x.shadowBlur = 0;
       }
       x.globalAlpha = 1;
 
       var cxp = padL + xw * (head / n);
-      x.fillStyle = 'rgba(200,230,255,.09)'; x.fillRect(cxp, y0 + 1, 7, lh - 2);
-      x.strokeStyle = 'rgba(200,230,255,.5)'; x.lineWidth = 1;
+      x.fillStyle = 'rgba(' + PAL.cursor + ',.10)'; x.fillRect(cxp, y0 + 1, 7, lh - 2);
+      x.strokeStyle = 'rgba(' + PAL.cursor + ',.5)'; x.lineWidth = 1;
       x.beginPath(); x.moveTo(cxp + .5, y0 + 1); x.lineTo(cxp + .5, y1 - 1); x.stroke();
     }
   }
@@ -625,7 +723,7 @@
   function drawLoops() {
     if (!ctx) return;
     var w = cvW, h = cvH, x = ctx;
-    x.fillStyle = '#04070A'; x.fillRect(0, 0, w, h);
+    x.fillStyle = PAL.bg; x.fillRect(0, 0, w, h);
     var two = w > 470;
     var boxes = two ? [[0, 0, w / 2, h], [w / 2, 0, w / 2, h]]
                     : [[0, 0, w, h / 2], [0, h / 2, w, h / 2]];
@@ -638,15 +736,15 @@
     var live = (S.loopCur && S.loopCur.length > 24) ? S.loopCur : null;
     var prev = S.loopLast;
     var data = live || prev;
-    x.strokeStyle = '#122030'; x.lineWidth = 1; x.strokeRect(L + .5, T + .5, Rw, Rh);
-    x.fillStyle = '#9FB0C2'; x.font = '600 10px "Barlow Semi Condensed", sans-serif'; x.textAlign = 'left';
+    x.strokeStyle = PAL.grid2; x.lineWidth = 1; x.strokeRect(L + .5, T + .5, Rw, Rh);
+    x.fillStyle = PAL.label; x.font = '600 10px "Barlow Semi Condensed", sans-serif'; x.textAlign = 'left';
     x.fillText(title, L, T - 8);
-    x.fillStyle = '#4A5765'; x.font = '9px "Barlow Semi Condensed", sans-serif';
+    x.fillStyle = PAL.axis; x.font = '9px "Barlow Semi Condensed", sans-serif';
     x.fillText(xl, L, T + Rh + 14);
     x.save(); x.translate(L - 32, T + Rh / 2); x.rotate(-Math.PI / 2);
     x.textAlign = 'center'; x.fillText(yl, 0, 0); x.restore();
     if (!data || data.length < 8) {
-      x.fillStyle = '#39485A'; x.textAlign = 'center'; x.font = '11px sans-serif';
+      x.fillStyle = PAL.faint; x.textAlign = 'center'; x.font = '11px sans-serif';
       x.fillText('計測中', L + Rw / 2, T + Rh / 2); return;
     }
     /* 呼気終末の容量を 0 とする。実機のループと同じ見え方になる。 */
@@ -669,23 +767,25 @@
     var px = function (v) { return L + v / vmax * Rw; };
     var py = function (v) { return T + Rh - (v - ymin) / (ymax - ymin) * Rh; };
     if (yi === 2) {
-      x.strokeStyle = '#16232F'; x.beginPath();
+      x.strokeStyle = PAL.zero; x.beginPath();
       x.moveTo(L, py(0)); x.lineTo(L + Rw, py(0)); x.stroke();
     }
     sets.forEach(function (s2) {
       var v0 = s2.d[0][0];
-      x.strokeStyle = yi === 1 ? '#F5B429' : '#2FD8A8';
+      x.strokeStyle = yi === 1 ? PAL.paw : PAL.flow;
       x.globalAlpha = s2.dim ? 0.28 : 1;
-      x.lineWidth = s2.dim ? 1 : 1.4;
+      x.lineWidth = s2.dim ? 1 : (PAL.glow ? 2 : 1.4);
+      if (PAL.glow && !s2.dim) { x.shadowColor = x.strokeStyle; x.shadowBlur = PAL.glow; } else x.shadowBlur = 0;
       x.beginPath();
       s2.d.forEach(function (p, i) {
         var a = px(p[0] - v0), c = py(p[yi]);
         if (!i) x.moveTo(a, c); else x.lineTo(a, c);
       });
       x.stroke();
+      x.shadowBlur = 0;
     });
     x.globalAlpha = 1;
-    x.fillStyle = '#4A5765'; x.textAlign = 'right'; x.font = '9px "Barlow Semi Condensed", sans-serif';
+    x.fillStyle = PAL.axis; x.textAlign = 'right'; x.font = '9px "Barlow Semi Condensed", sans-serif';
     x.fillText(String(Math.round(ymax)), L - 4, T + 9);
     x.fillText(String(Math.round(ymin)), L - 4, T + Rh);
     x.textAlign = 'center';
@@ -696,16 +796,16 @@
   function drawTrend() {
     if (!ctx) return;
     var w = cvW, h = cvH, x = ctx;
-    x.fillStyle = '#04070A'; x.fillRect(0, 0, w, h);
+    x.fillStyle = PAL.bg; x.fillRect(0, 0, w, h);
     var d = S.trend;
     if (d.length < 2) {
-      x.fillStyle = '#39485A'; x.textAlign = 'center'; x.font = '11px sans-serif';
+      x.fillStyle = PAL.faint; x.textAlign = 'center'; x.font = '11px sans-serif';
       x.fillText('トレンドを記録しています', w / 2, h / 2); return;
     }
     var series = [
-      { key: 'pip', k2: 'plat', label: 'PIP / Pplat  cmH₂O', c: '#F5B429', c2: '#B98514' },
-      { key: 'vte', label: 'Vte  mL', c: '#8FA8FF' },
-      { key: 'spo2', label: 'SpO₂  %', c: '#59D8EA', lo: 80, hi: 100 }
+      { key: 'pip', k2: 'plat', label: 'PIP / Pplat  cmH₂O', c: PAL.paw, c2: PAL.paw2 },
+      { key: 'vte', label: 'Vte  mL', c: PAL.vol },
+      { key: 'spo2', label: 'SpO₂  %', c: PAL.spo2, lo: 80, hi: 100 }
     ];
     var t0 = d[0].t, t1 = d[d.length - 1].t, span = Math.max(60, t1 - t0);
     var lh = h / 3, padL = 40;
@@ -722,17 +822,17 @@
         if (hi - lo < 5) hi = lo + 5;
         lo = Math.floor(lo * 0.9); hi = Math.ceil(hi * 1.1);
       }
-      x.strokeStyle = '#101C26';
+      x.strokeStyle = PAL.grid2;
       x.beginPath(); x.moveTo(padL, y1 + .5); x.lineTo(w - 8, y1 + .5); x.stroke();
       x.fillStyle = s.c; x.font = '600 10px "Barlow Semi Condensed", sans-serif';
       x.textAlign = 'left'; x.globalAlpha = .9;
       x.fillText(s.label, padL + 4, y0 + 2); x.globalAlpha = 1;
-      x.fillStyle = '#4A5765'; x.textAlign = 'right'; x.font = '9px "Barlow Semi Condensed", sans-serif';
+      x.fillStyle = PAL.axis; x.textAlign = 'right'; x.font = '9px "Barlow Semi Condensed", sans-serif';
       x.fillText(String(Math.round(hi)), padL - 4, y0 + 6);
       x.fillText(String(Math.round(lo)), padL - 4, y1);
       [[s.key, s.c, 1.5], [s.k2, s.c2, 1]].forEach(function (pair) {
         if (!pair[0]) return;
-        x.strokeStyle = pair[1]; x.lineWidth = pair[2]; x.beginPath();
+        x.strokeStyle = pair[1]; x.lineWidth = PAL.glow ? pair[2] + 0.5 : pair[2]; x.beginPath();
         var st = false;
         d.forEach(function (p) {
           var v = p[pair[0]];
@@ -744,7 +844,7 @@
         x.stroke();
       });
     });
-    x.fillStyle = '#4A5765'; x.textAlign = 'center'; x.font = '9px "Barlow Semi Condensed", sans-serif';
+    x.fillStyle = PAL.axis; x.textAlign = 'center'; x.font = '9px "Barlow Semi Condensed", sans-serif';
     x.fillText('直近 ' + Math.round(span / 60) + ' 分', w / 2, h - 3);
   }
 
@@ -784,8 +884,7 @@
       if (firstRun) {
         b.appendChild(el('p', '', '呼吸器を触るのが初めてなら、学習コースから始めてください。'
           + '波形の読み方から血液ガス、離脱までを、実機の画面を操作しながら順に覚えられます。'));
-        var lead = el('button', 'case');
-        lead.style.borderColor = '#2C8A64';
+        var lead = el('button', 'case lead');
         lead.appendChild(el('i', '', '6 章 19 レッスン'));
         lead.appendChild(el('b', '', '学習コースを始める'));
         lead.appendChild(el('span', '', '基礎 → 初期設定 → モード → 血液ガス → トラブル → 離脱'));
@@ -991,7 +1090,7 @@
     modal('振り返り', function (b, close) {
       var top = el('div', 'row'); top.style.alignItems = 'baseline';
       var sn = el('div', 'score', String(score));
-      sn.style.color = score >= 80 ? '#3ECB80' : (score >= 60 ? '#FFB03A' : '#FF4B57');
+      sn.style.color = score >= 80 ? PAL.good : (score >= 60 ? PAL.warn : PAL.crit);
       top.appendChild(sn);
       top.appendChild(el('span', '', '／ 100　経過 ' + Math.round(mins) + ' 分'));
       b.appendChild(top);
@@ -1033,19 +1132,19 @@
     if (!w || !h) return;
     cv.width = Math.round(w * d); cv.height = Math.round(h * d);
     var x = cv.getContext('2d'); x.setTransform(d, 0, 0, d, 0, 0);
-    x.fillStyle = '#0A0E12'; x.fillRect(0, 0, w, h);
+    x.fillStyle = PAL.bg; x.fillRect(0, 0, w, h);
     var t = S.trend;
     if (t.length < 2) {
-      x.fillStyle = '#39485A'; x.textAlign = 'center'; x.font = '11px sans-serif';
+      x.fillStyle = PAL.faint; x.textAlign = 'center'; x.font = '11px sans-serif';
       x.fillText('データ不足', w / 2, h / 2); return;
     }
     var t0 = t[0].t, t1 = t[t.length - 1].t, span = Math.max(60, t1 - t0);
     var padL = 40, padR = 66, padT = 12, padB = 18;
-    [{ k: 'pip', c: '#F5B429', lab: 'PIP', lo: 0, hi: 45 },
-     { k: 'vte', c: '#8FA8FF', lab: 'Vte', lo: 0, hi: 700 },
-     { k: 'spo2', c: '#59D8EA', lab: 'SpO₂', lo: 75, hi: 100 }
+    [{ k: 'pip', c: PAL.paw, lab: 'PIP', lo: 0, hi: 45 },
+     { k: 'vte', c: PAL.vol, lab: 'Vte', lo: 0, hi: 700 },
+     { k: 'spo2', c: PAL.spo2, lab: 'SpO₂', lo: 75, hi: 100 }
     ].forEach(function (s, i) {
-      x.strokeStyle = s.c; x.lineWidth = 1.4; x.beginPath();
+      x.strokeStyle = s.c; x.lineWidth = PAL.glow ? 2 : 1.4; x.beginPath();
       var st = false;
       t.forEach(function (p) {
         var v = p[s.k];
@@ -1058,7 +1157,7 @@
       x.fillStyle = s.c; x.textAlign = 'right'; x.font = '10px "Barlow Semi Condensed", sans-serif';
       x.fillText(s.lab, w - 6, padT + 12 + i * 14);
     });
-    x.fillStyle = '#4A5765'; x.textAlign = 'center'; x.font = '9px "Barlow Semi Condensed", sans-serif';
+    x.fillStyle = PAL.axis; x.textAlign = 'center'; x.font = '9px "Barlow Semi Condensed", sans-serif';
     x.fillText('0 分', padL, h - 5);
     x.fillText(Math.round(span / 60) + ' 分', w - padR, h - 5);
   }
@@ -1126,8 +1225,10 @@
       id: id, lesson: lesson, chap: LS.chapterOf(id),
       rt: new LS.Runtime(lesson), mode: 'task', sig: ''
     };
-    $('coach').hidden = false;
-    $('coach').classList.remove('collapsed');
+    var cb = $('coach');
+    cb.hidden = false;
+    cb.classList.remove('collapsed');
+    cb.setAttribute('data-chap', S.lesson.chap ? S.lesson.chap.id : 'ch1');
     $('kLearn').classList.add('on');
     buildKeys(); syncTabs(); paintDial(); fitAll();
     openBrief();
@@ -1157,7 +1258,16 @@
 
   function afterAdvance(r) {
     var L = S.lesson;
-    if (r.finished) { markDone(L.id); L.mode = 'done'; }
+    if (r.finished) {
+      var first = doneSet().indexOf(L.id) < 0;
+      markDone(L.id);
+      L.mode = 'done';
+      var n = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
+      var all = LS.allLessons().length;
+      if (n >= all) celebrate('全レッスン修了！おめでとう 🏆');
+      else if (first) celebrate('レッスン修了！ ' + n + ' / ' + all + ' 🎉');
+      else celebrate('レッスン修了！ 🎉');
+    }
     else L.mode = 'feedback';
     L.fb = r.why || '';
     L.sig = '';
@@ -1182,7 +1292,7 @@
     var say = '', hint = '', choices = null, tone = '';
 
     if (L.mode === 'done') {
-      say = 'このレッスンは終わりです。' + (rt.wrong ? '' : 'クイズは全問一度で正解でした。');
+      say = '🎉 このレッスンは終わりです。' + (rt.wrong ? '' : 'クイズは全問一度で正解でした。');
       tone = 'ok';
       choices = { kind: 'end' };
     } else if (L.mode === 'feedback') {
@@ -1273,7 +1383,8 @@
     if (!L) return;
     var l = L.lesson;
     modal(l.title, function (b, close) {
-      b.appendChild(el('p', 'note', L.chap.title + '　／　目安 ' + l.minutes + ' 分'));
+      var cap = el('p', 'note', L.chap.title + '　／　目安 ' + l.minutes + ' 分');
+      b.appendChild(cap);
       l.brief.forEach(function (t) { b.appendChild(el('p', '', t)); });
       if (l.points && l.points.length) {
         var tip = el('div', 'tip');
@@ -1293,18 +1404,32 @@
       b.appendChild(el('p', '', '呼吸器の操作を、実機の画面を触りながら順に覚えていくコースです。'
         + '各レッスンは短い解説と、画面上での操作課題・クイズで組み立ててあります。上から順に進めるのが基本です。'));
       var n = LS.allLessons().length;
-      var pr = el('div', 'tip');
-      pr.textContent = '修了 ' + done.filter(function (id) { return LS.lessonById(id); }).length + ' / ' + n + ' レッスン';
+      var nDone = done.filter(function (id) { return LS.lessonById(id); }).length;
+      var pct = Math.round(nDone / n * 100);
+      var pr = el('div', 'bigprog');
+      var bar = el('div', 'bar'), fill = el('i');
+      fill.style.width = pct + '%';
+      bar.appendChild(fill);
+      pr.appendChild(bar);
+      pr.appendChild(el('div', 'pct', pct + '%'));
       b.appendChild(pr);
+      b.appendChild(el('p', 'note', '修了 ' + nDone + ' / ' + n + ' レッスン'
+        + (nDone >= n ? '　🏆 全レッスン修了' : '')));
       LS.CHAPTERS.forEach(function (ch) {
-        var h = el('div', 'chapline', ch.title);
-        h.appendChild(el('span', '', ch.sub));
+        var chDone = ch.lessons.filter(function (l) { return done.indexOf(l.id) >= 0; }).length;
+        var h = el('div', 'chapline');
+        h.setAttribute('data-chap', ch.id);
+        h.appendChild(el('span', 'cdot'));
+        h.appendChild(el('span', '', ch.title));
+        h.appendChild(el('span', 'ccount', chDone + ' / ' + ch.lessons.length));
+        h.appendChild(el('span', 'csub', ch.sub));
         b.appendChild(h);
         var g = el('div', 'grid2');
-        ch.lessons.forEach(function (l) {
-          var c = el('button', 'lesson');
+        ch.lessons.forEach(function (l, li) {
           var fin = done.indexOf(l.id) >= 0;
-          c.appendChild(el('span', 'mk ' + (fin ? 'y' : 'n'), fin ? '✓' : ''));
+          var c = el('button', 'lesson' + (fin ? ' done' : ''));
+          c.setAttribute('data-chap', ch.id);
+          c.appendChild(el('span', 'mk ' + (fin ? 'y' : 'n'), fin ? '✓' : String(li + 1)));
           var t = el('div', 'lt');
           t.appendChild(el('b', '', l.title));
           t.appendChild(el('span', '', '目安 ' + l.minutes + ' 分'));
