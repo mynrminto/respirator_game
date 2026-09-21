@@ -152,6 +152,26 @@ public final class VentilatorEngine {
         pendingHold = kind
     }
 
+    /// 気道抵抗の現在値。レッスンが痰づまりを起こすときなどに、元の値を控えておくために使う。
+    public var airwayResistance: (inspiratory: Double, expiratory: Double) {
+        (patient.resistanceInsp, patient.resistanceExp)
+    }
+
+    /// 気道抵抗を差し替える。痰の貯留や吸引など、肺そのもの以外の理由で通りにくさが変わる場面用。
+    public func setAirwayResistance(inspiratory: Double, expiratory: Double) {
+        patient.resistanceInsp = max(1, inspiratory)
+        patient.resistanceExp = max(1, expiratory)
+    }
+
+    /// 気管吸引。痰が取れて抵抗は下がるが、陰圧で肺胞が潰れるので一時的に酸素化が落ちる。
+    public func performSuction() {
+        shunt = min(0.9, shunt + 0.10)
+        pao2 = max(35, pao2 - 22)
+        spo2 = Physiology.saturation(po2: pao2) * 100
+        setAirwayResistance(inspiratory: patient.resistanceInsp * 0.88,
+                            expiratory: patient.resistanceExp * 0.90)
+    }
+
     public func drawBloodGas() -> BloodGas {
         let jitter = { (scale: Double) in (Double.random(in: 0...1) - 0.5) * scale }
         let lactate = Physiology.clamp(

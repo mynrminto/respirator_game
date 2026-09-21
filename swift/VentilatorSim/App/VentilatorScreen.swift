@@ -7,6 +7,7 @@ struct VentilatorScreen: View {
     @Bindable var controller: SimulationController
     @State private var showingBloodGas: BloodGas?
     @State private var showingWeaning = false
+    @State private var showingCourse = false
 
     var body: some View {
         let _ = controller.tickCount        // 5 Hz の更新を購読する
@@ -15,6 +16,7 @@ struct VentilatorScreen: View {
             screenArea
                 .padding(.horizontal, 6)
                 .padding(.vertical, 6)
+            LessonCoachView(controller: controller)
             modeAndScreenTabs
             parameterKeys
             hardKeys
@@ -36,6 +38,9 @@ struct VentilatorScreen: View {
         }
         .sheet(isPresented: $showingWeaning) {
             WeaningSheet(controller: controller)
+        }
+        .sheet(isPresented: $showingCourse) {
+            LessonCourseView { controller.startLesson($0) }
         }
     }
 
@@ -111,7 +116,10 @@ struct VentilatorScreen: View {
             return awaiting == .inspiratory ? "吸気ポーズ待機中  次の吸気の終わりで実行します"
                                             : "呼気ポーズ待機中  次の呼気の終わりで実行します"
         }
-        if let elapsed = controller.sbtElapsed {
+        if let result = controller.extubation {
+            return result.succeeded ? "抜管済み" : "抜管後に再挿管が必要"
+        }
+        if let elapsed = controller.sbtElapsed, !controller.sbtFinished {
             let left = max(0, 1800 - elapsed)
             return String(format: "SBT 実施中  残り %d:%02d", Int(left / 60), Int(left.truncatingRemainder(dividingBy: 60)))
         }
@@ -331,6 +339,8 @@ struct VentilatorScreen: View {
                           isOn: holdKey == .inspiratory) { controller.requestHold(.inspiratory) }
                 DeviceKey(title: "呼気ポーズ",
                           isOn: holdKey == .expiratory) { controller.requestHold(.expiratory) }
+                DeviceKey(title: "100% O₂") { controller.oxygenFlush() }
+                DeviceKey(title: "気管吸引") { controller.performSuction() }
                 DeviceKey(title: "波形停止", isOn: controller.waveformsFrozen) {
                     controller.waveformsFrozen.toggle()
                 }
@@ -339,7 +349,12 @@ struct VentilatorScreen: View {
                 DeviceKey(title: controller.pendingBloodGasAt == nil ? "血液ガス" : "採血中…",
                           tint: Chrome.sim,
                           isOn: controller.pendingBloodGasAt != nil) { controller.orderBloodGas() }
-                DeviceKey(title: "離脱", tint: Chrome.sim) { showingWeaning = true }
+                DeviceKey(title: "離脱", tint: Chrome.sim) {
+                    controller.openedWeaning()
+                    showingWeaning = true
+                }
+                DeviceKey(title: "学習コース", tint: Chrome.sim,
+                          isOn: controller.lesson != nil) { showingCourse = true }
             }
             .padding(.horizontal, 6).padding(.vertical, 5)
         }

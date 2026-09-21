@@ -25,7 +25,7 @@
   .cap{font-family:var(--num);font-size:10px;letter-spacing:.08em;color:var(--dim);font-weight:500}
 
   /* ============ 筐体 ============ */
-  #device{position:fixed;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto auto;
+  #device{position:fixed;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto auto auto;
     background:linear-gradient(180deg,#1A1E23 0%,#12161A 46%,#0C0F12 100%);
     padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 
@@ -79,6 +79,48 @@
   .val .lim{position:absolute;right:6px;top:4px;font-family:var(--num);font-size:8.5px;color:var(--faint);
     text-align:right;line-height:1.15}
   .val.hi .v{color:var(--crit)} .val.mid .v{color:var(--warn)} .val.ok .v{color:var(--good)}
+
+  /* ---- 学習コースの帯 ---- */
+  .coach{background:linear-gradient(180deg,#0D1A17,#0B1512);border-top:1px solid #16342B;
+    border-bottom:1px solid var(--edge);flex:none}
+  .cbar{display:flex;align-items:center;gap:8px;padding:4px 8px 3px}
+  .cbar .ct{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;overflow:hidden}
+  .cbar .ct b{font-size:12px;font-weight:600;color:#A8E6CE;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;min-width:0;flex:1}
+  .cbar .ct i{font-style:normal;font-size:10px;color:#4C7566;white-space:nowrap;flex:none}
+  .cdots{display:flex;gap:3px;flex:none}
+  .cdots span{width:6px;height:6px;border-radius:50%;background:#1B3A31}
+  .cdots span.on{background:var(--flow)}
+  .cdots span.cur{background:var(--paw);box-shadow:0 0 5px var(--paw)}
+  .cbtn{flex:none;padding:3px 8px;border-radius:3px;background:#12241F;border:1px solid #1F4639;
+    font-size:11px;color:#7FCFB2}
+  .cbtn.go{background:#0F2A20;border-color:#2C8A64;color:#8CF0C4;font-weight:600}
+  .cbody{padding:0 8px 7px}
+  .csay{font-size:12.5px;line-height:1.5;color:#DCEFE7}
+  .csay.ok{color:#8CF0C4}
+  .csay.ng{color:#FFB9BE}
+  .chint{margin-top:4px;font-size:11.5px;line-height:1.5;color:#5E8A7B}
+  .cchoices{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .cchoices button{flex:1 1 44%;min-width:120px;text-align:left;padding:6px 9px;border-radius:4px;
+    background:#0F1B18;border:1px solid #1D3B33;font-size:12px;line-height:1.35;color:#CFE6DD}
+  .cchoices button:hover{border-color:var(--flow)}
+  .cchoices button.ng{border-color:#5A2A30;color:#FF9AA2;opacity:.6}
+  .cprog{height:2px;margin-top:6px;background:#16302A;border-radius:1px;overflow:hidden}
+  .cprog i{display:block;height:100%;background:var(--flow);width:0;transition:width .2s linear}
+  .coach.collapsed .cbody{display:none}
+  @media(max-width:560px){
+    .cchoices button{flex:1 1 100%}
+    .cbar .ct i{display:none}
+    .cdots{display:none}
+  }
+  .lesson{text-align:left;padding:9px 10px;border-radius:4px;background:#0F1318;border:1px solid var(--line);
+    display:flex;align-items:center;gap:9px}
+  .lesson:hover{border-color:var(--flow)}
+  .lesson .lt{flex:1;min-width:0}
+  .lesson .lt b{display:block;font-size:12.5px;font-weight:600}
+  .lesson .lt span{font-size:11px;color:var(--dim)}
+  .chapline{margin:12px 0 6px;font-size:12.5px;font-weight:600;color:#A8E6CE}
+  .chapline span{display:block;font-weight:400;font-size:11.5px;color:var(--dim);margin-top:2px}
 
   /* ---- モード／画面切替 ---- */
   .tabs{display:flex;gap:1px;padding:0 6px 4px;background:transparent;overflow-x:auto;scrollbar-width:none}
@@ -192,6 +234,22 @@
     <div class="vals" id="vals"></div>
   </div>
 
+  <div class="coach" id="coach" hidden>
+    <div class="cbar">
+      <button class="cbtn" id="cToggle" aria-label="解説の表示を切り替える">▾</button>
+      <div class="ct"><b id="cTitle">—</b><i id="cChap"></i></div>
+      <div class="cdots" id="cDots"></div>
+      <button class="cbtn" id="cBrief">解説</button>
+      <button class="cbtn" id="cQuit">終了</button>
+    </div>
+    <div class="cbody">
+      <div class="csay" id="cSay">—</div>
+      <div class="chint" id="cHint" hidden></div>
+      <div class="cchoices" id="cChoices" hidden></div>
+      <div class="cprog" id="cProg" hidden><i id="cProgBar"></i></div>
+    </div>
+  </div>
+
   <div class="tabs" id="tabs"></div>
   <div class="keys" id="keys"></div>
 
@@ -204,7 +262,8 @@
     <button class="hkey sim" id="kSpd">× 1</button>
     <button class="hkey sim" id="kAbg">血液ガス</button>
     <button class="hkey sim" id="kWean">離脱</button>
-    <button class="hkey sim" id="kMenu">症例</button>
+    <button class="hkey sim" id="kLearn">学習コース</button>
+    <button class="hkey sim" id="kMenu">メニュー</button>
   </div>
 
   <div class="dialrow">
@@ -225,4 +284,5 @@
 
 <script src="engine.js"></script>
 <script src="scenarios.js"></script>
+<script src="lessons.js"></script>
 <script src="app.js"></script>

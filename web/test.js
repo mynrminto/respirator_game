@@ -233,5 +233,175 @@ console.log('\n16. ポーズ操作のタイミング');
   ok('ポーズ後も換気が続く', (run(c, 30, 0.005), c.m.vte > 300), `Vte=${c.m.vte.toFixed(0)} mL`);
 }
 
+console.log('\n10. 学習コースの構造');
+{
+  const LS = require('./lessons.js');
+  const flat = LS.allLessons();
+  ok('章とレッスンがある', LS.CHAPTERS.length === 6 && flat.length === 19,
+    `${LS.CHAPTERS.length} 章 / ${flat.length} レッスン`);
+
+  const ids = flat.map(x => x.lesson.id);
+  ok('レッスン ID が重複しない', new Set(ids).size === ids.length);
+
+  const scenIds = new Set(SCENARIOS.map(s => s.id));
+  let badScenario = [], badSetting = [], badTask = [], badQuiz = [];
+  const settingKeys = new Set(Object.keys(VE.defaultSettings()));
+  for (const { lesson } of flat) {
+    if (!scenIds.has(lesson.scenario)) badScenario.push(lesson.id);
+    for (const k of Object.keys(lesson.settings || {})) {
+      if (!settingKeys.has(k)) badSetting.push(lesson.id + ':' + k);
+    }
+    if (!lesson.brief || !lesson.brief.length || !lesson.points || !lesson.points.length) badTask.push(lesson.id);
+    for (const t of lesson.tasks) {
+      const kinds = [t.check, t.event, t.quiz].filter(Boolean).length;
+      if (kinds !== 1) badTask.push(lesson.id + ' の課題の進み方が一意でない');
+      if (t.quiz) {
+        const q = t.quiz;
+        if (!(q.answer >= 0 && q.answer < q.choices.length)) badQuiz.push(lesson.id);
+        if (new Set(q.choices).size !== q.choices.length) badQuiz.push(lesson.id + ' 選択肢の重複');
+        if (!q.why) badQuiz.push(lesson.id + ' 解説なし');
+      }
+    }
+  }
+  ok('すべて実在の症例を指している', badScenario.length === 0, badScenario.join(','));
+  ok('設定の上書きキーがエンジンに存在する', badSetting.length === 0, badSetting.join(','));
+  ok('解説と要点がそろっている', badTask.length === 0, badTask.join(' / '));
+  ok('クイズの正解番号と選択肢が妥当', badQuiz.length === 0, badQuiz.join(','));
+
+  // 目標として出す数値が、その症例で本当に到達できる範囲にあるか
+  for (const id of ['2-1', '4-4']) {
+    const l = LS.lessonById(id);
+    const sc = SCENARIOS.find(s => s.id === l.scenario);
+    const pbw = VE.predictedBodyWeight(sc.patient.sex, sc.patient.heightCm);
+    const target = pbw * 6;
+    ok(`${id} の 6 mL/kg 目標がダイヤルの範囲内`, target >= 200 && target <= 800,
+      `目標 ${target.toFixed(0)} mL（PBW ${pbw.toFixed(1)} kg）`);
+  }
+}
+
+console.log('\n11. レッスンの進行');
+{
+  const LS = require('./lessons.js');
+  const lesson = LS.lessonById('1-2');
+  const e = mk('postop', Object.assign({}, lesson.settings));
+  e.sedation = 1.0; e._recomputeDrive();
+  const rt = new LS.Runtime(lesson);
+  const ctx = () => ({ e, s: e.s, m: e.m, pbw: e.p.pbw, abgs: [], lastAbg: null, sbt: null });
+
+  ok('最初の課題はキー操作', rt.task().event === 'hold:insp');
+  ok('関係ないイベントでは進まない', rt.fire('hold:exp', ctx()) === null && rt.index === 0);
+  ok('正しいイベントで進む', rt.fire('hold:insp', ctx()) !== null && rt.index === 1);
+
+  // 2 番目は測定待ち。押したポーズが終わるまで進まない。
+  e.requestHold('insp');
+  ok('測定前は進まない', rt.poll(ctx(), 0.5) === null);
+  run(e, 14, 0.005);
+  ok('Pplat が出たら進む', rt.poll(ctx(), 0.5) !== null && rt.index === 2);
+
+  // クイズは正解しないと進まない。
+  ok('3 番目はクイズ', !!rt.task().quiz);
+  const wrong = (rt.task().quiz.answer + 1) % rt.task().quiz.choices.length;
+  ok('誤答では進まない', rt.answer(wrong, ctx()).ok === false && rt.index === 2);
+  ok('正解で進み、解説が返る', (() => {
+    const r = rt.answer(rt.task().quiz.answer, ctx());
+    return r.ok === true && r.why.length > 0 && rt.index === 3;
+  })());
+
+  // hold 付きの課題は、条件を満たし続けた時間で進む。
+  const l22 = LS.lessonById('2-2');
+  const e2 = mk('postop', Object.assign({}, l22.settings));
+  e2.sedation = 1.0; e2._recomputeDrive();
+  const rt2 = new LS.Runtime(l22);
+  const ctx2 = () => ({ e: e2, s: e2.s, m: e2.m, pbw: e2.p.pbw, abgs: [], lastAbg: null, sbt: null });
+  e2.s.rr = 18;
+  run(e2, 90, 0.005);
+  ok('条件を満たしても hold 前は進まない', rt2.poll(ctx2(), 5) === null, `MV=${e2.m.mv.toFixed(1)}`);
+  ok('満たし続ければ進む', rt2.poll(ctx2(), 30) !== null && rt2.index === 1);
+
+  // onStart の副作用（病態を起こす）が効くこと。
+  const l51 = LS.lessonById('5-1');
+  const e3 = mk('postop', Object.assign({}, l51.settings));
+  e3.sedation = 1.0; e3._recomputeDrive();
+  const rt3 = new LS.Runtime(l51);
+  const ctx3 = () => ({ e: e3, s: e3.s, m: e3.m, pbw: e3.p.pbw, abgs: [], lastAbg: null, sbt: null });
+  run(e3, 40, 0.005);
+  rt3.poll(ctx3(), 1);                       // 1 番目（平常時の記録）を通過させる
+  ok('平常時の PIP を記録した', rt3.mem.pip0 > 0, `PIP=${(rt3.mem.pip0 || 0).toFixed(1)}`);
+  const r0 = e3.p.Rinsp;
+  rt3.poll(ctx3(), 1);                       // 2 番目に入ると onStart が発火する
+  ok('痰づまりで気道抵抗が上がる', e3.p.Rinsp > r0 * 4, `Rinsp ${r0} → ${e3.p.Rinsp.toFixed(0)}`);
+  run(e3, 30, 0.005);
+  ok('PIP は上がるが Pplat はほぼ変わらない',
+    e3.m.pip > rt3.mem.pip0 + 8 && Math.abs(e3.m.pplat - rt3.mem.plat0) < 3,
+    `PIP ${rt3.mem.pip0.toFixed(0)}→${e3.m.pip.toFixed(0)} / Pplat ${rt3.mem.plat0.toFixed(0)}→${e3.m.pplat.toFixed(0)}`);
+  ok('上限圧アラームが鳴る', e3.alarms.some(a => a.k === 'pip'),
+    `PIP=${e3.m.pip.toFixed(0)} 上限=${e3.s.alarms.pMax}`);
+}
+
+console.log('\n12. レッスンの目標が到達可能か');
+{
+  const LS = require('./lessons.js');
+  // 5-2：COPD に auto-PEEP がはっきり出て、呼吸回数を下げれば消えること
+  const l = LS.lessonById('5-2');
+  const bad = mk('copd', Object.assign({}, l.settings));
+  bad.sedation = 1.0; bad._recomputeDrive();
+  run(bad, 90, 0.005);
+  while (bad.phase !== 'insp') bad.step(0.005, false);
+  bad.requestHold('exp');
+  run(bad, 14, 0.005);
+  ok('初期設定で auto-PEEP がはっきり出る', bad.m.autoPeep > 3,
+    `auto-PEEP=${bad.m.autoPeep.toFixed(1)} cmH2O`);
+
+  const good = mk('copd', Object.assign({}, l.settings, { rr: 10 }));
+  good.sedation = 1.0; good._recomputeDrive();
+  run(good, 120, 0.005);
+  while (good.phase !== 'insp') good.step(0.005, false);
+  good.requestHold('exp');
+  run(good, 14, 0.005);
+  ok('呼吸回数を下げると 3 cmH2O 未満まで減る', good.m.autoPeep < 3,
+    `auto-PEEP=${good.m.autoPeep.toFixed(1)} cmH2O`);
+
+  // 4-3：ARDS で PEEP を上げれば P/F が改善すること
+  const l43 = LS.lessonById('4-3');
+  const low = mk('ards', Object.assign({}, l43.settings));
+  low.sedation = 1.0; low._recomputeDrive();
+  run(low, 600, 0.01);
+  const pfLow = low.pao2 / low.s.fio2;
+  const high = mk('ards', Object.assign({}, l43.settings, { peep: 14 }));
+  high.sedation = 1.0; high._recomputeDrive();
+  run(high, 600, 0.01);
+  const pfHigh = high.pao2 / high.s.fio2;
+  ok('PEEP を上げると P/F が 20 以上改善する', pfHigh > pfLow + 20,
+    `P/F ${pfLow.toFixed(0)} → ${pfHigh.toFixed(0)}`);
+  // PEEP 14 まで開いたあとなら、FiO2 60% でも SpO2 90% 以上を保てること
+  high.s.fio2 = 0.6;
+  run(high, 300, 0.01);
+  ok('PEEP 14 なら FiO2 60% でも SpO2 90% 以上', high.spo2 >= 90,
+    `SpO2=${high.spo2.toFixed(0)}% PaO2=${high.pao2.toFixed(0)}`);
+
+  // 4-4：肺保護の枠（Vt 6 mL/kg・Pplat ≤30・ΔP ≤15）が ARDS で成立すること
+  const l44 = LS.lessonById('4-4');
+  const sc = SCENARIOS.find(s => s.id === 'ards');
+  const pbw = VE.predictedBodyWeight(sc.patient.sex, sc.patient.heightCm);
+  const prot = mk('ards', Object.assign({}, l44.settings, { vt: Math.round(pbw * 6 / 10) * 10, pause: 0.3 }));
+  prot.sedation = 1.0; prot._recomputeDrive();
+  run(prot, 120, 0.005);
+  ok('6 mL/kg なら Pplat 30 以下・ΔP 15 以下に収まる',
+    prot.m.pplat <= 30 && prot.m.dp <= 15,
+    `Pplat=${prot.m.pplat.toFixed(0)} ΔP=${prot.m.dp.toFixed(0)}`);
+
+  // 4-2：低換気の初期設定から、換気量を増やせば PaCO2 が目標域に入ること
+  const l42 = LS.lessonById('4-2');
+  const hypo = mk('postop', Object.assign({}, l42.settings));
+  hypo.sedation = 1.0; hypo._recomputeDrive();
+  run(hypo, 900, 0.01);
+  ok('低換気の初期設定で高 CO2 になる', hypo.paco2 > 50, `PaCO2=${hypo.paco2.toFixed(0)} mmHg`);
+  hypo.s.vt = 480; hypo.s.rr = 14;
+  run(hypo, 900, 0.01);
+  ok('MV を 6.5 以上にすると PaCO2 が目標域に入る',
+    hypo.paco2 >= 33 && hypo.paco2 <= 48 && hypo.m.mv >= 6.5,
+    `PaCO2=${hypo.paco2.toFixed(0)} MV=${hypo.m.mv.toFixed(1)}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

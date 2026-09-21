@@ -15,9 +15,14 @@ struct RootView: View {
         if let controller {
             VentilatorScreen(controller: controller)
         } else {
-            ScenarioListView { scenario, settings in
+            ScenarioListView(onStart: { scenario, settings in
                 self.controller = SimulationController(scenario: scenario, settings: settings)
-            }
+            }, onStartLesson: { lesson in
+                let created = SimulationController(scenario: lesson.scenario,
+                                                   settings: VentilatorSettings())
+                created.startLesson(lesson)
+                self.controller = created
+            })
         }
     }
 }
@@ -25,7 +30,9 @@ struct RootView: View {
 /// 症例を選び、予測体重から初期設定を決めるところまで。
 struct ScenarioListView: View {
     var onStart: (Scenario, VentilatorSettings) -> Void
+    var onStartLesson: (Lesson) -> Void
     @State private var selected: Scenario?
+    @State private var showingCourse = false
 
     var body: some View {
         NavigationStack {
@@ -34,6 +41,21 @@ struct ScenarioListView: View {
                     Text("教育用です。実在の人工呼吸器の動作を簡略化したモデルであり、表示される数値も実機・実患者とは異なります。臨床判断には使用しないでください。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+                Section {
+                    Button { showingCourse = true } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(LessonLibrary.chapters.count) 章 \(LessonLibrary.all.count) レッスン")
+                                .font(.caption2).foregroundStyle(.secondary)
+                            Text("学習コースを始める").font(.headline)
+                            Text("基礎 → 初期設定 → モード → 血液ガス → トラブル → 離脱")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("はじめての方へ")
+                } footer: {
+                    Text("波形の読み方から血液ガス、離脱までを、実機の画面を操作しながら順に覚えられます。")
                 }
                 Section("症例を選ぶ") {
                     ForEach(ScenarioLibrary.all) { scenario in
@@ -53,6 +75,9 @@ struct ScenarioListView: View {
                     selected = nil
                     onStart(scenario, settings)
                 }
+            }
+            .sheet(isPresented: $showingCourse) {
+                LessonCourseView { onStartLesson($0) }
             }
         }
     }

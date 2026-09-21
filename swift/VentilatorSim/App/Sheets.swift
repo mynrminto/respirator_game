@@ -69,7 +69,16 @@ struct WeaningSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if let elapsed = controller.sbtElapsed {
+                if let result = controller.extubation {
+                    Section("抜管の結果") {
+                        Text(result.succeeded
+                             ? "抜管後も呼吸回数と酸素化は安定しています。酸素投与を続けながら経過を見ます。"
+                             : "抜管後まもなく呼吸努力が強まり、酸素化が悪化しました。再挿管が必要です。")
+                            .font(.callout)
+                        LabeledContent("離脱条件", value: "\(result.metCriteria) / \(result.totalCriteria) 項目")
+                        LabeledContent("SBT", value: result.passedSBT ? "完遂" : "未実施または失敗")
+                    }
+                } else if let elapsed = controller.sbtElapsed, !controller.sbtFinished {
                     Section("SBT 実施中") {
                         LabeledContent("経過", value: "\(Int(elapsed / 60)) 分 / 目標 30 分")
                         LabeledContent("RSBI", value: controller.engine.measured.rsbi
@@ -104,6 +113,17 @@ struct WeaningSheet: View {
                         }
                         Button("SBT を開始（CPAP のみ）") {
                             controller.beginSBT(mode: .cpap); dismiss()
+                        }
+                    }
+                    if controller.sbtFinished {
+                        Section("SBT の結果") {
+                            Text(controller.sbtPassed
+                                 ? "30 分の自発呼吸トライアルを完遂しました。抜管を検討できます。"
+                                 : "SBT は中止になりました。理由：\(controller.sbtFailureReason ?? "―")")
+                                .font(.callout)
+                            if controller.sbtPassed {
+                                Button("抜管する") { controller.extubate(); dismiss() }
+                            }
                         }
                     }
                 }

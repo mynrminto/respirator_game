@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  var E = window.VentEngine, SC = window.VentScenarios;
+  var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons;
   var $ = function (id) { return document.getElementById(id); };
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
@@ -24,7 +24,8 @@
     extubated: null,
     lastPhase: 'exp',
     loopCur: null, loopLast: null,
-    banner: null
+    banner: null,
+    lesson: null             // 学習コース実行中の状態。null ならフリー操作。
   };
 
   var SWEEP_SEC = 8, SAMPLE_DT = 0.02;
@@ -105,13 +106,14 @@
   function boot() {
     buildVals();
     loadScenario(SC.SCENARIOS[0], false);
-    buildTabs(); bindHard(); bindKnob();
+    buildTabs(); bindHard(); bindKnob(); bindCoach();
     window.addEventListener('resize', fitAll);
     requestAnimationFrame(frame);
     setTimeout(function () { openDisclaimer(true); }, 350);
   }
 
-  function loadScenario(sc, showSetup) {
+  function loadScenario(sc, showSetup, keepLesson) {
+    if (!keepLesson) endLesson(false);
     S.scen = sc;
     var st = E.defaultSettings(), sg = sc.suggested;
     for (var k in sg) if (Object.prototype.hasOwnProperty.call(sg, k)) st[k] = sg[k];
@@ -159,6 +161,7 @@
     if (S.eng._note) S.eng._note('モード変更: ' + id);
     S.sel = null; S.pend = null;
     buildKeys(); syncTabs(); paintDial();
+    lessonEvent('mode:' + id);
   }
 
   /* ===================== 計測値タイル ===================== */
@@ -324,12 +327,12 @@
 
   /* ===================== ハードキー ===================== */
   function bindHard() {
-    $('kInsp').onclick = function () { S.eng.requestHold('insp'); };
-    $('kExp').onclick = function () { S.eng.requestHold('exp'); };
+    $('kInsp').onclick = function () { S.eng.requestHold('insp'); lessonEvent('hold:insp'); };
+    $('kExp').onclick = function () { S.eng.requestHold('exp'); lessonEvent('hold:exp'); };
     $('kO2').onclick = function () {
       var s = S.eng.s, prev = s.fio2;
       if (prev === 1.0) return;
-      s.fio2 = 1.0; paintKeys(); paintDial(); flash($('kO2'));
+      s.fio2 = 1.0; paintKeys(); paintDial(); flash($('kO2')); lessonEvent('o2100');
       setTimeout(function () { if (S.eng.s === s && s.fio2 === 1.0) { s.fio2 = prev; paintKeys(); paintDial(); } }, 6000);
     };
     $('kSuc').onclick = suction;
@@ -346,6 +349,7 @@
     };
     $('kAbg').onclick = abgKey;
     $('kWean').onclick = openWeaning;
+    $('kLearn').onclick = openCourse;
     $('kMenu').onclick = openMenu;
     $('btnSil').onclick = function () {
       S.silenceUntil = S.silenceUntil > S.eng.clock ? -1 : S.eng.clock + 120;
@@ -362,6 +366,7 @@
     e.p.Rexp = Math.max(5, e.p.Rexp * 0.90);
     if (e._recomputeMechanics) e._recomputeMechanics();
     if (e._note) e._note('気管吸引を実施');
+    lessonEvent('suction');
     S.banner = { t: e.clock, msg: '吸引後：一時的に酸素化が低下します' };
     flash($('kSuc'));
   }
@@ -372,6 +377,7 @@
     S.abgPending = { readyAt: S.eng.clock + 120 };
     $('kAbg').textContent = '採血中…';
     $('kAbg').classList.add('on');
+    lessonEvent('abg:order');
   }
   function abgTick() {
     if (!S.abgPending || S.eng.clock < S.abgPending.readyAt) return;
@@ -392,6 +398,7 @@
     S.sel = null; S.pend = null;
     buildKeys(); syncTabs(); paintDial();
     if (e._note) e._note('SBT 開始（PS 5 / PEEP 5）');
+    lessonEvent('sbt:start');
   }
   function restoreSettings() {
     if (!S.sbtSaved) return;
@@ -467,9 +474,9 @@
         S.lastPhase = e.phase;
       }
       trendTick(simSec);
-      abgTick(); sbtTick();
+      abgTick(); sbtTick(); lessonTick(simSec);
     }
-    paintVals(); paintStatus();
+    paintVals(); paintStatus(); paintCoach();
     if (S.screen === 'wave') drawScope();
     else if (S.screen === 'loops') drawLoops();
     else drawTrend();
@@ -773,8 +780,23 @@
   }
 
   function openCases(firstRun) {
-    modal('症例を選ぶ', function (b, close) {
-      b.appendChild(el('p', '', '症例ごとに肺の硬さ・気道抵抗・シャント・呼吸ドライブが異なります。設定を変えると波形と血液ガスがその場で応答します。'));
+    modal(firstRun ? '始め方を選ぶ' : '症例を選ぶ', function (b, close) {
+      if (firstRun) {
+        b.appendChild(el('p', '', '呼吸器を触るのが初めてなら、学習コースから始めてください。'
+          + '波形の読み方から血液ガス、離脱までを、実機の画面を操作しながら順に覚えられます。'));
+        var lead = el('button', 'case');
+        lead.style.borderColor = '#2C8A64';
+        lead.appendChild(el('i', '', '6 章 19 レッスン'));
+        lead.appendChild(el('b', '', '学習コースを始める'));
+        lead.appendChild(el('span', '', '基礎 → 初期設定 → モード → 血液ガス → トラブル → 離脱'));
+        lead.onclick = function () { close(); openCourse(); };
+        b.appendChild(lead);
+        var sep = el('p', 'note', 'すでに慣れている場合は、症例を選んで自由に操作できます。');
+        sep.style.marginTop = '12px';
+        b.appendChild(sep);
+      } else {
+        b.appendChild(el('p', '', '症例ごとに肺の硬さ・気道抵抗・シャント・呼吸ドライブが異なります。設定を変えると波形と血液ガスがその場で応答します。'));
+      }
       var g = el('div', 'grid2');
       SC.SCENARIOS.forEach(function (sc) {
         var c = el('button', 'case');
@@ -863,6 +885,7 @@
 
   function openWeaning() {
     var e = S.eng;
+    lessonEvent('weaning:open');
     if (e.extubated) { openDebrief(); return; }
     modal('離脱（weaning）', function (b, close) {
       var list = SC.weaningReadiness(e);
@@ -936,6 +959,7 @@
     e.extubated = true;
     S.extubated = { ok: ok, nOk: nOk, total: list.length, sbtPass: sbtPass };
     if (e._note) e._note(ok ? '抜管（成功）' : '抜管（再挿管）');
+    lessonEvent('extubate');
     modal(ok ? '抜管：成功' : '抜管：再挿管', function (b, close) {
       if (ok) {
         b.appendChild(el('p', '', '抜管後も呼吸回数と酸素化は安定しています。酸素投与を続けながら経過を見ます。'));
@@ -1045,6 +1069,7 @@
       [['症例を選ぶ', function () { close(); openCases(false); }],
        ['初期設定をやり直す', function () { close(); openSetup(); }],
        ['この症例を最初から', function () { close(); loadScenario(S.scen, false); }],
+       ['学習コース', function () { close(); openCourse(); }],
        ['振り返り', function () { close(); openDebrief(); }],
        ['免責事項', function () { close(); openDisclaimer(false); }]
       ].forEach(function (p) {
@@ -1054,8 +1079,254 @@
         g.appendChild(c);
       });
       b.appendChild(g);
-      var n = el('p', 'note', '「× 1 / × 10 / × 60」はシミュレーター側の早送りです（× 1 が実時間）。血液ガスは採血から 2 分後に返ります。');
+      var n = el('p', 'note', '「学習コース」は呼吸器の操作を 1 から順に学ぶモードです。'
+        + '「× 1 / × 10 / × 60」はシミュレーター側の早送りで（× 1 が実時間）、血液ガスは採血から 2 分後に返ります。');
       n.style.marginTop = '10px'; b.appendChild(n);
+    });
+  }
+
+  /* ===================== 学習コース ===================== */
+  /* 帯は機器の画面の下に出す。実機の操作をそのまま課題にするので、モーダルでは塞がない。 */
+
+  var DONE_KEY = 'ventsim.lessons.done.v1';
+
+  function doneSet() {
+    try {
+      var raw = window.localStorage.getItem(DONE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (err) { return []; }
+  }
+  function markDone(id) {
+    try {
+      var d = doneSet();
+      if (d.indexOf(id) < 0) { d.push(id); window.localStorage.setItem(DONE_KEY, JSON.stringify(d)); }
+    } catch (err) { /* プライベートブラウズなどでは記録できない。進行自体は続けられる。 */ }
+  }
+
+  function lessonCtx() {
+    var e = S.eng;
+    return {
+      e: e, s: e.s, m: e.m, pbw: e.p.pbw,
+      abgs: S.abgs, lastAbg: S.abgs.length ? S.abgs[S.abgs.length - 1] : null,
+      sbt: S.sbt, mem: null
+    };
+  }
+
+  function startLesson(id) {
+    var lesson = LS.lessonById(id);
+    if (!lesson) return;
+    var sc = SC.SCENARIOS.filter(function (x) { return x.id === lesson.scenario; })[0] || SC.SCENARIOS[0];
+    loadScenario(sc, false, true);
+    var st = lesson.settings || {};
+    for (var k in st) if (Object.prototype.hasOwnProperty.call(st, k)) S.eng.s[k] = st[k];
+    if (lesson.sedation != null) S.eng.sedation = lesson.sedation;
+    S.eng._recomputeDrive();
+    S.screen = 'wave';
+    S.lesson = {
+      id: id, lesson: lesson, chap: LS.chapterOf(id),
+      rt: new LS.Runtime(lesson), mode: 'task', sig: ''
+    };
+    $('coach').hidden = false;
+    $('coach').classList.remove('collapsed');
+    $('kLearn').classList.add('on');
+    buildKeys(); syncTabs(); paintDial(); fitAll();
+    openBrief();
+  }
+
+  function endLesson(silent) {
+    if (!S.lesson) return;
+    S.lesson = null;
+    $('coach').hidden = true;
+    $('kLearn').classList.remove('on');
+    if (!silent) fitAll();
+  }
+
+  function lessonEvent(name) {
+    var L = S.lesson;
+    if (!L || L.mode !== 'task') return;
+    var r = L.rt.fire(name, lessonCtx());
+    if (r) afterAdvance(r);
+  }
+
+  function lessonTick(simSec) {
+    var L = S.lesson;
+    if (!L || L.mode !== 'task') return;
+    var r = L.rt.poll(lessonCtx(), simSec);
+    if (r) afterAdvance(r);
+  }
+
+  function afterAdvance(r) {
+    var L = S.lesson;
+    if (r.finished) { markDone(L.id); L.mode = 'done'; }
+    else L.mode = 'feedback';
+    L.fb = r.why || '';
+    L.sig = '';
+  }
+
+  function bindCoach() {
+    $('cToggle').onclick = function () {
+      var c = $('coach');
+      c.classList.toggle('collapsed');
+      $('cToggle').textContent = c.classList.contains('collapsed') ? '▸' : '▾';
+      fitAll();
+    };
+    $('cBrief').onclick = openBrief;
+    $('cQuit').onclick = function () { endLesson(false); };
+  }
+
+  /* 課題・解説・クイズの描画。毎フレーム呼ばれるので、中身が変わったときだけ差し替える。 */
+  function paintCoach() {
+    var L = S.lesson;
+    if (!L) return;
+    var rt = L.rt, t = rt.task();
+    var say = '', hint = '', choices = null, tone = '';
+
+    if (L.mode === 'done') {
+      say = 'このレッスンは終わりです。' + (rt.wrong ? '' : 'クイズは全問一度で正解でした。');
+      tone = 'ok';
+      choices = { kind: 'end' };
+    } else if (L.mode === 'feedback') {
+      say = L.fb; tone = 'ok';
+      choices = { kind: 'next' };
+    } else if (t) {
+      if (t.quiz) {
+        say = t.quiz.q;
+        choices = { kind: 'quiz', list: t.quiz.choices };
+        if (rt.feedback && rt.feedback.ok === false) { hint = rt.feedback.text; tone = ''; }
+      } else {
+        say = typeof t.say === 'function' ? t.say(rt.bind(lessonCtx())) : (t.say || '');
+        hint = typeof t.hint === 'function' ? t.hint(rt.bind(lessonCtx())) : (t.hint || '');
+      }
+    }
+
+    var pr = rt.progress();
+    var sig = L.mode + '|' + rt.index + '|' + say + '|' + hint + '|' + tone
+      + '|' + (choices ? choices.kind + (choices.list ? choices.list.length : '') : '-')
+      + '|' + rt.answered;
+    if (sig !== L.sig) {
+      L.sig = sig;
+      $('cTitle').textContent = L.lesson.title;
+      $('cChap').textContent = L.chap.tag + '　' + (pr.done + (L.mode === 'done' ? 0 : 1)) + ' / ' + pr.total;
+      var dots = $('cDots'); dots.innerHTML = '';
+      for (var i = 0; i < pr.total; i++) {
+        var d = el('span');
+        if (i < rt.index) d.className = 'on';
+        else if (i === rt.index && L.mode === 'task') d.className = 'cur';
+        dots.appendChild(d);
+      }
+      var sayN = $('cSay');
+      sayN.textContent = say;
+      sayN.className = 'csay' + (tone ? ' ' + tone : '');
+      var hn = $('cHint'); hn.textContent = hint; hn.hidden = !hint;
+      paintChoices(choices);
+    }
+
+    var prog = $('cProg');
+    var needBar = L.mode === 'task' && t && t.hold;
+    prog.hidden = !needBar;
+    if (needBar) $('cProgBar').style.width = Math.round(rt.holdRatio() * 100) + '%';
+  }
+
+  function paintChoices(choices) {
+    var box = $('cChoices');
+    box.innerHTML = '';
+    if (!choices) { box.hidden = true; return; }
+    box.hidden = false;
+    var L = S.lesson, rt = L.rt;
+    if (choices.kind === 'quiz') {
+      choices.list.forEach(function (label, i) {
+        var b = el('button', '', label);
+        if (rt.feedback && rt.feedback.ok === false && rt.answered === i) b.className = 'ng';
+        b.onclick = function () {
+          var r = rt.answer(i, lessonCtx());
+          if (r && r.ok) afterAdvance(r); else L.sig = '';
+        };
+        box.appendChild(b);
+      });
+    } else if (choices.kind === 'next') {
+      var n = el('button', 'cbtn go', '次へ');
+      n.style.flex = '0 0 auto';
+      n.onclick = function () { L.mode = 'task'; L.sig = ''; };
+      box.appendChild(n);
+    } else {
+      var nid = LS.nextLessonId(L.id);
+      if (nid) {
+        var nb = el('button', 'cbtn go', '次のレッスンへ');
+        nb.style.flex = '0 0 auto';
+        nb.onclick = function () { startLesson(nid); };
+        box.appendChild(nb);
+      }
+      var cb = el('button', 'cbtn', 'コース一覧');
+      cb.style.flex = '0 0 auto';
+      cb.onclick = openCourse;
+      box.appendChild(cb);
+      var fb = el('button', 'cbtn', 'この症例を自由に操作する');
+      fb.style.flex = '0 0 auto';
+      fb.onclick = function () { endLesson(false); };
+      box.appendChild(fb);
+    }
+  }
+
+  /* レッスンの解説。読んでから操作に入るので、ここだけはダイアログにする。 */
+  function openBrief() {
+    var L = S.lesson;
+    if (!L) return;
+    var l = L.lesson;
+    modal(l.title, function (b, close) {
+      b.appendChild(el('p', 'note', L.chap.title + '　／　目安 ' + l.minutes + ' 分'));
+      l.brief.forEach(function (t) { b.appendChild(el('p', '', t)); });
+      if (l.points && l.points.length) {
+        var tip = el('div', 'tip');
+        tip.innerHTML = '<b>このレッスンで覚えること</b><br>・' + l.points.join('<br>・');
+        b.appendChild(tip);
+      }
+      var r = el('div', 'mrow');
+      var go = el('button', 'mbtn go', '操作に進む');
+      go.onclick = close;
+      r.appendChild(go); b.appendChild(r);
+    });
+  }
+
+  function openCourse() {
+    var done = doneSet();
+    modal('学習コース', function (b, close) {
+      b.appendChild(el('p', '', '呼吸器の操作を、実機の画面を触りながら順に覚えていくコースです。'
+        + '各レッスンは短い解説と、画面上での操作課題・クイズで組み立ててあります。上から順に進めるのが基本です。'));
+      var n = LS.allLessons().length;
+      var pr = el('div', 'tip');
+      pr.textContent = '修了 ' + done.filter(function (id) { return LS.lessonById(id); }).length + ' / ' + n + ' レッスン';
+      b.appendChild(pr);
+      LS.CHAPTERS.forEach(function (ch) {
+        var h = el('div', 'chapline', ch.title);
+        h.appendChild(el('span', '', ch.sub));
+        b.appendChild(h);
+        var g = el('div', 'grid2');
+        ch.lessons.forEach(function (l) {
+          var c = el('button', 'lesson');
+          var fin = done.indexOf(l.id) >= 0;
+          c.appendChild(el('span', 'mk ' + (fin ? 'y' : 'n'), fin ? '✓' : ''));
+          var t = el('div', 'lt');
+          t.appendChild(el('b', '', l.title));
+          t.appendChild(el('span', '', '目安 ' + l.minutes + ' 分'));
+          c.appendChild(t);
+          c.onclick = function () { close(); startLesson(l.id); };
+          g.appendChild(c);
+        });
+        b.appendChild(g);
+      });
+      var r = el('div', 'mrow');
+      var free = el('button', 'mbtn', 'フリー操作に戻る');
+      free.onclick = function () { close(); endLesson(false); };
+      r.appendChild(free);
+      if (done.length) {
+        var rs = el('button', 'mbtn warn', '進捗を消す');
+        rs.onclick = function () {
+          try { window.localStorage.removeItem(DONE_KEY); } catch (err) { /* 無視 */ }
+          close(); openCourse();
+        };
+        r.appendChild(rs);
+      }
+      b.appendChild(r);
     });
   }
 
