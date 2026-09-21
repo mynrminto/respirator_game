@@ -329,7 +329,7 @@
     letter-spacing:.1em;color:#3B2A00;background:var(--paw);padding:3px 12px;border-radius:999px}
 
   /* ============ ダイアログ ============ */
-  .modal{position:fixed;inset:0;z-index:80;background:var(--modal-back);display:flex;align-items:center;
+  .modal{position:fixed;inset:0;z-index:100;background:var(--modal-back);display:flex;align-items:center;
     justify-content:center;padding:12px;animation:fadein .16s ease-out}
   @keyframes fadein{from{opacity:0}to{opacity:1}}
   .mbox{background:var(--panel);border:2px solid var(--br);border-radius:var(--r-l);
@@ -349,7 +349,7 @@
   .mbody{padding:14px}
   .mbody p{margin:0 0 10px;color:var(--dim);font-size:12.5px;line-height:1.7}
   .mbody p b{color:var(--ink)}
-  .grid2{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .grid2{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(196px,1fr))}
   .row{display:flex;align-items:center;gap:9px;padding:9px 11px;background:var(--panel2);border:1.5px solid var(--br);
     border-radius:var(--r-m);font-size:12.5px}
   .row .rv{margin-left:auto;font-family:var(--num);color:var(--dim);font-weight:600}
@@ -388,6 +388,13 @@
   .case:hover{border-color:var(--accent)}
   .case:active{transform:translateY(2px)}
   .case b{font-size:13.5px;font-weight:800} .case span{font-size:11.5px;color:var(--dim);line-height:1.5}
+  .case .face{width:46px;height:46px;border-radius:50%;overflow:hidden;background:#EEF3FF;flex:none}
+  .casehead{display:flex;align-items:center;gap:10px}
+  .casehead .ct{flex:1;min-width:0}
+  .casehead .ct i,.casehead .ct b{display:block}
+  .mrow .em, .menuitem .em{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+    background:var(--accent);color:#fff;font-size:14px}
+  .menuitem{display:flex;align-items:center;gap:10px}
   .case i{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--accent2)}
   :root[data-theme="device"] .case{background:#0F1318;border-width:1px;border-color:var(--br)}
   :root[data-theme="device"] .case i{font-family:var(--num);color:var(--faint);font-weight:400;letter-spacing:.1em}
@@ -424,6 +431,66 @@
   .bigprog .pct{font-family:var(--num);font-size:19px;font-weight:700;flex:none}
   :root[data-theme="device"] .bigprog .bar i{background:var(--flow)}
 
+  /* ---- キャラクター ---- */
+  .chr{display:block;width:100%;height:100%}
+  .mascot .puku{transform-origin:60px 70px;animation:puku 3.6s ease-in-out infinite}
+  @keyframes puku{0%,100%{transform:scale(.94)}42%{transform:scale(1.06)}}
+  @media (prefers-reduced-motion:reduce){.mascot .puku{animation:none}}
+
+  /* 学習帯の先生 */
+  .crow{display:flex;gap:9px;align-items:flex-start}
+  .cav{flex:none;width:40px;height:40px;border-radius:50%;overflow:hidden;background:#EAFBF4;
+    border:2px solid var(--chap);margin-top:1px}
+  .cav .chr{transform:scale(1.35) translateY(6%)}
+  .ctext{flex:1;min-width:0}
+  :root[data-theme="device"] .cav{background:#0F1B18;border-color:#1F4639}
+  @media(max-width:420px){.cav{width:32px;height:32px}}
+
+  /* ---- タイトル画面 ---- */
+  .title{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:12px;
+    background:var(--deck);overflow:auto}
+  /* display を指定しているので、hidden を効かせる指定が要る。 */
+  .title[hidden]{display:none}
+  .tstage{width:min(520px,100%);display:flex;flex-direction:column;align-items:center;gap:10px;
+    padding:14px 16px 16px;border-radius:26px;background:var(--panel);border:3px solid var(--br);
+    box-shadow:0 14px 40px rgba(120,80,140,.18)}
+  :root[data-theme="device"] .tstage{border-color:var(--br);box-shadow:0 14px 40px #000}
+  .tcast{display:flex;align-items:flex-end;justify-content:center;gap:2px;width:100%;height:clamp(96px,17vh,150px)}
+  .tchar{height:100%;aspect-ratio:1;flex:none}
+  .tchar.c1{height:72%;opacity:.95;transform:translateY(4%) rotate(-3deg)}
+  .tchar.c2{height:82%;transform:translateY(-4%)}
+  .tchar.c3{height:100%}
+  @media(max-width:420px){.tchar.c1{display:none}}
+  .tlogoart{display:block;width:min(300px,86%);height:auto;margin:0 auto}
+  .tsub{font-size:12.5px;font-weight:700;color:var(--dim);letter-spacing:.04em;margin-top:-4px}
+  .tsay{position:relative;font-size:12.5px;line-height:1.6;color:var(--ink);text-align:center;
+    background:var(--panel2);border:2px solid var(--br);border-radius:16px;padding:9px 14px;max-width:100%}
+  .tsay::after{content:"";position:absolute;left:50%;top:-9px;transform:translateX(-50%) rotate(45deg);
+    width:14px;height:14px;background:var(--panel2);border-left:2px solid var(--br);border-top:2px solid var(--br)}
+  .tmenu{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:2px}
+  .tbtn{display:flex;align-items:center;gap:11px;text-align:left;padding:11px 14px;border-radius:16px;
+    background:var(--panel2);border:2px solid var(--br);box-shadow:0 3px 0 var(--key-lip);
+    color:var(--ink);transition:transform .06s, box-shadow .06s}
+  .tbtn:active{transform:translateY(3px);box-shadow:none}
+  .tbtn .em{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+    background:var(--chap);color:#fff;font-size:15px}
+  .tbtn b{display:block;font-size:14px;font-weight:800;line-height:1.3}
+  .tbtn i{display:block;font-style:normal;font-size:11.5px;color:var(--dim);margin-top:1px}
+  .tbtn.go{background:linear-gradient(120deg,#FFF0F4,#FFF8E8 60%,#EDF4FF);border-color:var(--accent)}
+  .tbtn.go .em{background:var(--accent)}
+  :root[data-theme="device"] .tbtn{box-shadow:none;border-radius:4px}
+  :root[data-theme="device"] .tbtn.go{background:#0F2A20;border-color:#2C8A64}
+  :root[data-theme="device"] .tbtn:active{transform:none}
+  .tfoot{display:flex;align-items:center;gap:10px;width:100%;margin-top:2px}
+  .tprog{flex:1;height:10px;border-radius:999px;background:var(--br);overflow:hidden}
+  .tprog i{display:block;height:100%;width:0;border-radius:999px;
+    background:linear-gradient(90deg,#FF5E8A,#FFB020 45%,#12C48B)}
+  .tpct{font-family:var(--num);font-size:14px;font-weight:700;color:var(--dim)}
+  @media(max-height:620px){
+    .tcast{height:84px}.tsay{display:none}.tstage{gap:7px;padding:10px 12px 12px}
+    .tbtn{padding:8px 12px}.tbtn i{display:none}
+  }
+
   /* ---- 達成の演出 ---- */
   #fx{position:fixed;inset:0;pointer-events:none;z-index:120;overflow:hidden}
   #fx i{position:absolute;width:9px;height:14px;border-radius:2px;will-change:transform,opacity;
@@ -433,9 +500,11 @@
     100%{transform:translate3d(var(--dx),var(--dy),0) rotate(var(--rot));opacity:0}
   }
   .toast{position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:130;pointer-events:none;
+    display:flex;align-items:center;gap:10px;
     background:linear-gradient(135deg,#FF5E8A,#FFB020);color:#fff;font-weight:800;font-size:15px;
-    padding:12px 24px;border-radius:999px;box-shadow:0 10px 30px rgba(190,60,110,.35);
+    padding:8px 20px 8px 8px;border-radius:999px;box-shadow:0 10px 30px rgba(190,60,110,.35);
     animation:toast 1.9s ease-out forwards}
+  .toast .tface{width:38px;height:38px;border-radius:50%;overflow:hidden;flex:none;background:#fff}
   @keyframes toast{
     0%{opacity:0;transform:translate(-50%,10px) scale(.9)}
     12%{opacity:1;transform:translate(-50%,0) scale(1)}
@@ -474,10 +543,15 @@
       <button class="cbtn" id="cQuit">終了</button>
     </div>
     <div class="cbody">
-      <div class="csay" id="cSay">—</div>
-      <div class="chint" id="cHint" hidden></div>
-      <div class="cchoices" id="cChoices" hidden></div>
-      <div class="cprog" id="cProg" hidden><i id="cProgBar"></i></div>
+      <div class="crow">
+        <div class="cav" id="cAv"></div>
+        <div class="ctext">
+          <div class="csay" id="cSay">—</div>
+          <div class="chint" id="cHint" hidden></div>
+          <div class="cchoices" id="cChoices" hidden></div>
+          <div class="cprog" id="cProg" hidden><i id="cProgBar"></i></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -511,9 +585,29 @@
   </div>
 </div>
 
+<div id="title" class="title" hidden>
+  <div class="tstage">
+    <div class="tcast">
+      <div class="tchar c1" id="tPatient"></div>
+      <div class="tchar c2" id="tMascot"></div>
+      <div class="tchar c3" id="tDoctor"></div>
+    </div>
+    <div class="tlogo" id="tLogo"></div>
+    <div class="tsub">人工呼吸器シミュレーター</div>
+    <div class="tsay" id="tSay">はじめまして。わたしは みどり先生。<br>いっしょに呼吸器を動かしてみましょう。</div>
+    <div class="tmenu" id="tMenu"></div>
+    <div class="tfoot">
+      <div class="tprog"><i id="tProgBar"></i></div>
+      <span class="tpct" id="tPct">0%</span>
+      <button class="chip theme" id="tTheme">ポップ</button>
+    </div>
+  </div>
+</div>
+
 <div id="fx"></div>
 <div id="modals"></div>
 
+<script src="characters.js"></script>
 <script src="engine.js"></script>
 <script src="scenarios.js"></script>
 <script src="lessons.js"></script>

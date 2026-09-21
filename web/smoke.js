@@ -23,14 +23,14 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     });
     await p.goto(FILE);
     await p.waitForTimeout(900);
-    await p.screenshot({ path: `${SHOT}/${vp.n}-0-disclaimer.png` });
-    await p.getByRole('button', { name: '同意して始める' }).click();
+    // タイトル画面 → コースを選ぶ → 免責に同意
+    await p.screenshot({ path: `${SHOT}/${vp.n}-0-title.png` });
+    await p.getByRole('button', { name: /コースを選ぶ/ }).click();
     await p.waitForTimeout(300);
-    await p.screenshot({ path: `${SHOT}/${vp.n}-1-start.png` });
-
-    /* ---------- 学習コース ---------- */
-    await p.getByRole('button', { name: '学習コースを始める' }).click();
+    await p.screenshot({ path: `${SHOT}/${vp.n}-1-disclaimer.png` });
+    await p.getByRole('button', { name: '同意して始める' }).click();
     await p.waitForTimeout(400);
+    console.log(vp.n, 'タイトルが消えた:', await p.locator('#title').isHidden());
     await p.screenshot({ path: `${SHOT}/${vp.n}-2-course.png` });
 
     // 1-2「PIP と Pplat」を開く。解説 → 操作 → 課題の進行を確かめる。
@@ -109,7 +109,7 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     /* ---------- フリー操作（従来どおり動くこと） ---------- */
     await p.locator('#kMenu').click();
     await p.waitForTimeout(250);
-    await p.getByRole('button', { name: '症例を選ぶ' }).click();
+    await p.getByRole('button', { name: /症例を選ぶ/ }).click();
     await p.waitForTimeout(250);
     await p.locator('.case').nth(1).click();          // ARDS
     await p.waitForTimeout(350);

@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons;
+  var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons, CH = window.VentChars;
   var $ = function (id) { return document.getElementById(id); };
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
@@ -86,7 +86,11 @@
   }
 
   function toast(msg) {
-    var t = el('div', 'toast', msg);
+    var t = el('div', 'toast');
+    var face = el('span', 'tface');
+    face.innerHTML = CH.doctor('happy', { disc: '#FFFFFF' });
+    t.appendChild(face);
+    t.appendChild(el('span', '', msg));
     document.body.appendChild(t);
     setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 2000);
   }
@@ -203,10 +207,105 @@
     buildVals();
     loadScenario(SC.SCENARIOS[0], false);
     buildTabs(); bindHard(); bindKnob(); bindCoach();
+    buildTitle();
     window.addEventListener('resize', fitAll);
     requestAnimationFrame(frame);
-    setTimeout(function () { openDisclaimer(true); }, 350);
+    showTitle();
   }
+
+  /* ===================== タイトル画面 =====================
+   * ゲームらしく、キャラクターと進み具合を出してから始める。
+   * 免責は初回の「はじめる」で一度だけ出し、以後はメニューから読める。 */
+  var AGREE_KEY = 'ventsim.agreed.v1';
+
+  function agreed() {
+    try { return window.localStorage.getItem(AGREE_KEY) === '1'; } catch (err) { return false; }
+  }
+  function setAgreed() {
+    try { window.localStorage.setItem(AGREE_KEY, '1'); } catch (err) { /* 記録できなくても進める */ }
+  }
+
+  function firstUndoneLesson() {
+    var done = doneSet(), list = LS.allLessons();
+    for (var i = 0; i < list.length; i++) {
+      if (done.indexOf(list[i].lesson.id) < 0) return list[i];
+    }
+    return null;
+  }
+
+  function buildTitle() {
+    $('tLogo').innerHTML = CH.logo();
+    $('tDoctor').innerHTML = CH.doctor('happy');
+    $('tMascot').innerHTML = CH.mascot('happy');
+    $('tPatient').innerHTML = CH.patient('ok');
+    $('tTheme').onclick = function () {
+      applyTheme(currentTheme() === 'pop' ? 'device' : 'pop', true);
+    };
+  }
+
+  /* 免責に同意してから中身へ進む。初回だけダイアログを挟む。 */
+  function enter(run) {
+    if (agreed()) { hideTitle(); run(); return; }
+    openDisclaimer(true, function () { setAgreed(); hideTitle(); run(); });
+  }
+
+  function buildTitleMenu() {
+    var box = $('tMenu');
+    box.innerHTML = '';
+    var next = firstUndoneLesson();
+    var done = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
+
+    function item(cls, mark, title, sub, fn) {
+      var b = el('button', 'tbtn' + (cls ? ' ' + cls : ''));
+      b.appendChild(el('span', 'em', mark));
+      var t = el('div');
+      t.appendChild(el('b', '', title));
+      if (sub) t.appendChild(el('i', '', sub));
+      b.appendChild(t);
+      b.onclick = fn;
+      box.appendChild(b);
+      return b;
+    }
+
+    if (done > 0 && next) {
+      item('go', '▶', 'つづきから', next.chapter.title + '　' + next.lesson.title, function () {
+        enter(function () { startLesson(next.lesson.id); });
+      });
+      item('', '☰', 'コースを選ぶ', '6 章 19 レッスンから選ぶ', function () {
+        enter(function () { openCourse(); });
+      });
+    } else {
+      item('go', '▶', 'はじめる', '学習コースを 1 から', function () {
+        enter(function () { startLesson(LS.allLessons()[0].lesson.id); });
+      });
+      item('', '☰', 'コースを選ぶ', '6 章 19 レッスンから選ぶ', function () {
+        enter(function () { openCourse(); });
+      });
+    }
+    item('', '✚', '症例で練習', '5 症例を自由に操作する', function () {
+      enter(function () { openCases(); });
+    });
+    item('', '?', 'この教材について', '免責事項とモデルの説明', function () {
+      openDisclaimer(false);
+    });
+  }
+
+  function showTitle() {
+    buildTitleMenu();
+    var n = LS.allLessons().length;
+    var d = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
+    var pct = Math.round(d / n * 100);
+    $('tProgBar').style.width = pct + '%';
+    $('tPct').textContent = pct + '%';
+    $('tSay').innerHTML = d === 0
+      ? 'はじめまして。わたしは みどり先生。<br>いっしょに呼吸器を動かしてみましょう。'
+      : (d >= n ? '全レッスン修了、おみごとです。<br>症例で腕を試してみましょう。'
+                : 'おかえりなさい。<br>ここまで ' + d + ' / ' + n + ' レッスン。つづきからどうぞ。');
+    $('tDoctor').innerHTML = CH.doctor(d >= n ? 'happy' : 'normal');
+    $('title').hidden = false;
+  }
+
+  function hideTitle() { $('title').hidden = true; fitAll(); }
 
   function loadScenario(sc, showSetup, keepLesson) {
     if (!keepLesson) endLesson(false);
@@ -865,7 +964,7 @@
     return back;
   }
 
-  function openDisclaimer(first) {
+  function openDisclaimer(first, onAgree) {
     modal('ご利用にあたって', function (b, close) {
       b.innerHTML = '<p>本アプリは人工呼吸管理を学ぶための<b>教育用シミュレーター</b>です。'
         + '実在の医療機器ではなく、表示される数値や反応は学習のために単純化した計算に基づきます。</p>'
@@ -874,39 +973,34 @@
         + 'ガス交換はシャント式と酸素解離曲線、腎性代償は時定数 90 分で近似しています。</p>';
       var r = el('div', 'mrow');
       var ok = el('button', 'mbtn go', first ? '同意して始める' : '閉じる');
-      ok.onclick = function () { close(); if (first) openCases(true); };
+      ok.onclick = function () { close(); if (onAgree) onAgree(); };
       r.appendChild(ok); b.appendChild(r);
     }, { noClose: true });
   }
 
-  function openCases(firstRun) {
-    modal(firstRun ? '始め方を選ぶ' : '症例を選ぶ', function (b, close) {
-      if (firstRun) {
-        b.appendChild(el('p', '', '呼吸器を触るのが初めてなら、学習コースから始めてください。'
-          + '波形の読み方から血液ガス、離脱までを、実機の画面を操作しながら順に覚えられます。'));
-        var lead = el('button', 'case lead');
-        lead.appendChild(el('i', '', '6 章 19 レッスン'));
-        lead.appendChild(el('b', '', '学習コースを始める'));
-        lead.appendChild(el('span', '', '基礎 → 初期設定 → モード → 血液ガス → トラブル → 離脱'));
-        lead.onclick = function () { close(); openCourse(); };
-        b.appendChild(lead);
-        var sep = el('p', 'note', 'すでに慣れている場合は、症例を選んで自由に操作できます。');
-        sep.style.marginTop = '12px';
-        b.appendChild(sep);
-      } else {
-        b.appendChild(el('p', '', '症例ごとに肺の硬さ・気道抵抗・シャント・呼吸ドライブが異なります。設定を変えると波形と血液ガスがその場で応答します。'));
-      }
+  /* 症例の重さ。カードの患者の顔色に使う。 */
+  var PATIENT_TONE = { postop: 'ok', ards: 'bad', copd: 'mid', asthma: 'bad', gbs: 'ok' };
+
+  function openCases() {
+    modal('症例を選ぶ', function (b, close) {
+      b.appendChild(el('p', '', '症例ごとに肺の硬さ・気道抵抗・シャント・呼吸ドライブが異なります。設定を変えると波形と血液ガスがその場で応答します。'));
       var g = el('div', 'grid2');
       SC.SCENARIOS.forEach(function (sc) {
         var c = el('button', 'case');
-        c.appendChild(el('i', '', sc.tag));
-        c.appendChild(el('b', '', sc.title));
+        var head = el('div', 'casehead');
+        var face = el('div', 'face');
+        face.innerHTML = CH.patient(PATIENT_TONE[sc.id] || 'ok');
+        var ct = el('div', 'ct');
+        ct.appendChild(el('i', '', sc.tag));
+        ct.appendChild(el('b', '', sc.title));
+        head.appendChild(face); head.appendChild(ct);
+        c.appendChild(head);
         c.appendChild(el('span', '', sc.oneLine));
         c.onclick = function () { close(); loadScenario(sc, true); };
         g.appendChild(c);
       });
       b.appendChild(g);
-    }, { noClose: !!firstRun });
+    });
   }
 
   function openSetup() {
@@ -1120,7 +1214,7 @@
       }
       var r3 = el('div', 'mrow');
       var again = el('button', 'mbtn go', '別の症例を選ぶ');
-      again.onclick = function () { close(); openCases(false); };
+      again.onclick = function () { close(); openCases(); };
       var back = el('button', 'mbtn', '閉じる'); back.onclick = close;
       r3.appendChild(again); r3.appendChild(back); b.appendChild(r3);
     });
@@ -1165,16 +1259,18 @@
   function openMenu() {
     modal('メニュー', function (b, close) {
       var g = el('div', 'grid2');
-      [['症例を選ぶ', function () { close(); openCases(false); }],
-       ['初期設定をやり直す', function () { close(); openSetup(); }],
-       ['この症例を最初から', function () { close(); loadScenario(S.scen, false); }],
-       ['学習コース', function () { close(); openCourse(); }],
-       ['振り返り', function () { close(); openDebrief(); }],
-       ['免責事項', function () { close(); openDisclaimer(false); }]
+      [['☰', '学習コース', function () { close(); openCourse(); }],
+       ['✚', '症例を選ぶ', function () { close(); openCases(); }],
+       ['⟳', '初期設定をやり直す', function () { close(); openSetup(); }],
+       ['↺', 'この症例を最初から', function () { close(); loadScenario(S.scen, false); }],
+       ['★', '振り返り', function () { close(); openDebrief(); }],
+       ['⌂', 'タイトルへ戻る', function () { close(); endLesson(false); showTitle(); }],
+       ['?', 'この教材について', function () { close(); openDisclaimer(false); }]
       ].forEach(function (p) {
-        var c = el('button', 'case');
-        c.appendChild(el('b', '', p[0]));
-        c.onclick = p[1];
+        var c = el('button', 'case menuitem');
+        c.appendChild(el('span', 'em', p[0]));
+        c.appendChild(el('b', '', p[1]));
+        c.onclick = p[2];
         g.appendChild(c);
       });
       b.appendChild(g);
@@ -1285,6 +1381,17 @@
   }
 
   /* 課題・解説・クイズの描画。毎フレーム呼ばれるので、中身が変わったときだけ差し替える。 */
+  /* 先生の表情。正解や修了では笑い、クイズでは考え、誤答では困る。 */
+  function coachMood(L, t) {
+    if (L.mode === 'done' || L.mode === 'feedback') return 'happy';
+    if (t && t.quiz) {
+      return (L.rt.feedback && L.rt.feedback.ok === false) ? 'sad' : 'think';
+    }
+    var a = S.eng.alarms || [];
+    for (var i = 0; i < a.length; i++) if (a[i].sev === 2) return 'alert';
+    return 'normal';
+  }
+
   function paintCoach() {
     var L = S.lesson;
     if (!L) return;
@@ -1310,11 +1417,13 @@
     }
 
     var pr = rt.progress();
+    var mood = coachMood(L, t);
     var sig = L.mode + '|' + rt.index + '|' + say + '|' + hint + '|' + tone
       + '|' + (choices ? choices.kind + (choices.list ? choices.list.length : '') : '-')
-      + '|' + rt.answered;
+      + '|' + rt.answered + '|' + mood;
     if (sig !== L.sig) {
       L.sig = sig;
+      if (L.mood !== mood) { L.mood = mood; $('cAv').innerHTML = CH.doctor(mood, { disc: true }); }
       $('cTitle').textContent = L.lesson.title;
       $('cChap').textContent = L.chap.tag + '　' + (pr.done + (L.mode === 'done' ? 0 : 1)) + ' / ' + pr.total;
       var dots = $('cDots'); dots.innerHTML = '';
