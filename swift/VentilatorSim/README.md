@@ -23,7 +23,7 @@ App/                        SwiftUI の画面。Xcode の App ターゲットに
   VentSimApp.swift          エントリポイント、症例選択、初期設定
   SimulationController.swift  CADisplayLink で駆動、波形リングバッファ、トレンド、ループ、ダイヤル状態
   VentilatorScreen.swift    人工呼吸器の筐体（ステータス帯・画面・モード・設定キー・ハードキー・ダイヤル）
-  DeviceChrome.swift        筐体の配色と、キーと計測値タイルの部品
+  DeviceChrome.swift        テーマ（ポップ／実機風）の配色と、キー・計測値タイル・修了演出の部品
   WaveformView.swift        Canvas によるスイープ波形、P–V / F–V ループ、トレンド
   KnobView.swift            ロータリーダイヤル（回して「確定」で反映）
   ParameterStepper.swift    モードごとの設定項目の定義と、初期設定画面用のステッパ
@@ -87,3 +87,9 @@ swift test
   途中で止めると、プラトー圧も total PEEP も違う時点の圧を測ってしまうためです。
 - 早送り（× 1 / × 10 / × 60）、血液ガス、離脱、鎮静はシミュレーター側の操作なので、
   機器のキーとは色を分けています。
+- 見た目は 2 通りあり、ステータス帯のボタンで切り替えます（選択は UserDefaults の
+  `ventsim.theme.v1` に残ります）。既定の**ポップ**は明るい筐体に丸いキー、章ごとの色分け、
+  レッスン修了の演出つき。**実機風**はこれまでの黒い筐体です。どちらも機器の画面そのものは
+  暗いままで、波形と計測値のコントラストは変えていません。色と角丸はすべて `Palette`
+  （DeviceChrome.swift）に集めてあり、`Chrome` 経由で読みます。Web 版の CSS カスタム
+  プロパティと同じ並びにしてあるので、片方を直したらもう片方も同じ順で直せます。

@@ -24,9 +24,17 @@ struct VentilatorScreen: View {
         }
         .background(
             LinearGradient(colors: [Chrome.chassisTop, Chrome.chassis],
-                           startPoint: .top, endPoint: .bottom)
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
         )
-        .preferredColorScheme(.dark)
+        .overlay(alignment: .top) {
+            if let message = controller.celebration {
+                CelebrationView(message: message.text) {
+                    controller.clearCelebration(message.id)
+                }
+                .id(message.id)
+            }
+        }
+        .preferredColorScheme(Chrome.colorScheme)
         .persistentSystemOverlays(.hidden)
         .onAppear { controller.start() }
         .onDisappear { controller.stop() }
@@ -48,34 +56,50 @@ struct VentilatorScreen: View {
 
     private var statusBar: some View {
         HStack(spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
+            brandMark
+            Circle().fill(Chrome.good).frame(width: Chrome.isPop ? 9 : 7,
+                                             height: Chrome.isPop ? 9 : 7)
+                .shadow(color: Chrome.good, radius: 3)
+                .accessibilityHidden(true)
+            Text(controller.scenario.patient.name)
+                .font(Chrome.label(11)).foregroundStyle(Chrome.dim)
+                .lineLimit(1)
+            alarmBanner
+            ChipButton(title: controller.isAlarmSilenced ? "消音中" : "消音 2分",
+                       isOn: controller.isAlarmSilenced,
+                       action: controller.toggleAlarmSilence)
+            ChipButton(title: Chrome.kind.label, tint: Chrome.sim) {
+                ThemeStore.shared.toggle()
+            }
+            .accessibilityLabel("見た目を切り替える")
+            Text(controller.wallClock)
+                .font(Chrome.digits(15, weight: .bold)).foregroundStyle(Chrome.dim)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Chrome.bar)
+    }
+
+    /// ポップでは機器名を明るい色で、実機風では従来どおり落ち着いた灰色で出す。
+    private var brandMark: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            if Chrome.isPop {
+                Text("VentaSim")
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(colors: [Color(red: 1.0, green: 0.369, blue: 0.541),
+                                                Color(red: 1.0, green: 0.690, blue: 0.125),
+                                                Color(red: 0.071, green: 0.769, blue: 0.545),
+                                                Color(red: 0.357, green: 0.486, blue: 0.980)],
+                                       startPoint: .leading, endPoint: .trailing))
+            } else {
                 Text("VENTA").font(.system(size: 14, weight: .bold)).kerning(2)
                     .foregroundStyle(Chrome.dim)
                 Text("SIM 5000").font(.system(size: 9)).kerning(1.6)
                     .foregroundStyle(Chrome.faint)
             }
-            Circle().fill(Chrome.good).frame(width: 7, height: 7)
-                .shadow(color: Chrome.good, radius: 3)
-                .accessibilityHidden(true)
-            Text(controller.scenario.patient.name)
-                .font(.system(size: 11)).foregroundStyle(Chrome.dim)
-                .lineLimit(1)
-            alarmBanner
-            Button(action: controller.toggleAlarmSilence) {
-                Text(controller.isAlarmSilenced ? "消音中" : "消音 2分")
-                    .font(.system(size: 11))
-                    .foregroundStyle(controller.isAlarmSilenced ? Chrome.warning : Chrome.dim)
-                    .padding(.horizontal, 9).padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: 3)
-                        .stroke(Chrome.edge, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            Text(controller.wallClock)
-                .font(Chrome.digits(15)).foregroundStyle(Chrome.ink.opacity(0.8))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Chrome.chassisTop)
+        .accessibilityHidden(true)
     }
 
     private var alarmBanner: some View {
@@ -90,13 +114,16 @@ struct VentilatorScreen: View {
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 9)
-        .frame(height: 26)
+        .padding(.horizontal, Chrome.isPop ? 11 : 9)
+        .frame(height: 28)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 3)
-                .fill(severity == 0 ? Chrome.screen : tint.opacity(0.12))
-                .overlay(RoundedRectangle(cornerRadius: 3).stroke(tint.opacity(0.5), lineWidth: 1))
+            RoundedRectangle(cornerRadius: Chrome.isPop ? 999 : 3)
+                .fill(severity == 0 ? (Chrome.isPop ? Chrome.panel2 : Chrome.screen)
+                                    : tint.opacity(Chrome.isPop ? 0.16 : 0.12))
+                .overlay(RoundedRectangle(cornerRadius: Chrome.isPop ? 999 : 3)
+                    .stroke(severity == 0 && Chrome.isPop ? Chrome.line : tint.opacity(0.5),
+                            lineWidth: Chrome.isPop ? 1.5 : 1))
         )
         .opacity(controller.isAlarmSilenced && severity > 0 ? 0.55 : 1)
         .accessibilityLabel("アラーム \(bannerText)")
@@ -129,7 +156,7 @@ struct VentilatorScreen: View {
     // MARK: - 画面
 
     private var screenArea: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: Chrome.isPop ? 2 : 1) {
             ZStack(alignment: .bottomLeading) {
                 switch controller.screen {
                 case .waveforms: scope
@@ -139,25 +166,39 @@ struct VentilatorScreen: View {
                 }
                 if controller.waveformsFrozen && controller.screen == .waveforms {
                     Text("波形停止中")
-                        .font(.system(size: 11)).foregroundStyle(Chrome.pressure)
-                        .padding(.horizontal, 8).padding(.vertical, 2)
-                        .background(RoundedRectangle(cornerRadius: 3)
-                            .stroke(Chrome.pressure.opacity(0.6), lineWidth: 1))
+                        .font(Chrome.label(11, weight: Chrome.isPop ? .bold : .regular))
+                        .foregroundStyle(Chrome.isPop ? Color.black.opacity(0.75) : Chrome.pressure)
+                        .padding(.horizontal, 9).padding(.vertical, 3)
+                        .background(
+                            Group {
+                                if Chrome.isPop {
+                                    Capsule().fill(Chrome.pressure)
+                                } else {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .stroke(Chrome.pressure.opacity(0.6), lineWidth: 1)
+                                }
+                            }
+                        )
                         .padding(8)
                 }
                 if controller.speed.rawValue > 1 {
                     Text("早送り中  \(Int(controller.speed.rawValue))×")
-                        .font(.system(size: 11)).foregroundStyle(Chrome.chassis)
-                        .padding(.horizontal, 10).padding(.vertical, 2)
-                        .background(Chrome.pressure)
+                        .font(Chrome.label(11, weight: .bold))
+                        .foregroundStyle(Color.black.opacity(0.75))
+                        .padding(.horizontal, 12).padding(.vertical, 3)
+                        .background(Capsule().fill(Chrome.pressure))
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.bottom, 0)
                 }
             }
             valueColumn
         }
-        .background(Chrome.line)
-        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .background(Chrome.screenTileLine)
+        .clipShape(RoundedRectangle(cornerRadius: Chrome.cornerLarge))
+        .overlay(
+            RoundedRectangle(cornerRadius: Chrome.cornerLarge)
+                .stroke(Chrome.screenFrame, lineWidth: Chrome.isPop ? 3 : 1)
+        )
     }
 
     private var scope: some View {
@@ -189,17 +230,17 @@ struct VentilatorScreen: View {
                                    GridItem(.flexible(), spacing: 1)], spacing: 1) {
             ValueTile(caption: "PIP", value: whole(m.peakPressure), unit: "cmH₂O",
                       limit: "≤\(Int(controller.settings.alarms.peakPressure))",
-                      tone: m.peakPressure > controller.settings.alarms.peakPressure ? Chrome.critical : Chrome.ink)
+                      tone: m.peakPressure > controller.settings.alarms.peakPressure ? Chrome.critical : Chrome.screenInk)
             ValueTile(caption: "Pplat", value: optionalWhole(m.plateauPressure), unit: "cmH₂O",
                       limit: "≤30",
-                      tone: (m.plateauPressure ?? 0) > 30 ? Chrome.critical : Chrome.ink)
+                      tone: (m.plateauPressure ?? 0) > 30 ? Chrome.critical : Chrome.screenInk)
             ValueTile(caption: "PEEP tot", value: oneDecimal(m.totalPEEP), unit: "cmH₂O")
             ValueTile(caption: "ΔP", value: optionalWhole(m.drivingPressure), unit: "cmH₂O",
                       limit: "≤15",
-                      tone: (m.drivingPressure ?? 0) > 15 ? Chrome.critical : Chrome.ink)
+                      tone: (m.drivingPressure ?? 0) > 15 ? Chrome.critical : Chrome.screenInk)
             ValueTile(caption: "Vte", value: whole(m.tidalVolumeExp), unit: "mL",
                       limit: String(format: "%.1f mL/kg", m.tidalVolumeExp / pbw),
-                      tone: m.tidalVolumeExp / pbw > 8.5 ? Chrome.critical : Chrome.ink)
+                      tone: m.tidalVolumeExp / pbw > 8.5 ? Chrome.critical : Chrome.screenInk)
             ValueTile(caption: "MV", value: oneDecimal(m.minuteVolume), unit: "L/min")
             ValueTile(caption: "RR tot", value: whole(m.respiratoryRateTotal), unit: "/min",
                       limit: "自発 \(Int(m.respiratoryRateSpontaneous))")
@@ -207,31 +248,31 @@ struct VentilatorScreen: View {
             ValueTile(caption: "Cstat", value: optionalWhole(m.staticCompliance), unit: "mL/cmH₂O")
             ValueTile(caption: "Raw", value: optionalWhole(m.airwayResistance), unit: "cmH₂O/L/s")
             ValueTile(caption: "auto-PEEP", value: oneDecimal(m.autoPEEP), unit: "cmH₂O",
-                      tone: m.autoPEEP > 5 ? Chrome.critical : (m.autoPEEP > 2 ? Chrome.warning : Chrome.ink))
+                      tone: m.autoPEEP > 5 ? Chrome.critical : (m.autoPEEP > 2 ? Chrome.warning : Chrome.screenInk))
             ValueTile(caption: "RSBI", value: optionalWhole(m.rsbi), unit: "", limit: "<105",
-                      tone: (m.rsbi ?? 0) > 105 ? Chrome.warning : Chrome.ink)
+                      tone: (m.rsbi ?? 0) > 105 ? Chrome.warning : Chrome.screenInk)
             ValueTile(caption: "SpO₂", value: whole(engine.spo2), unit: "%",
                       tone: engine.spo2 < 90 ? Chrome.critical
                           : (engine.spo2 < 94 ? Chrome.warning : Chrome.good))
             ValueTile(caption: "etCO₂", value: whole(engine.etco2), unit: "mmHg")
             ValueTile(caption: "HR", value: whole(engine.heartRate), unit: "/min",
-                      tone: engine.heartRate > 130 ? Chrome.warning : Chrome.ink)
+                      tone: engine.heartRate > 130 ? Chrome.warning : Chrome.screenInk)
             ValueTile(caption: "ABP mean", value: whole(engine.meanArterialPressure), unit: "mmHg",
                       tone: engine.meanArterialPressure < 60 ? Chrome.critical
-                          : (engine.meanArterialPressure < 65 ? Chrome.warning : Chrome.ink))
+                          : (engine.meanArterialPressure < 65 ? Chrome.warning : Chrome.screenInk))
         }
-        .frame(width: 216)
+        .frame(width: 220)
     }
 
     // MARK: - モードと画面の切り替え
 
     private var modeAndScreenTabs: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 1) {
+            HStack(spacing: Chrome.isPop ? 5 : 1) {
                 ForEach(VentilationMode.allCases, id: \.self) { mode in
                     tab(mode.rawValue,
                         selected: controller.settings.mode == mode,
-                        tint: Chrome.flow) { controller.change(mode: mode) }
+                        tint: Chrome.isPop ? Chrome.accent : Chrome.flow) { controller.change(mode: mode) }
                 }
                 Spacer(minLength: 16)
                 ForEach(SimulationController.Screen.allCases) { screen in
@@ -248,11 +289,21 @@ struct VentilatorScreen: View {
                      action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(selected ? tint : Chrome.dim)
-                .padding(.horizontal, 13).padding(.vertical, 6)
+                .font(Chrome.label(12, weight: .bold))
+                .foregroundStyle(selected ? (Chrome.isPop ? Chrome.accentInk : tint) : Chrome.dim)
+                .padding(.horizontal, Chrome.isPop ? 14 : 13)
+                .padding(.vertical, 6)
+                .background {
+                    if Chrome.isPop {
+                        Capsule()
+                            .fill(selected ? tint : Chrome.panel)
+                            .overlay(Capsule().stroke(selected ? tint : Chrome.line, lineWidth: 2))
+                    }
+                }
                 .background(alignment: .bottom) {
-                    Rectangle().fill(selected ? tint : .clear).frame(height: 2)
+                    if !Chrome.isPop {
+                        Rectangle().fill(selected ? tint : .clear).frame(height: 2)
+                    }
                 }
         }
         .buttonStyle(.plain)
@@ -263,7 +314,7 @@ struct VentilatorScreen: View {
 
     private var parameterKeys: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
+            HStack(spacing: Chrome.isPop ? 6 : 4) {
                 ForEach(VentilatorParameter.applicable(to: controller.settings.mode)) { parameter in
                     parameterKey(parameter)
                 }
@@ -281,23 +332,31 @@ struct VentilatorScreen: View {
         return Button { controller.select(parameterID: parameter.id) } label: {
             VStack(alignment: .leading, spacing: 1) {
                 Text(parameter.label)
-                    .font(.system(size: 9.5)).foregroundStyle(Chrome.dim)
+                    .font(Chrome.label(9.5, weight: Chrome.isPop ? .bold : .regular))
+                    .foregroundStyle(selected && Chrome.isPop ? Chrome.accent : Chrome.dim)
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text(shown.formatted(.number.precision(.fractionLength(parameter.digits))))
-                        .font(Chrome.digits(19))
-                        .foregroundStyle(pending ? Chrome.pressure : Chrome.ink)
+                        .font(Chrome.digits(20, weight: .bold))
+                        .foregroundStyle(pending ? Chrome.pressure
+                                                 : (selected && Chrome.isPop ? Chrome.accent : Chrome.keyInk))
                     Text(parameter.unit).font(.system(size: 9)).foregroundStyle(Chrome.faint)
                 }
             }
-            .padding(.horizontal, 8).padding(.vertical, 5)
+            .padding(.horizontal, Chrome.isPop ? 10 : 8).padding(.vertical, 5)
             .frame(minWidth: 80, alignment: .leading)
         }
         .buttonStyle(.plain)
         .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color(red: 0.106, green: 0.125, blue: 0.153))
-                .overlay(RoundedRectangle(cornerRadius: 4)
-                    .stroke(selected ? Chrome.flow : Chrome.edge, lineWidth: 1))
+            ZStack {
+                if Chrome.isPop {
+                    RoundedRectangle(cornerRadius: Chrome.corner).fill(Chrome.keyLip).offset(y: 3)
+                }
+                RoundedRectangle(cornerRadius: Chrome.corner)
+                    .fill(selected && Chrome.isPop ? Chrome.accent.opacity(0.08) : Chrome.key)
+                    .overlay(RoundedRectangle(cornerRadius: Chrome.corner)
+                        .stroke(selected ? (Chrome.isPop ? Chrome.accent : Chrome.flow) : Chrome.keyBorder,
+                                lineWidth: Chrome.isPop ? 2 : 1))
+            }
         )
         .accessibilityLabel("\(parameter.label) \(shown.formatted()) \(parameter.unit)")
         .accessibilityHint(selected ? "ダイヤルで変更できます" : "押すとダイヤルで変更できます")
@@ -306,14 +365,15 @@ struct VentilatorScreen: View {
     /// 鎮静は機器の設定ではないので、色を分けてシミュレーター側の操作として置く。
     private var sedationKey: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text("鎮静").font(.system(size: 9.5)).foregroundStyle(Chrome.sim)
+            Text("鎮静").font(Chrome.label(9.5, weight: Chrome.isPop ? .bold : .regular))
+                .foregroundStyle(Chrome.sim)
             HStack(spacing: 6) {
                 Button { controller.engine.sedation = max(0, controller.engine.sedation - 0.1) } label: {
                     Image(systemName: "minus").font(.system(size: 11))
                 }
                 .accessibilityLabel("鎮静を浅くする")
                 Text("\(Int(controller.engine.sedation * 100))")
-                    .font(Chrome.digits(19)).foregroundStyle(Chrome.ink)
+                    .font(Chrome.digits(20, weight: .bold)).foregroundStyle(Chrome.sim)
                 Button { controller.engine.sedation = min(1, controller.engine.sedation + 0.1) } label: {
                     Image(systemName: "plus").font(.system(size: 11))
                 }
@@ -322,11 +382,18 @@ struct VentilatorScreen: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(Chrome.sim)
-        .padding(.horizontal, 8).padding(.vertical, 5)
+        .padding(.horizontal, Chrome.isPop ? 10 : 8).padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color(red: 0.082, green: 0.102, blue: 0.129))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Chrome.edge, lineWidth: 1))
+            ZStack {
+                if Chrome.isPop {
+                    RoundedRectangle(cornerRadius: Chrome.corner).fill(Chrome.keyLip).offset(y: 3)
+                }
+                RoundedRectangle(cornerRadius: Chrome.corner)
+                    .fill(Chrome.key)
+                    .overlay(RoundedRectangle(cornerRadius: Chrome.corner)
+                        .stroke(Chrome.isPop ? Chrome.sim.opacity(0.4) : Chrome.edge,
+                                lineWidth: Chrome.isPop ? 2 : 1))
+            }
         )
     }
 
@@ -356,9 +423,9 @@ struct VentilatorScreen: View {
                 DeviceKey(title: "学習コース", tint: Chrome.sim,
                           isOn: controller.lesson != nil) { showingCourse = true }
             }
-            .padding(.horizontal, 6).padding(.vertical, 5)
+            .padding(.horizontal, 6).padding(.vertical, Chrome.isPop ? 6 : 5)
         }
-        .background(Chrome.chassisTop)
+        .background(Chrome.isPop ? Color.clear : Chrome.chassisTop)
     }
 
     private var holdKey: VentilatorEngine.HoldKind? {
@@ -382,15 +449,16 @@ struct VentilatorScreen: View {
     private var dialRow: some View {
         HStack(spacing: 10) {
             Text("設定キーを押し、ダイヤルを回して「確定」で反映します。")
-                .font(.system(size: 11)).foregroundStyle(Chrome.faint)
+                .font(Chrome.label(11)).foregroundStyle(Chrome.dim)
                 .lineLimit(2)
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(controller.selectedParameter?.label ?? "設定を選択")
-                    .font(.system(size: 9.5)).foregroundStyle(Chrome.dim)
+                    .font(Chrome.label(9.5, weight: Chrome.isPop ? .bold : .regular))
+                    .foregroundStyle(Chrome.dim)
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text(dialValueText)
-                        .font(Chrome.digits(24, weight: .bold))
+                        .font(Chrome.digits(26, weight: .bold))
                         .foregroundStyle(controller.hasPendingChange ? Chrome.pressure : Chrome.ink)
                     Text(controller.selectedParameter?.unit ?? "")
                         .font(.system(size: 9)).foregroundStyle(Chrome.faint)
@@ -404,19 +472,27 @@ struct VentilatorScreen: View {
                      onCommit: { controller.commitPending() })
             Button { controller.commitPending() } label: {
                 Text("確定")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Chrome.good)
-                    .padding(.horizontal, 12).padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 4)
-                        .stroke(Chrome.good.opacity(0.6), lineWidth: 1))
+                    .font(Chrome.label(13, weight: Chrome.isPop ? .heavy : .semibold))
+                    .foregroundStyle(Chrome.isPop ? Chrome.accentInk : Chrome.good)
+                    .padding(.horizontal, Chrome.isPop ? 16 : 12).padding(.vertical, 10)
+                    .background(
+                        Group {
+                            if Chrome.isPop {
+                                Capsule().fill(Chrome.accent)
+                            } else {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(Chrome.good.opacity(0.6), lineWidth: 1)
+                            }
+                        }
+                    )
             }
             .buttonStyle(.plain)
             .disabled(!controller.hasPendingChange)
             .opacity(controller.hasPendingChange ? 1 : 0.32)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Chrome.chassis)
+        .padding(.vertical, Chrome.isPop ? 7 : 6)
+        .background(Chrome.bar)
     }
 
     private var dialValueText: String {

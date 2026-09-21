@@ -90,6 +90,14 @@ final class SimulationController {
     /// LessonRuntime は監視対象にならないので、変化したらこれを進めて View を更新させる。
     private(set) var lessonVersion = 0
 
+    /// レッスンを修了したときの短いお祝い。出してから 2 秒で自分で消える。
+    struct Celebration: Identifiable, Equatable {
+        let id: Int
+        let text: String
+    }
+    private(set) var celebration: Celebration?
+    private var celebrationCount = 0
+
     var lesson: Lesson? { lessonRuntime?.lesson }
     var lessonChapter: LessonChapter? {
         guard let id = lessonRuntime?.lesson.id else { return nil }
@@ -468,6 +476,18 @@ final class SimulationController {
         guard let runtime = lessonRuntime else { return }
         lessonFeedback = why
         lessonPhase = runtime.finished ? .done : .feedback
+        if runtime.finished { celebrate(runtime.lesson) }
+    }
+
+    /// 修了の演出。通し番号を付けて、同じレッスンを繰り返しても必ず出るようにする。
+    /// 消すのは表示している View 側（出し終わったら clearCelebration を呼ぶ）。
+    private func celebrate(_ lesson: Lesson) {
+        celebrationCount &+= 1
+        celebration = Celebration(id: celebrationCount, text: "レッスン修了！ 🎉")
+    }
+
+    func clearCelebration(_ id: Int) {
+        if celebration?.id == id { celebration = nil }
     }
 
     // MARK: - 操作

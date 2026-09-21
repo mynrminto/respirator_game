@@ -12,18 +12,23 @@ struct RootView: View {
     @State private var controller: SimulationController?
 
     var body: some View {
-        if let controller {
-            VentilatorScreen(controller: controller)
-        } else {
-            ScenarioListView(onStart: { scenario, settings in
-                self.controller = SimulationController(scenario: scenario, settings: settings)
-            }, onStartLesson: { lesson in
-                let created = SimulationController(scenario: lesson.scenario,
-                                                   settings: VentilatorSettings())
-                created.startLesson(lesson)
-                self.controller = created
-            })
+        Group {
+            if let controller {
+                VentilatorScreen(controller: controller)
+            } else {
+                ScenarioListView(onStart: { scenario, settings in
+                    self.controller = SimulationController(scenario: scenario, settings: settings)
+                }, onStartLesson: { lesson in
+                    let created = SimulationController(scenario: lesson.scenario,
+                                                       settings: VentilatorSettings())
+                    created.startLesson(lesson)
+                    self.controller = created
+                })
+                .preferredColorScheme(Chrome.colorScheme)
+            }
         }
+        // 見た目に合わせて、標準のボタンや選択の色もそろえる。
+        .tint(Chrome.accent)
     }
 }
 

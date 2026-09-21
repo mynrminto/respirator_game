@@ -26,10 +26,13 @@ struct KnobView: View {
         .frame(width: 58, height: 58)
         .background(
             Circle().fill(
-                RadialGradient(colors: [Color(white: 0.22), Color(white: 0.11), Color(white: 0.04)],
+                RadialGradient(colors: [Chrome.palette.knobFaceTop,
+                                        Chrome.palette.knobFaceMid,
+                                        Chrome.palette.knobFaceBottom],
                                center: UnitPoint(x: 0.34, y: 0.28), startRadius: 2, endRadius: 40))
         )
-        .overlay(Circle().stroke(Color(white: 0.24), lineWidth: 1))
+        .overlay(Circle().stroke(Chrome.isPop ? Chrome.keyLip : Color(white: 0.24),
+                                 lineWidth: Chrome.isPop ? 2 : 1))
         .opacity(isEnabled ? 1 : 0.45)
         .contentShape(Circle())
         .gesture(
@@ -68,12 +71,12 @@ struct KnobView: View {
     private func draw(_ context: inout GraphicsContext, _ size: CGSize) {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let radius = size.width / 2 - 3
-        let tint = isPending ? Chrome.pressure : Chrome.flow
+        let tint = isPending ? Chrome.pressure : Chrome.accent
 
         var track = Path()
         track.addArc(center: center, radius: radius - 1,
                      startAngle: .radians(start), endAngle: .radians(start + sweep), clockwise: false)
-        context.stroke(track, with: .color(Color(white: 0.16)),
+        context.stroke(track, with: .color(Chrome.palette.knobTrack),
                        style: StrokeStyle(lineWidth: 3, lineCap: .round))
 
         if fraction > 0 {
@@ -93,7 +96,7 @@ struct KnobView: View {
             ticks.addLine(to: CGPoint(x: center.x + cos(angle) * (radius - 9),
                                       y: center.y + sin(angle) * (radius - 9)))
         }
-        context.stroke(ticks, with: .color(Color(white: 0.2)), lineWidth: 1)
+        context.stroke(ticks, with: .color(Chrome.palette.knobTick), lineWidth: 1)
 
         let pointer = start + sweep * fraction
         var needle = Path()
@@ -101,7 +104,7 @@ struct KnobView: View {
                                 y: center.y + sin(pointer) * (radius - 22)))
         needle.addLine(to: CGPoint(x: center.x + cos(pointer) * (radius - 10),
                                    y: center.y + sin(pointer) * (radius - 10)))
-        context.stroke(needle, with: .color(isPending ? Chrome.pressure : Chrome.ink),
+        context.stroke(needle, with: .color(isPending ? Chrome.pressure : Chrome.palette.knobPointer),
                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
     }
 }
