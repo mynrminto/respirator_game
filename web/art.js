@@ -19,7 +19,8 @@
   function lg(id, x1, y1, x2, y2, stops) {
     var s = '<linearGradient id="' + id + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '">';
     for (var i = 0; i < stops.length; i++) {
-      s += '<stop offset="' + stops[i][0] + '" stop-color="' + stops[i][1] + '"/>';
+      s += '<stop offset="' + stops[i][0] + '" stop-color="' + stops[i][1]
+        + '" stop-opacity="' + (stops[i][2] == null ? 1 : stops[i][2]) + '"/>';
     }
     return s + '</linearGradient>';
   }
@@ -122,6 +123,23 @@
       + '<rect x="1404" y="460" width="10" height="310" fill="' + metal + '"/>'
       + '<path d="M1370 770 h80" stroke="' + metal + '" stroke-width="10" stroke-linecap="round"/>';
 
+    /* 小児病棟らしい飾り：壁のステッカー（星と雲）、風船、くま */
+    var stick = dark ? .22 : .85;
+    g += '<path d="M150 640 l10 22 l24 2 l-18 16 l6 24 l-22-12 l-22 12 l6-24 l-18-16 l24-2z" fill="#FFD75E" opacity="' + stick + '"/>'
+      + '<path d="M1460 600 l8 18 l20 2 l-15 13 l5 20 l-18-10 l-18 10 l5-20 l-15-13 l20-2z" fill="#FFD75E" opacity="' + stick + '"/>'
+      + '<path d="M90 200 q0-30 30-30 q10-24 40-16 q28-12 44 14 q30 4 26 32 z" fill="#FFF" opacity="' + (dark ? .12 : .8) + '"/>'
+      + '<path d="M1360 170 q0-30 30-30 q10-24 40-16 q28-12 44 14 q30 4 26 32 z" fill="#FFF" opacity="' + (dark ? .12 : .8) + '"/>';
+    g += '<path d="M1290 560 q0 200 0 210" stroke="' + (dark ? '#4A5680' : '#B8A9D6') + '" stroke-width="3" fill="none"/>'
+      + '<ellipse cx="1290" cy="505" rx="40" ry="50" fill="' + (dark ? '#8A4E7A' : '#FF9DB5') + '" stroke="' + LINE + '" stroke-width="5"/>'
+      + '<ellipse cx="1276" cy="488" rx="10" ry="16" fill="#FFF" opacity=".55"/>'
+      + '<ellipse cx="1240" cy="540" rx="34" ry="42" fill="' + (dark ? '#3E6C8F' : '#9EDBFF') + '" stroke="' + LINE + '" stroke-width="5"/>'
+      + '<path d="M1240 582 q0 190 50 188" stroke="' + (dark ? '#4A5680' : '#B8A9D6') + '" stroke-width="3" fill="none"/>';
+    g += '<circle cx="120" cy="722" r="11" fill="#D9A066" stroke="' + LINE + '" stroke-width="4"/><circle cx="160" cy="722" r="11" fill="#D9A066" stroke="' + LINE + '" stroke-width="4"/>'
+      + '<circle cx="140" cy="738" r="28" fill="#E8B77A" stroke="' + LINE + '" stroke-width="5"/>'
+      + '<ellipse cx="140" cy="746" rx="11" ry="8" fill="#FFE2B8"/><circle cx="140" cy="742" r="3.5" fill="' + LINE + '"/>'
+      + '<circle cx="130" cy="732" r="3" fill="' + LINE + '"/><circle cx="150" cy="732" r="3" fill="' + LINE + '"/>'
+      + '<ellipse cx="140" cy="778" rx="30" ry="18" fill="#E8B77A" stroke="' + LINE + '" stroke-width="5"/>';
+
     /* 観葉植物 */
     g += '<path d="M1230 770 q-10-70 20-110 q-40 10-56-30 q40-6 60 14 q-4-54 26-74 q22 26 12 74 q26-30 62-20 q-14 40-54 40 q28 40 18 106 z" fill="' + (dark ? '#1E5546' : '#8FD9B6') + '"/>'
       + '<path d="M1206 762 h84 l-12 64 h-60 z" fill="' + (dark ? '#3A2A44' : '#E6A38C') + '"/>';
@@ -156,6 +174,11 @@
     /* 聴診器 */
     g += '<path d="M176 300 q-6 84 34 84 q40 0 40-56" fill="none" stroke="#3C4A66" stroke-width="10" stroke-linecap="round"/>'
       + '<circle cx="250" cy="332" r="18" fill="#9AACC9" ' + outline(5) + '/><circle cx="250" cy="332" r="8" fill="#DCE6F7"/>';
+    /* 胸のくまのバッジ（小児科医のしるし） */
+    g += '<circle cx="150" cy="356" r="16" fill="#FFF3B0" ' + outline(4) + '/>'
+      + '<circle cx="143" cy="349" r="4" fill="#D9A066"/><circle cx="157" cy="349" r="4" fill="#D9A066"/>'
+      + '<circle cx="150" cy="357" r="9" fill="#E8B77A"/><circle cx="147" cy="355" r="1.6" fill="' + LINE + '"/><circle cx="153" cy="355" r="1.6" fill="' + LINE + '"/>'
+      + '<ellipse cx="150" cy="360" rx="3.6" ry="2.6" fill="#FFE2B8"/>';
     /* 首と顔 */
     g += '<rect x="186" y="228" width="48" height="44" rx="22" fill="#F0C39C" ' + outline(5) + '/>';
     g += '<circle cx="210" cy="172" r="92" fill="#FFDEC0" ' + outline(7) + '/>';
@@ -209,38 +232,120 @@
   }
 
   /* 患者（ベッドごと）。tone で顔色と表示を変える。 */
-  function patient(tone, dark) {
+  /* 患者。小児科なので、年齢層で見た目を変える。
+   *   kind: 'neonate'（保育器の新生児） | 'infant'（ベビーベッドの乳児、既定） | 'child'（ベッドの学童）
+   *   tone: 'ok' | 'mid' | 'bad'（顔色。SpO₂ と症例の重さで決まる） */
+  function patient(tone, dark, kind) {
     var W = 520, H = 360;
+    kind = kind || 'infant';
     var skin = tone === 'bad' ? '#E7BCAC' : (tone === 'mid' ? '#F5D2B4' : '#FFDEC0');
+    var cheek = tone === 'bad' ? '#D9A6B0' : '#FFB3C6';
     var defs = lg('quilt', 0, 0, 0, 1, dark
         ? [[0, '#2B3A6B'], [1, '#1B2749']]
-        : [[0, '#CFE0FF'], [1, '#A9C4F5']])
-      + lg('bed', 0, 0, 0, 1, [[0, '#E9EEF8'], [1, '#C6D0E6']]);
+        : [[0, '#FFE1EC'], [1, '#F5BFD6']])
+      + lg('bed', 0, 0, 0, 1, [[0, '#FFFFFF'], [1, '#DCE4F4']])
+      + lg('glass', 0, 0, 0, 1, [[0, '#FFFFFF', 0.55], [0.5, '#DDF3FF', 0.25], [1, '#BFE3FF', 0.35]])
+      + lg('cab', 0, 0, 0, 1, dark ? [[0, '#3A4670'], [1, '#26304F']] : [[0, '#F1F4FB'], [1, '#C9D3E8']]);
     var g = '';
+    var metal = '#9AA7C4';
+
+    /* 赤ちゃん・子ども本体。頭の中心 (cx, cy)、頭の半径 r。 */
+    function kid(cx, cy, r, bodyW, hair) {
+      var s = '';
+      /* 胴（掛け布団の下） */
+      s += '<path d="M' + (cx + r * 0.6) + ' ' + (cy + r * 0.9) + ' q' + bodyW * 0.55 + '-' + r * 0.7 + ' ' + bodyW + '-' + r * 0.1
+        + ' q' + (r * 0.5) + ' ' + (r * 0.15) + ' ' + (r * 0.5) + ' ' + (r * 0.55) + ' v' + (r * 0.5)
+        + ' q-' + (bodyW * 0.62) + ' ' + (r * 0.4) + ' -' + (bodyW + r * 1.1) + ' 0 q-' + (r * 0.2) + '-' + (r * 0.6) + ' ' + (r * 0.3) + '-' + (r * 0.95) + 'z" fill="url(#quilt)" ' + outline(7) + '/>';
+      /* 布団の星 */
+      var sx = cx + r * 1.6, sy = cy + r * 1.05;
+      s += '<path d="M' + sx + ' ' + (sy - 9) + ' l3 6 l7 1 l-5 5 l1 7 l-6-3 l-6 3 l1-7 l-5-5 l7-1z" fill="#FFF" opacity=".75"/>';
+      s += '<path d="M' + (sx + 46) + ' ' + (sy + 2) + ' l2 5 l6 1 l-4 4 l1 6 l-5-3 l-5 3 l1-6 l-4-4 l6-1z" fill="#FFF" opacity=".6"/>';
+      /* 頭 */
+      s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + skin + '" ' + outline(7) + '/>';
+      /* 髪：赤ちゃんは一房、子どもは前髪 */
+      if (hair === 'tuft') {
+        s += '<path d="M' + (cx - 6) + ' ' + (cy - r) + ' q4-30 26-26 q-14 6-10 26z" fill="#4A4160" ' + outline(5) + '/>';
+      } else {
+        s += '<path d="M' + (cx - r * 0.95) + ' ' + (cy - r * 0.05) + ' q6-' + r * 1.1 + ' ' + r * 0.95 + '-' + r * 1.1 + ' q' + r * 0.9 + ' 0 ' + r * 0.95 + ' ' + r * 1.1
+          + ' q-' + r * 0.3 + '-' + r * 0.5 + '-' + r * 0.95 + '-' + r * 0.45 + ' q-' + r * 0.6 + ' 0-' + r * 0.95 + ' ' + r * 0.45 + 'z" fill="#4A4160" ' + outline(6) + '/>';
+      }
+      /* ほっぺ */
+      s += '<ellipse cx="' + (cx - r * 0.55) + '" cy="' + (cy + r * 0.2) + '" rx="' + r * 0.26 + '" ry="' + r * 0.16 + '" fill="' + cheek + '" opacity=".6"/>'
+        + '<ellipse cx="' + (cx + r * 0.55) + '" cy="' + (cy + r * 0.2) + '" rx="' + r * 0.26 + '" ry="' + r * 0.16 + '" fill="' + cheek + '" opacity=".6"/>';
+      /* 閉じた目 */
+      s += '<path d="M' + (cx - r * 0.55) + ' ' + (cy - r * 0.02) + ' q' + r * 0.18 + ' ' + r * 0.2 + ' ' + r * 0.36 + ' 0" fill="none" ' + outline(6) + '/>'
+        + '<path d="M' + (cx + r * 0.19) + ' ' + (cy - r * 0.02) + ' q' + r * 0.18 + ' ' + r * 0.2 + ' ' + r * 0.36 + ' 0" fill="none" ' + outline(6) + '/>';
+      /* 気管チューブ（口から左へ） */
+      var mx = cx, my = cy + r * 0.62;
+      s += '<path d="M' + mx + ' ' + my + ' q-' + r * 0.2 + ' ' + r * 0.7 + '-' + r * 1.3 + ' ' + r * 0.85 + ' q-' + r * 0.6 + ' ' + r * 0.1 + '-' + r * 1.5 + ' 0" fill="none" stroke="#DCE9FF" stroke-width="' + Math.max(12, r * 0.3) + '" stroke-linecap="round"/>'
+        + '<path d="M' + mx + ' ' + my + ' q-' + r * 0.2 + ' ' + r * 0.7 + '-' + r * 1.3 + ' ' + r * 0.85 + ' q-' + r * 0.6 + ' ' + r * 0.1 + '-' + r * 1.5 + ' 0" fill="none" stroke="#8FB0EE" stroke-width="' + Math.max(4, r * 0.1) + '" stroke-linecap="round"/>'
+        + '<rect x="' + (mx - r * 0.34) + '" y="' + (my - r * 0.16) + '" width="' + r * 0.68 + '" height="' + r * 0.32 + '" rx="' + r * 0.16 + '" fill="#FFFFFF" ' + outline(5) + '/>';
+      return s;
+    }
+
+    /* くまのぬいぐるみ */
+    function bear(x, y, k) {
+      var s = '';
+      s += '<circle cx="' + (x - 16 * k) + '" cy="' + (y - 20 * k) + '" r="' + 9 * k + '" fill="#D9A066" ' + outline(4) + '/>'
+        + '<circle cx="' + (x + 16 * k) + '" cy="' + (y - 20 * k) + '" r="' + 9 * k + '" fill="#D9A066" ' + outline(4) + '/>'
+        + '<circle cx="' + x + '" cy="' + (y - 8 * k) + '" r="' + 22 * k + '" fill="#E8B77A" ' + outline(5) + '/>'
+        + '<ellipse cx="' + x + '" cy="' + (y - 2 * k) + '" rx="' + 9 * k + '" ry="' + 7 * k + '" fill="#FFE2B8"/>'
+        + '<circle cx="' + x + '" cy="' + (y - 5 * k) + '" r="' + 3 * k + '" fill="' + LINE + '"/>'
+        + '<circle cx="' + (x - 8 * k) + '" cy="' + (y - 12 * k) + '" r="' + 2.4 * k + '" fill="' + LINE + '"/>'
+        + '<circle cx="' + (x + 8 * k) + '" cy="' + (y - 12 * k) + '" r="' + 2.4 * k + '" fill="' + LINE + '"/>';
+      return s;
+    }
+
     g += '<ellipse cx="260" cy="344" rx="200" ry="14" fill="' + (dark ? '#000' : '#7A5C86') + '" opacity=".2"/>';
-    /* ベッドの脚と枠 */
-    g += '<rect x="60" y="300" width="18" height="44" rx="9" fill="#9AA7C4" ' + outline(5) + '/>'
-      + '<rect x="442" y="300" width="18" height="44" rx="9" fill="#9AA7C4" ' + outline(5) + '/>';
-    g += '<rect x="40" y="150" width="26" height="160" rx="13" fill="url(#bed)" ' + outline(6) + '/>';
-    /* 枕 */
-    g += '<ellipse cx="140" cy="212" rx="86" ry="46" fill="#F4F7FF" ' + outline(6) + '/>';
-    /* 掛け布団 */
-    g += '<path d="M150 258 q160-46 300-6 q30 8 30 30 v26 q-180 22-346 0 q-8-34 16-50z" fill="url(#quilt)" ' + outline(7) + '/>';
-    g += '<path d="M200 262 q140-30 260 4" fill="none" stroke="#FFFFFF" stroke-width="6" opacity=".6"/>';
-    /* 頭 */
-    g += '<circle cx="152" cy="196" r="66" fill="' + skin + '" ' + outline(7) + '/>';
-    g += '<path d="M90 190 q6-62 62-62 q58 0 64 62 q-16-30-64-30 q-48 0-62 30z" fill="#4A4160" ' + outline(6) + '/>';
-    /* 閉じた目 */
-    g += '<path d="M116 196 q14 14 28 0" fill="none" ' + outline(6) + '/>'
-      + '<path d="M164 196 q14 14 28 0" fill="none" ' + outline(6) + '/>';
-    g += '<path d="M140 228 q12 8 24 0" fill="none" ' + outline(5) + '/>';
-    /* 気管チューブ */
-    g += '<path d="M152 236 q0 34-46 52 q-40 16-76 4" fill="none" stroke="#DCE9FF" stroke-width="20" stroke-linecap="round"/>'
-      + '<path d="M152 236 q0 34-46 52 q-40 16-76 4" fill="none" stroke="#8FB0EE" stroke-width="6" stroke-linecap="round"/>'
-      + '<rect x="126" y="222" width="52" height="24" rx="12" fill="#FFFFFF" ' + outline(5) + '/>';
+
+    if (kind === 'neonate') {
+      /* 保育器：台と、透明なドーム */
+      g += '<rect x="70" y="250" width="380" height="70" rx="16" fill="url(#cab)" ' + outline(6) + '/>';
+      g += '<rect x="96" y="272" width="120" height="26" rx="8" fill="' + (dark ? '#1B2440' : '#EAF2FF') + '" ' + outline(4) + '/>';
+      g += '<circle cx="360" cy="285" r="7" fill="#3BEFC0"/><circle cx="386" cy="285" r="7" fill="#FFC24D"/>';
+      g += '<circle cx="110" cy="330" r="14" fill="#6B7590" ' + outline(4) + '/><circle cx="410" cy="330" r="14" fill="#6B7590" ' + outline(4) + '/>';
+      /* マット */
+      g += '<rect x="90" y="222" width="340" height="30" rx="12" fill="url(#bed)" ' + outline(5) + '/>';
+      /* 赤ちゃん（小さめ） */
+      g += kid(170, 200, 34, 130, 'tuft');
+      /* ドーム（手前に、半透明） */
+      g += '<path d="M78 250 v-90 q0-70 70-70 h224 q70 0 70 70 v90 z" fill="url(#glass)" ' + outline(6) + '/>';
+      g += '<path d="M110 176 q4-56 60-62" fill="none" stroke="#FFF" stroke-width="8" stroke-linecap="round" opacity=".8"/>';
+      /* 処置窓 */
+      g += '<circle cx="330" cy="200" r="26" fill="none" stroke="#FFF" stroke-width="7" opacity=".85"/>';
+    } else if (kind === 'child') {
+      /* 学童のベッド：おとな用より小さく、くまつき */
+      g += '<rect x="70" y="300" width="18" height="44" rx="9" fill="' + metal + '" ' + outline(5) + '/>'
+        + '<rect x="432" y="300" width="18" height="44" rx="9" fill="' + metal + '" ' + outline(5) + '/>';
+      g += '<rect x="50" y="160" width="26" height="150" rx="13" fill="url(#bed)" ' + outline(6) + '/>';
+      g += '<rect x="60" y="252" width="400" height="44" rx="14" fill="url(#bed)" ' + outline(6) + '/>';
+      g += '<ellipse cx="150" cy="222" rx="80" ry="42" fill="#F4F7FF" ' + outline(6) + '/>';
+      g += kid(160, 202, 56, 200, 'bangs');
+      g += bear(420, 250, 1.1);
+    } else {
+      /* 乳児のベビーベッド：柵が後ろに立つ */
+      var bar = dark ? '#3D4870' : '#FFFFFF';
+      for (var i = 0; i < 9; i++) {
+        g += '<rect x="' + (78 + i * 46) + '" y="120" width="12" height="150" rx="6" fill="' + bar + '" ' + outline(4) + '/>';
+      }
+      g += '<rect x="60" y="106" width="400" height="22" rx="11" fill="' + bar + '" ' + outline(5) + '/>';
+      /* マットと側板 */
+      g += '<rect x="50" y="248" width="420" height="34" rx="12" fill="url(#bed)" ' + outline(6) + '/>';
+      g += '<rect x="50" y="270" width="420" height="52" rx="14" fill="' + (dark ? '#2B3556' : '#FBE3EC') + '" ' + outline(6) + '/>';
+      g += '<circle cx="110" cy="330" r="12" fill="#6B7590" ' + outline(4) + '/><circle cx="410" cy="330" r="12" fill="#6B7590" ' + outline(4) + '/>';
+      /* 赤ちゃん */
+      g += kid(160, 210, 44, 150, 'tuft');
+      g += bear(420, 246, 0.9);
+      /* 吊りモビール */
+      g += '<path d="M330 40 v66" stroke="' + metal + '" stroke-width="4"/>'
+        + '<path d="M290 106 h80" stroke="' + metal + '" stroke-width="4" stroke-linecap="round"/>'
+        + '<path d="M296 106 v22 M364 106 v18" stroke="' + metal + '" stroke-width="3"/>'
+        + '<path d="M296 128 l4 8 l9 1 l-6 6 l1 9 l-8-4 l-8 4 l1-9 l-6-6 l9-1z" fill="#FFD75E" ' + outline(3) + '/>'
+        + '<path d="M364 124 q-14 4-14 16 q0 12 14 16 q-8-8 0-32z" fill="#FFF3B0" ' + outline(3) + '/>';
+    }
     if (tone === 'bad') {
-      g += '<circle cx="330" cy="150" r="26" fill="#FF5570" opacity=".9"/>'
-        + '<path d="M318 150 h8 l5-14 l7 26 l5-12 h9" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
+      g += '<circle cx="470" cy="70" r="26" fill="#FF5570" opacity=".9"/>'
+        + '<path d="M458 70 h8 l5-14 l7 26 l5-12 h9" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
     }
     return svg(W, H, g, defs);
   }

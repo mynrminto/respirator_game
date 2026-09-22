@@ -115,7 +115,7 @@
         pick('mascot_happy', 360, 360, A.mascot(dark, false)),
         hasAsset('mascot_happy') ? pick(hasAsset('mascot_excited') ? 'mascot_excited' : 'mascot_happy')
                                  : texture(A.mascot(dark, true), 360, 360),
-        pick('patient_bed', 520, 360, A.patient('ok', dark)),
+        pick(hasAsset('patient_infant') ? 'patient_infant' : 'patient_bed', 520, 360, A.patient('ok', dark, 'infant')),
         pick('ui_ribbon', 720, 200, A.ribbon(dark)),
         texture(A.bubble(dark), 200, 140),
         pick('ui_button_primary', 160, 120, A.plate('go', dark)),
@@ -237,7 +237,7 @@
     layers.logoArt = t.logo ? sprite(t.logo) : null;
     if (layers.logoArt) { layers.logoArt.anchor.set(0.5); layers.logo.visible = false; layers.ribbon.visible = false; }
     if (layers.logoArt) layers.ui.addChild(layers.logoArt);
-    layers.sub = text('人工呼吸器シミュレーター', 15, opts.dark ? 0xCFE0FF : 0x5A4A70, '800');
+    layers.sub = text('こどもの人工呼吸器シミュレーター', 15, opts.dark ? 0xCFE0FF : 0x5A4A70, '800');
     layers.sub.anchor.set(0.5);
     layers.ui.addChild(layers.ribbon, layers.logo, layers.sub);
 
