@@ -124,13 +124,19 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     await p.locator('#cToggle').click();
     await p.waitForTimeout(300);
 
-    // ページがスクロールしないこと
-    const sc = await p.evaluate(() => ({
-      sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth,
-      sh: document.documentElement.scrollHeight, ch: document.documentElement.clientHeight
-    }));
-    console.log(vp.n, 'scroll', JSON.stringify(sc),
-      sc.sw <= sc.cw && sc.sh <= sc.ch ? 'OK' : 'はみ出し');
+    /* 横に動かさないと見えない表示を作らないこと。縦のスクロールは許す（狭い画面では
+     * 入りきらないぶんを折り返して縦に伸ばす）。はみ出している要素があれば名前を出す。 */
+    const sc = await p.evaluate(() => {
+      const d = document.documentElement;
+      const over = [...document.querySelectorAll('*')].filter(e => {
+        const st = getComputedStyle(e);
+        return e.scrollWidth - e.clientWidth > 2 && /auto|scroll|hidden/.test(st.overflowX);
+      }).map(e => (e.id || e.tagName.toLowerCase()) + '.' + (e.className || ''));
+      return { sw: d.scrollWidth, cw: d.clientWidth, sh: d.scrollHeight, ch: d.clientHeight, over };
+    });
+    const sideways = sc.sw > sc.cw || sc.over.length > 0;
+    console.log(vp.n, 'scroll', JSON.stringify(sc), sideways ? '横にはみ出し' : 'OK（縦のみ）');
+    if (sideways) errs.push(vp.n + ': 横スクロールが要る ' + JSON.stringify(sc));
 
     // 学習を終了してフリー操作に戻る
     await p.locator('#cQuit').click();

@@ -1,3 +1,4 @@
+<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>こどもの人工呼吸器シミュレーター</title>
@@ -220,8 +221,14 @@
   .vals{border-left:2px solid var(--tile-line);display:grid;grid-template-columns:1fr 1fr;
     grid-auto-rows:minmax(54px,1fr);gap:2px;background:var(--tile-line);overflow:auto;min-height:0}
   @media(max-width:860px){
-    .vals{border-left:none;border-top:2px solid var(--tile-line);grid-template-columns:repeat(4,minmax(86px,1fr));
-      overflow-x:auto;grid-auto-flow:column;grid-auto-columns:minmax(84px,1fr);grid-template-rows:1fr 1fr;height:128px}
+    .vals{border-left:none;border-top:2px solid var(--tile-line)}
+  }
+  /* 背の低い画面では計測値のタイルを詰める。キーが 2 段に折り返したぶん画面が低くなるので、
+     そのままだと 16 個目まで入らず、いちばん下のタイルが切れてしまう。 */
+  @media(min-width:861px) and (max-height:820px){
+    .vals{grid-auto-rows:minmax(46px,1fr)}
+    .val{padding:3px 8px 4px}
+    .val .v{font-size:clamp(17px,3vh,22px)}
   }
   .val{background:var(--tile);padding:5px 8px 6px;min-width:0;position:relative;color:var(--screen-ink)}
   .val .k{font-size:10px;letter-spacing:.02em;color:var(--screen-dim);white-space:nowrap;font-weight:600}
@@ -313,7 +320,8 @@
   }
 
   /* ---- モード／画面切替 ---- */
-  .tabs{display:flex;gap:5px;padding:2px 8px 5px;background:transparent;overflow-x:auto;scrollbar-width:none}
+  /* 横に動かさないと見えない表示を作らないため、入りきらないぶんは折り返す。 */
+  .tabs{display:flex;flex-wrap:wrap;gap:5px;padding:2px 8px 5px;background:transparent}
   .tabs::-webkit-scrollbar{display:none}
   .tabs button{flex:none;padding:6px 14px;border-radius:999px;background:var(--panel);
     border:2px solid var(--br);font-size:12px;font-weight:700;
@@ -331,7 +339,7 @@
     box-shadow:inset 0 -2px 0 var(--vol)}
 
   /* ---- 設定キー ---- */
-  .keys{display:flex;gap:6px;padding:3px 8px 6px;overflow-x:auto;scrollbar-width:none;background:transparent}
+  .keys{display:flex;flex-wrap:wrap;gap:6px;padding:3px 8px 6px;background:transparent}
   .keys::-webkit-scrollbar{display:none}
   .pkey{flex:none;min-width:80px;padding:5px 10px 6px;border-radius:var(--r-m);background:var(--key);
     border:2px solid var(--key-br);box-shadow:0 3px 0 var(--key-lip);text-align:left;color:var(--key-ink);
@@ -351,9 +359,8 @@
   :root[data-theme="device"] .pkey[aria-pressed="true"]{box-shadow:0 0 0 1px var(--flow)}
 
   /* ---- ハードキー＋ダイヤル ---- */
-  .hard{display:flex;align-items:center;gap:6px;padding:4px 8px 6px;
-    background:transparent;overflow-x:auto;scrollbar-width:none}
-  .hard::-webkit-scrollbar{display:none}
+  .hard{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 8px 6px;
+    background:transparent}
   .hkey{flex:none;padding:8px 12px;border-radius:999px;background:var(--hkey);border:2px solid var(--hkey-br);
     box-shadow:0 3px 0 var(--key-lip);font-size:11.5px;font-weight:700;white-space:nowrap;color:var(--key-ink);
     transition:transform .06s, box-shadow .06s}
@@ -536,6 +543,10 @@
   .tchar.c2{height:82%;transform:translateY(-4%)}
   .tchar.c3{height:100%}
   @media(max-width:420px){.tchar.c1{display:none}}
+  /* 生成画像を立たせるとき。枠は正方形だが絵は縦長なので、比率のまま高さを合わせる。 */
+  .tchar:has(.tart){aspect-ratio:auto;width:auto}
+  .tart{display:block;height:100%;width:auto;object-fit:contain;
+    filter:drop-shadow(0 8px 10px rgba(60,30,80,.28))}
   .tlogoart{display:block;width:min(300px,86%);height:auto;margin:0 auto}
   .tsub{font-size:12.5px;font-weight:700;color:var(--dim);letter-spacing:.04em;margin-top:-4px}
   .tsay{position:relative;font-size:12.5px;line-height:1.6;color:var(--ink);text-align:center;
@@ -608,7 +619,11 @@
   :root:not([data-theme="device"]) .case .face{border:3px solid var(--gline)}
   .casehead{flex-direction:column;align-items:stretch;gap:7px}
   /* 学習帯の先生も同じ絵柄にそろえる */
-  .cav img{display:block;width:100%;height:100%;transform:scale(1.1)}
+  /* 生成画像は全身の縦長（みどり先生は 329×621）。丸いアイコンに引き伸ばすと顔が潰れるので、
+     切り抜いて顔だけ出す。先生は上が頭なので上端で、患者とぷくぷくはほぼ正方形なので中央で切る。 */
+  .cav img,.toast .tface img{display:block;width:100%;height:100%;
+    object-fit:cover;object-position:50% 50%;transform:scale(1.08);transform-origin:50% 12%}
+  .cav.doc img,.toast .tface img{object-position:50% 4%;transform:scale(1.12);transform-origin:50% 0}
   :root:not([data-theme="device"]) .cchoices button{border:2.5px solid var(--gline);
     box-shadow:0 3px 0 var(--glip);font-weight:700}
   :root:not([data-theme="device"]) .cchoices button:active{transform:translateY(3px);box-shadow:none}
@@ -644,6 +659,32 @@
       box-shadow:0 10px 0 rgba(46,37,69,.22),0 28px 60px rgba(80,40,90,.35)}
   }
   @media(min-width:1500px){:root:not([data-theme="device"]){--railw:300px}}
+
+  /* ============ 狭い画面（スマホ）============
+   * 横に動かさないと見えない表示を作らない。入りきらないぶんは折り返して縦に伸ばし、
+   * 画面全体を縦にスクロールさせる。ダイヤルだけは下に貼り付けたまま残す。 */
+  @media(max-width:860px){
+    /* ページそのものを縦スクロールさせる。html/body を 100% のままにすると
+       body の中だけが滑ってしまい、下に余白が残る。 */
+    html,body{height:auto;min-height:100%;overflow:visible}
+    #device{position:static;min-height:100svh;grid-template-rows:none;grid-auto-rows:auto}
+    /* 波形は高さを決めておく。決めないと canvas がつぶれる。 */
+    .screen{grid-template-rows:auto auto}
+    .scopewrap{height:clamp(200px,42vh,330px)}
+    /* 計測値は横に流さず、入るだけ並べて折り返す。1 枚 108px 以上あれば
+       「——」と「mL/cmH₂O」が 1 行に収まるので、数字の大きさもそこに合わせる。 */
+    .vals{grid-template-columns:repeat(auto-fill,minmax(108px,1fr));
+      grid-auto-flow:row;grid-auto-rows:minmax(48px,auto);
+      grid-template-rows:none;overflow:visible;height:auto}
+    .val .v{font-size:clamp(17px,2.8vh,23px)}
+    .val .u{white-space:nowrap}
+    /* 画面切替と早送りのあいだで必ず行を変える。 */
+    .tabs .sp{flex:1 0 100%;height:0;min-width:0}
+    .pkey{flex:1 1 82px;min-width:0}
+    .hkey{flex:1 1 auto;text-align:center}
+    .status{flex-wrap:wrap}
+    .dialrow{position:sticky;bottom:0;z-index:6}
+  }
 
   /* ============ 生成画像が入ったときの差し替え ============
    * assets.js が manifest を読むと html.assets が付く。板と枠を画像（9 スライス）にする。 */

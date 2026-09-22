@@ -89,7 +89,7 @@
   function toast(msg) {
     var t = el('div', 'toast');
     var face = el('span', 'tface');
-    face.innerHTML = '<img alt="" src="' + AR.face('happy', currentTheme() === 'device') + '">';
+    face.innerHTML = '<img alt="" src="' + docArt('happy', currentTheme() === 'device') + '">';
     t.appendChild(face);
     t.appendChild(el('span', '', msg));
     document.body.appendChild(t);
@@ -281,10 +281,44 @@
 
   /* 患者の絵。生成画像があればそれ、無ければコード描画。優先順:
    *   patient_<症例ID>[_mid|_bad] → patient_<年齢層>[...] → patient_bed[...] → コード描画 */
-  function patientArt(sc, tone, dark) {
+  function patientArtName(sc, tone) {
     var kind = patientKind(sc), suf = tone === 'ok' ? '' : '_' + tone;
-    return AS.url('patient_' + sc.id + suf) || AS.url('patient_' + kind + suf)
-      || AS.url('patient_bed' + suf) || AR.patient(tone, dark, kind);
+    var names = ['patient_' + sc.id + suf, 'patient_' + kind + suf, 'patient_bed' + suf];
+    for (var i = 0; i < names.length; i++) if (AS.has(names[i])) return names[i];
+    return null;
+  }
+
+  function patientArt(sc, tone, dark) {
+    var name = patientArtName(sc, tone);
+    return name ? AS.url(name) : AR.patient(tone, dark, patientKind(sc));
+  }
+
+  /* 患者の絵はベッドごとの一枚絵なので、丸いアイコンでは顔のあたりだけを拡大して見せる。
+   * 顔の位置は症例ごとに違うので、絵の幅・高さに対する割合で持っておく。 */
+  var PT_FOCUS = {
+    postop: [0.36, 0.15], rds: [0.47, 0.25], bronchiolitis: [0.74, 0.26],
+    asthma: [0.66, 0.21], gbs: [0.63, 0.25], ards: [0.58, 0.30]
+  };
+  var PT_ZOOM = 3.4;
+
+  /* 拡大率 z で、絵の中の f（0〜1）の点を丸の中心に置く background-position（%）。
+   *   ずらし量 = p×(絵 − 枠) = f×絵 − 枠/2、絵 = z×枠 なので p = (f·z − 0.5)/(z − 1)。
+   * 端を越えると余白が出るので 0〜1 に丸める。 */
+  function focusPct(f, z) {
+    if (z <= 1) return 50;
+    return Math.max(0, Math.min(1, (f * z - 0.5) / (z - 1))) * 100;
+  }
+
+  /* みどり先生の絵。生成画像は全身の縦長なので、出す側（.cav / .tface）で上を
+   * 正方形に切って顔だけ見せる。sad の絵は無いので think で代える。 */
+  var DOC_ART = {
+    normal: 'doctor_normal', happy: 'doctor_happy', think: 'doctor_think',
+    alert: 'doctor_alert', sad: 'doctor_think'
+  };
+
+  function docArt(mood, dark) {
+    return AS.url(DOC_ART[mood] || 'doctor_normal') || AS.url('doctor_normal')
+      || AR.face(mood, dark);
   }
 
   function paintRails(force) {
@@ -307,7 +341,8 @@
     var mood = (L && L.mood) || 'normal';
     if (force || mood !== RAIL.mood) {
       RAIL.mood = mood;
-      var du = AS.url('doctor_' + mood) || AS.url('doctor_normal') || AR.doctor(dark, false);
+      var du = AS.url(DOC_ART[mood] || 'doctor_normal') || AS.url('doctor_normal')
+        || AR.doctor(dark, false);
       $('portDoc').innerHTML = '<img alt="" src="' + du + '">';
     }
     var say = L ? ($('cSay').textContent || '') : (S.scen.oneLine || '自由に操作できます。');
@@ -348,10 +383,18 @@
     return null;
   }
 
+  /* WebGL 無しのタイトルに立つ二人。WebGL 版（title.js）と同じ生成画像を使い、
+   * 無いときだけ characters.js の絵に落ちる。 */
+  function titleCast(mood) {
+    var du = AS.url(DOC_ART[mood] || 'doctor_normal');
+    $('tDoctor').innerHTML = du ? '<img alt="" class="tart" src="' + du + '">' : CH.doctor(mood);
+    var mu = AS.url('mascot_happy');
+    $('tMascot').innerHTML = mu ? '<img alt="" class="tart" src="' + mu + '">' : CH.mascot('happy');
+  }
+
   function buildTitle() {
     $('tLogo').innerHTML = CH.logo();
-    $('tDoctor').innerHTML = CH.doctor('happy');
-    $('tMascot').innerHTML = CH.mascot('happy');
+    titleCast('happy');
     $('tTheme').onclick = function () {
       applyTheme(currentTheme() === 'pop' ? 'device' : 'pop', true);
     };
@@ -441,7 +484,7 @@
     $('tProgBar').style.width = pct + '%';
     $('tPct').textContent = pct + '%';
     $('tSay').innerHTML = data.line.replace(/\n/g, '<br>');
-    $('tDoctor').innerHTML = CH.doctor(data.done >= data.total ? 'happy' : 'normal');
+    titleCast(data.done >= data.total ? 'happy' : 'normal');
   }
 
   function hideTitle() {
@@ -1745,11 +1788,28 @@
   function paintSpeaker(who, mood) {
     var av = $('cAv'), dark = currentTheme() === 'device';
     av.className = 'cav ' + (who === 'scene' ? 'none' : (who || 'doc'));
+    av.style.backgroundImage = '';
     if (who === 'scene') { av.innerHTML = ''; return; }
+
+    /* 患者だけは顔の位置を指して拡大するので、img ではなく背景で置く。 */
+    var name = who === 'pt' && patientArtName(S.scen, patientTone(S.eng));
+    if (name) {
+      var f = PT_FOCUS[S.scen.id] || [0.5, 0.28];
+      var sz = AS.size(name) || { w: 1, h: 1 };
+      // 幅を基準に拡大するので、縦の倍率は絵の縦横比のぶんだけ変わる。
+      var zx = PT_ZOOM, zy = PT_ZOOM * sz.h / sz.w;
+      av.innerHTML = '';
+      av.style.backgroundImage = 'url("' + AS.url(name) + '")';
+      av.style.backgroundRepeat = 'no-repeat';
+      av.style.backgroundSize = (zx * 100).toFixed(0) + '% auto';
+      av.style.backgroundPosition = focusPct(f[0], zx).toFixed(1) + '% ' + focusPct(f[1], zy).toFixed(1) + '%';
+      return;
+    }
+
     var src;
     if (who === 'puku') src = AS.url('mascot_' + mood) || AS.url('mascot_happy') || AR.mascot(dark, false);
     else if (who === 'pt') src = patientArt(S.scen, patientTone(S.eng), dark);
-    else src = AR.face(mood, dark);
+    else src = docArt(mood, dark);
     av.innerHTML = '<img alt="" src="' + src + '">';
   }
 
