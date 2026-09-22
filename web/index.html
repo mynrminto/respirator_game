@@ -183,6 +183,40 @@
   .freeze{position:absolute;left:10px;bottom:8px;font-size:11px;font-weight:700;letter-spacing:.06em;
     color:#3B2A00;background:var(--paw);padding:3px 10px;border-radius:999px}
 
+  /* 肺の 3D ビュー。波形の代わりに同じ枠へ入る（画面は縦スクロールしない）。 */
+  .lung{position:absolute;inset:0;overflow:hidden}
+  .lungstage{position:absolute;inset:0}
+  .lungstage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+  .lhud{position:absolute;color:var(--screen-ink);font-size:10.5px;line-height:1.45;
+    pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+  .lhud.lt{left:9px;top:8px}
+  .lhud.lt b{font-size:12px;font-weight:800;display:block}
+  .lhud.lt i{font-style:normal;color:var(--screen-dim);font-size:10px}
+  .lhud.lr{right:9px;top:8px;text-align:right;font-family:var(--num);letter-spacing:.01em}
+  .lhud.lr div{white-space:nowrap}
+  .lhud.lr s{text-decoration:none;color:var(--screen-dim);font-family:inherit;font-size:9.5px;
+    margin-right:4px}
+  .lhud.lr u{text-decoration:none;color:var(--screen-dim);font-size:9px;margin-left:2px}
+  .lhud.lr em{font-style:normal;font-weight:700}
+  .leq{position:absolute;left:9px;right:9px;bottom:8px;pointer-events:none;
+    display:flex;align-items:flex-end;gap:7px}
+  .leq .eqi{flex:1 1 0;min-width:0}
+  .leq .eqk{font-size:9px;color:var(--screen-dim);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  .leq .eqv{font-family:var(--num);font-size:11.5px;font-weight:700;color:var(--screen-ink)}
+  .leq .eqb{height:5px;border-radius:3px;background:var(--tile-line);position:relative;
+    overflow:hidden;margin-top:2px}
+  .leq .eqb i{position:absolute;top:0;bottom:0;left:50%;border-radius:3px}
+  .lchips{position:absolute;left:9px;bottom:58px;display:flex;gap:6px}
+  .lchip{padding:3px 9px;border-radius:999px;font-size:10px;font-weight:700;cursor:pointer;
+    background:rgba(255,255,255,.10);border:1.5px solid var(--tile-line);color:var(--screen-ink)}
+  .lchip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  @media(max-width:520px){
+    .lhud{font-size:9.5px}
+    .leq{gap:5px}
+    .leq .eqv{font-size:10.5px}
+  }
+
   .vals{border-left:2px solid var(--tile-line);display:grid;grid-template-columns:1fr 1fr;
     grid-auto-rows:minmax(54px,1fr);gap:2px;background:var(--tile-line);overflow:auto;min-height:0}
   @media(max-width:860px){
@@ -673,6 +707,16 @@
   <div class="screen">
     <div class="scopewrap" id="scopewrap">
       <canvas id="scope"></canvas>
+      <div class="lung" id="lung" hidden>
+        <div class="lungstage" id="lungStage"></div>
+        <div class="lhud lt" id="lungWho"></div>
+        <div class="lhud lr" id="lungFacts"></div>
+        <div class="leq" id="lungEq"></div>
+        <div class="lchips">
+          <button class="lchip" id="lungGain" title="呼吸による動きの強調">動き ×2.5</button>
+          <button class="lchip" id="lungSpin" title="自動で回す／止める">回転</button>
+        </div>
+      </div>
       <div class="ff" id="ff" hidden>早送り中</div>
       <div class="freeze" id="frz" hidden>波形停止中</div>
     </div>
@@ -755,6 +799,7 @@
 <div id="modals"></div>
 
 <script src="vendor/pixi.min.js"></script>
+<script src="vendor/three.min.js"></script>
 <script src="assets.js"></script>
 <script src="characters.js"></script>
 <script src="art.js"></script>
@@ -762,4 +807,5 @@
 <script src="engine.js"></script>
 <script src="scenarios.js"></script>
 <script src="lessons.js"></script>
+<script src="lung3d.js"></script>
 <script src="app.js"></script>

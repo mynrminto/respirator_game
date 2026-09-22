@@ -4,7 +4,7 @@
   'use strict';
 
   var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons, CH = window.VentChars;
-  var AR = window.VentArt, AS = window.VentAssets;
+  var AR = window.VentArt, AS = window.VentAssets, LU = window.VentLung3D;
   var $ = function (id) { return document.getElementById(id); };
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
@@ -46,7 +46,7 @@
     if (b) b.textContent = name === 'device' ? '実機' : 'ポップ';
     try { window.localStorage.setItem(THEME_KEY, currentTheme()); } catch (err) { /* 記録できなくても動く */ }
     readPal();
-    if (redraw) { fitAll(); paintDial(); paintStage(); }
+    if (redraw) { fitAll(); paintDial(); paintStage(); if (LUNG.view) LUNG.view.themeChanged(); }
   }
 
   function initTheme() {
@@ -483,10 +483,10 @@
       t.appendChild(b);
     });
     t.appendChild(el('div', 'sp'));
-    [['wave', '波形'], ['loops', 'ループ'], ['trend', 'トレンド']].forEach(function (p) {
+    [['wave', '波形'], ['loops', 'ループ'], ['trend', 'トレンド'], ['lung', '肺 3D']].forEach(function (p) {
       var b = el('button', 'scr', p[1]);
       b.dataset.scr = p[0];
-      b.onclick = function () { S.screen = p[0]; syncTabs(); };
+      b.onclick = function () { setScreen(p[0]); };
       t.appendChild(b);
     });
     syncTabs();
@@ -830,6 +830,7 @@
     paintVals(); paintStatus(); paintCoach();
     if (S.screen === 'wave') drawScope();
     else if (S.screen === 'loops') drawLoops();
+    else if (S.screen === 'lung') drawLung(real);
     else drawTrend();
   }
 
@@ -887,6 +888,7 @@
     c.width = Math.round(w * d); c.height = Math.round(h * d);
     ctx = c.getContext('2d'); ctx.setTransform(d, 0, 0, d, 0, 0);
     cvW = w; cvH = h;
+    if (LUNG.view) LUNG.view.resize();
     paintDial();
   }
 
@@ -1103,6 +1105,129 @@
     });
     x.fillStyle = PAL.axis; x.textAlign = 'center'; x.font = '9px "Barlow Semi Condensed", sans-serif';
     x.fillText('直近 ' + Math.round(span / 60) + ' 分', w / 2, h - 3);
+  }
+
+  /* ===================== 肺の 3D ビュー =====================
+   * 波形と同じ枠に入る 4 番目の画面。lung3d.js が engine.js の実測値だけを見て描くので、
+   * ここはタブの出し入れと HUD の文字を作るだけ。ダイヤルは普段どおり効くので、
+   * PEEP や吸気圧を回すとその場で肺の膨らみと肺胞が変わる。 */
+  var LUNG = { view: null, gain: 2.5, hudT: 0, lastHud: '' };
+
+  function setScreen(id) {
+    S.screen = id;
+    var box = $('lung'), cv = $('scope');
+    if (id === 'lung') {
+      box.hidden = false; cv.style.visibility = 'hidden';
+      if (!LUNG.view && LU) {
+        LUNG.view = LU.create($('lungStage'));
+        LUNG.view.exaggerate = LUNG.gain;
+        bindLungChips();
+      }
+      if (LUNG.view) { LUNG.view.resize(); syncLungChips(); }
+      lessonEvent('screen:lung');
+    } else {
+      box.hidden = true; cv.style.visibility = '';
+    }
+    syncTabs();
+  }
+
+  function bindLungChips() {
+    $('lungGain').onclick = function () {
+      LUNG.gain = LUNG.gain > 1 ? 1 : 2.5;
+      if (LUNG.view) LUNG.view.exaggerate = LUNG.gain;
+      syncLungChips();
+    };
+    $('lungSpin').onclick = function () {
+      if (!LUNG.view) return;
+      LUNG.view.spin = !LUNG.view.spin;
+      syncLungChips();
+    };
+  }
+  function syncLungChips() {
+    var g = $('lungGain'), sp = $('lungSpin');
+    g.textContent = LUNG.gain > 1 ? '動き ×2.5' : '動き 実寸';
+    g.classList.toggle('on', LUNG.gain > 1);
+    sp.classList.toggle('on', !!(LUNG.view && LUNG.view.spin));
+  }
+
+  function fmtVol(l) {
+    var ml = l * 1000;
+    return ml < 100 ? ml.toFixed(1) : Math.round(ml).toString();
+  }
+
+  function drawLung(real) {
+    if (!LUNG.view || !LU) return;
+    var mo = LU.readModel(S.eng);
+    LUNG.view.update(mo, real, S.speed);
+
+    // HUD は毎フレーム書き換えると読めないので 6 Hz に落とす
+    LUNG.hudT += real;
+    if (LUNG.hudT < 0.16) return;
+    LUNG.hudT = 0;
+
+    var e = S.eng;
+    $('lungWho').innerHTML = '<b>' + esc(S.scen.title) + '</b>'
+      + '<i>' + esc(mo.ageLabel) + '　' + mo.kg + ' kg　'
+      + '肺の高さ ' + mo.heightCm.toFixed(0) + ' cm（実寸）'
+      + (LUNG.view.gl ? '' : '　／ 2D 表示') + '</i>';
+
+    function row(k, v, u, tone) {
+      return '<div><s>' + k + '</s><em' + (tone ? ' style="color:' + tone + '"' : '') + '>'
+        + v + '</em><u>' + (u || '') + '</u></div>';
+    }
+    var P = PAL;
+    var ratioTone = function (r, hiBad) {
+      if (hiBad) return r > 2.5 ? P.crit : (r > 1.5 ? P.warn : P.good);
+      return r < 0.5 ? P.crit : (r < 0.8 ? P.warn : P.good);
+    };
+    var cT = ratioTone(mo.cRatio, false), rT = ratioTone(mo.rRatio, true);
+    // 狭い画面では行を間引く（画面はスクロールしないので、入る分だけ出す）
+    var tight = (LUNG.view.w || 999) < 430;
+    var rows = tight ? [
+      row('ガス量', fmtVol(mo.gas), 'mL'),
+      row('TLC まで', Math.round(mo.fill * 100) + '%', ''),
+      row('コンプライアンス', '×' + mo.cRatio.toFixed(2), '', cT),
+      row('気道抵抗', '×' + mo.rRatio.toFixed(1), '', rT),
+      row('総 PEEP', (mo.peep + mo.autoPeep).toFixed(1), 'cmH2O', mo.autoPeep > 2 ? P.warn : null),
+      row('つぶれた肺胞', Math.round(mo.collapse * 100) + '%', '', mo.collapse > 0.3 ? P.warn : null)
+    ] : [
+      row('肺のガス量', fmtVol(mo.gas), 'mL'),
+      row('FRC', fmtVol(mo.frc), 'mL'),
+      row('TLC まで', Math.round(mo.fill * 100) + '%', ''),
+      row('コンプライアンス', mo.cPerKg.toFixed(2), 'mL/cmH2O/kg', cT),
+      row('　正常比', '×' + mo.cRatio.toFixed(2), '', cT),
+      row('気道抵抗', Math.round(mo.R), 'cmH2O/L/s', rT),
+      row('　正常比', '×' + mo.rRatio.toFixed(1), '', rT),
+      row('総 PEEP', (mo.peep + mo.autoPeep).toFixed(1), 'cmH2O', mo.autoPeep > 2 ? P.warn : null),
+      row('auto-PEEP', mo.autoPeep.toFixed(1), 'cmH2O', mo.autoPeep > 2 ? P.warn : null),
+      row('つぶれた肺胞', Math.round(mo.collapse * 100) + '%', '', mo.collapse > 0.3 ? P.warn : null),
+      row('SpO2', Math.round(e.spo2) + '%', '')
+    ];
+    $('lungFacts').innerHTML = rows.join('');
+
+    // 運動方程式の 3 項。engine.js の式そのままで、和が気道内圧になる。
+    var tm = LU.termsOf(mo);
+    var span = Math.max(12, Math.abs(mo.paw) + 6, Math.abs(tm.resistive) + 4);
+    function bar(k, v, u, col) {
+      var frac = Math.max(-1, Math.min(1, v / span));
+      var left = frac >= 0 ? 50 : 50 + frac * 50;
+      return '<div class="eqi"><div class="eqk">' + k + '</div>'
+        + '<div class="eqv">' + (v >= 0 ? '' : '−') + Math.abs(v).toFixed(1)
+        + '<u style="font-size:8.5px;opacity:.7"> ' + u + '</u></div>'
+        + '<div class="eqb"><i style="left:' + left.toFixed(1) + '%;width:'
+        + (Math.abs(frac) * 50).toFixed(1) + '%;background:' + col + '"></i></div></div>';
+    }
+    $('lungEq').innerHTML =
+      bar(tight ? '弾性 V/C' : '弾性 V/C（肺胞圧）', tm.elastic, 'cmH2O', PAL.vol) +
+      bar('抵抗 R·V̇', tm.resistive, 'cmH2O', PAL.flow) +
+      bar('筋 −Pmus', tm.muscular, 'cmH2O', PAL.spo2) +
+      bar(tight ? '＝ Paw' : '＝ 気道内圧 Paw', mo.paw, 'cmH2O', PAL.paw);
+  }
+
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
   }
 
   /* ===================== ダイアログ ===================== */
@@ -1548,7 +1673,7 @@
     for (var k in st) if (Object.prototype.hasOwnProperty.call(st, k)) S.eng.s[k] = st[k];
     if (lesson.sedation != null) S.eng.sedation = lesson.sedation;
     S.eng._recomputeDrive();
-    S.screen = 'wave';
+    setScreen('wave');
     S.lesson = {
       id: id, lesson: lesson, chap: LS.chapterOf(id),
       rt: new LS.Runtime(lesson), mode: 'task', sig: '',

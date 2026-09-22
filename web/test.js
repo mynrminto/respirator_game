@@ -675,5 +675,137 @@ console.log('\n21. Web 版と iPhone 版がそろっているか');
   }
 }
 
+console.log('\n22. 肺の 3D ビュー（lung3d.js は表示用の物理を持たない）');
+{
+  const LU = require('./lung3d.js');
+
+  // 体格から決まる基準値
+  let frcOk = true, tlcOk = true, order = [];
+  for (const sc of SCENARIOS) {
+    const kg = sc.patient.weightKg;
+    if (!near(LU.frcFor(kg), 0.030 * kg, 1e-9)) frcOk = false;
+    if (!near(LU.tlcFor(kg), 0.080 * kg, 1e-9)) tlcOk = false;
+    order.push([kg, LU.lungHeightCm(kg)]);
+  }
+  ok('FRC は全症例で 30 mL/kg', frcOk);
+  ok('TLC は全症例で 80 mL/kg', tlcOk);
+  order.sort((a, b) => a[0] - b[0]);
+  let mono = true, inRange = true;
+  for (let i = 0; i < order.length; i++) {
+    if (i && order[i][1] <= order[i - 1][1]) mono = false;
+    if (order[i][1] < 5 || order[i][1] > 25) inRange = false;
+  }
+  ok('肺の高さが体重の順に大きくなる', mono,
+    order.map(o => `${o[0]}kg:${o[1].toFixed(1)}cm`).join(' '));
+  ok('肺の高さが小児の範囲（5〜25 cm）に収まる', inRange);
+
+  // エンジンの実測値をそのまま写していること
+  {
+    const e = mk('postop');
+    e.sedation = 1.0; e.pmusAmp = 0; e._recomputeDrive();
+    run(e, 30);
+    const m = LU.readModel(e);
+    ok('肺のガス量 ＝ FRC ＋ エンジンの V', near(m.gas, LU.frcFor(e.p.pbw) + e.V, 1e-12),
+      `${(m.gas * 1000).toFixed(1)} mL`);
+    ok('肺胞圧 ＝ V/C（エンジンと同じ式）', near(m.palv, e.V / e.C, 1e-12),
+      `${m.palv.toFixed(2)} cmH2O`);
+    ok('コンプライアンスと抵抗はエンジンの値そのもの',
+      m.C === e.C && (m.R === e.p.Rinsp || m.R === e.p.Rexp));
+  }
+
+  // 運動方程式 Paw = V/C + R·V̇ − Pmus が表示側でも閉じていること。
+  // 呼気相は離散化の分だけずれるので、刻みを細かくすると誤差が縮むことも見る。
+  function worstResidual(id, dt) {
+    const e = mk(id);
+    e.sedation = 1.0; e.pmusAmp = 0; e._recomputeDrive();
+    run(e, 20, dt);
+    let worst = 0;
+    const n = Math.round(20 / dt);
+    for (let i = 0; i < n; i++) {
+      e.step(dt, false);
+      if (e.hold || e.phase === 'pause') continue;   // ポーズ中は測定用に別式を使う
+      const m = LU.readModel(e);
+      worst = Math.max(worst, Math.abs(LU.termsOf(m).sum - m.paw));
+    }
+    return worst;
+  }
+  for (const id of ['postop', 'bronchiolitis', 'asthma']) {
+    const w = worstResidual(id, 0.005);
+    ok(`${id}：3 項の和が気道内圧に一致`, w < 0.25, `最大誤差 ${w.toFixed(3)} cmH2O`);
+  }
+  {
+    const coarse = worstResidual('rds', 0.005), fine = worstResidual('rds', 0.0005);
+    ok('rds：誤差は離散化由来（刻みを 1/10 にすると縮む）', fine < coarse * 0.35,
+      `${coarse.toFixed(3)} → ${fine.toFixed(3)} cmH2O`);
+  }
+
+  // 病態が形の指標に出ること
+  function model(id) {
+    const e = mk(id);
+    e.sedation = 1.0; e.pmusAmp = 0; e._recomputeDrive();
+    run(e, 60);
+    while (e.phase !== 'insp') e.step(0.002, false);   // 吸気の頭でそろえる
+    return { e, m: LU.readModel(e) };
+  }
+  const M = {};
+  for (const id of ['postop', 'gbs', 'rds', 'ards', 'bronchiolitis', 'asthma']) M[id] = model(id);
+
+  ok('正常肺はコンプライアンス正常比 0.8〜1.2',
+    M.postop.m.cRatio > 0.8 && M.postop.m.cRatio < 1.2 &&
+    M.gbs.m.cRatio > 0.8 && M.gbs.m.cRatio < 1.2,
+    `postop ×${M.postop.m.cRatio.toFixed(2)} gbs ×${M.gbs.m.cRatio.toFixed(2)}`);
+  ok('硬い肺（RDS・ARDS）は正常比 0.7 未満で硬さが立つ',
+    M.rds.m.cRatio < 0.7 && M.ards.m.cRatio < 0.7 &&
+    M.rds.m.stiff > 0.3 && M.ards.m.stiff > 0.3,
+    `rds ×${M.rds.m.cRatio.toFixed(2)}(硬さ ${M.rds.m.stiff.toFixed(2)}) ` +
+    `ards ×${M.ards.m.cRatio.toFixed(2)}(硬さ ${M.ards.m.stiff.toFixed(2)})`);
+  ok('正常肺は気道抵抗も正常比 1.5 倍未満で気道が細くならない',
+    M.postop.m.rRatio < 1.5 && M.gbs.m.rRatio < 1.5 && M.gbs.m.narrow < 0.2,
+    `postop ×${M.postop.m.rRatio.toFixed(2)} gbs ×${M.gbs.m.rRatio.toFixed(2)}`);
+  ok('細気管支炎と喘息は気道抵抗 3 倍以上で気道が細く描かれる',
+    M.bronchiolitis.m.rRatio > 3 && M.asthma.m.rRatio > 3 &&
+    M.bronchiolitis.m.narrow > 0.6 && M.asthma.m.narrow > 0.6,
+    `細気管支炎 ×${M.bronchiolitis.m.rRatio.toFixed(1)} 喘息 ×${M.asthma.m.rRatio.toFixed(1)}`);
+  ok('つぶれた肺胞の割合はシャントそのもの',
+    near(M.ards.m.collapse, M.ards.e.shunt, 1e-12) && M.ards.m.collapse > 0.1,
+    `ARDS ${(M.ards.m.collapse * 100).toFixed(0)}%`);
+  let ratio01 = true;
+  for (const id in M) {
+    const m = M[id].m;
+    if (m.narrow < 0 || m.narrow > 1 || m.stiff < 0 || m.stiff > 1 ||
+        m.over < 0 || m.over > 1 || m.collapse < 0 || m.collapse > 1) ratio01 = false;
+  }
+  ok('形の指標（硬さ・細さ・過膨張・虚脱）は 0〜1 に収まる', ratio01);
+
+  // 設定を変えると表示も動くこと（PEEP を上げれば肺は膨らみシャントは減る）
+  {
+    const lo = mk('ards', { peep: 5 }), hi = mk('ards', { peep: 14 });
+    for (const e of [lo, hi]) { e.sedation = 1.0; e.pmusAmp = 0; e._recomputeDrive(); run(e, 180, 0.01); }
+    while (lo.phase !== 'insp') lo.step(0.002, false);
+    while (hi.phase !== 'insp') hi.step(0.002, false);
+    const a = LU.readModel(lo), b = LU.readModel(hi);
+    ok('PEEP を上げると肺のガス量と膨らみが増える', b.gas > a.gas && b.fill > a.fill,
+      `${(a.gas * 1000).toFixed(0)} → ${(b.gas * 1000).toFixed(0)} mL`);
+    ok('PEEP を上げるとつぶれた肺胞が減る', b.collapse < a.collapse,
+      `${(a.collapse * 100).toFixed(0)}% → ${(b.collapse * 100).toFixed(0)}%`);
+  }
+
+  // 肺は TLC を超えて膨らませない前提の指標であること
+  {
+    const e = mk('postop', { vt: 700, rr: 12 });
+    e.s.alarms.pMax = 90;                 // 圧リミットで頭打ちにならないようにする
+    e.sedation = 1.0; e.pmusAmp = 0; e._recomputeDrive();
+    run(e, 40);
+    let maxFill = 0, over = 0;
+    for (let i = 0; i < 4000; i++) {
+      e.step(0.005, false);
+      const m = LU.readModel(e);
+      maxFill = Math.max(maxFill, m.fill); over = Math.max(over, m.over);
+    }
+    ok('大きすぎる一回換気量で過膨張が立つ', over > 0.2 && maxFill > 0.3,
+      `fill=${(maxFill * 100).toFixed(0)}% 過膨張=${over.toFixed(2)}`);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

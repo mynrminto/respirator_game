@@ -143,6 +143,42 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     await p.getByRole('button', { name: 'ループ' }).click();
     await p.waitForTimeout(1200);
     await p.screenshot({ path: `${SHOT}/${vp.n}-11-loops.png` });
+
+    /* ---------- 肺の 3D ビュー ---------- */
+    await p.getByRole('button', { name: '肺 3D' }).click();
+    await p.waitForTimeout(2200);
+    const lung = await p.evaluate(() => {
+      const c = document.querySelector('#lungStage canvas');
+      return {
+        gl: !!(window.VentLung3D && document.querySelector('#lungStage canvas')
+          && c.getContext instanceof Function) ,
+        w: c ? c.clientWidth : 0, h: c ? c.clientHeight : 0,
+        facts: (document.getElementById('lungFacts').innerText || '').replace(/\n/g, ' / ').slice(0, 90),
+        eq: (document.getElementById('lungEq').innerText || '').replace(/\n/g, ' ').slice(0, 90)
+      };
+    });
+    console.log(vp.n, '肺 3D canvas', lung.w + 'x' + lung.h);
+    console.log(vp.n, '肺 3D 数値:', lung.facts);
+    console.log(vp.n, '肺 3D 方程式:', lung.eq);
+    await p.screenshot({ path: `${SHOT}/${vp.n}-13-lung.png` });
+    // 症例を替えても体格に追従すること（早産児）
+    await p.locator('#kMenu').click();
+    await p.waitForTimeout(250);
+    await p.getByRole('button', { name: /症例を選ぶ/ }).click();
+    await p.waitForTimeout(250);
+    await p.locator('.case').nth(1).click();          // 早産児 RDS
+    await p.waitForTimeout(350);
+    await p.getByRole('button', { name: '推奨初期設定で開始' }).click();
+    await p.waitForTimeout(2500);
+    await p.getByRole('button', { name: '肺 3D' }).click();
+    await p.waitForTimeout(1800);
+    console.log(vp.n, '早産児の肺:', (await p.locator('#lungWho').innerText()).replace(/\n/g, ' '));
+    await p.screenshot({ path: `${SHOT}/${vp.n}-14-lung-rds.png` });
+    await p.locator('#lungGain').click();
+    await p.waitForTimeout(600);
+    console.log(vp.n, '強調トグル:', await p.locator('#lungGain').innerText());
+    await p.screenshot({ path: `${SHOT}/${vp.n}-15-lung-real.png` });
+
     await p.getByRole('button', { name: '波形', exact: true }).click();
     await p.locator('#kSpd').click(); await p.locator('#kSpd').click();
     await p.locator('#kAbg').click();
