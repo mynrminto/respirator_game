@@ -352,7 +352,6 @@
     $('tLogo').innerHTML = CH.logo();
     $('tDoctor').innerHTML = CH.doctor('happy');
     $('tMascot').innerHTML = CH.mascot('happy');
-    $('tPatient').innerHTML = CH.patient('ok');
     $('tTheme').onclick = function () {
       applyTheme(currentTheme() === 'pop' ? 'device' : 'pop', true);
     };

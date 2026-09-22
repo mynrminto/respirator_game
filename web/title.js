@@ -13,7 +13,9 @@
 (function () {
   'use strict';
 
-  var FONT = '"Dela Gothic One","M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif';
+  /* 文字は DOM 側と同じ丸ゴシックにそろえる。見出し用の太い書体はロゴの英字だけに使う。 */
+  var FONT = '"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Yu Gothic","Noto Sans JP",sans-serif';
+  var LOGO_FONT = '"Dela Gothic One",' + FONT;
   var app = null;           // PIXI.Application
   var opts = null;
   var tex = {};             // data URI -> Texture
@@ -92,8 +94,9 @@
       fontFamily: FONT, fontSize: size, fontWeight: weight || '800', fill: color,
       align: 'center', lineHeight: Math.round(size * 1.45)
     };
-    if (stroke) style.stroke = { color: stroke, width: Math.max(3, size * 0.18), join: 'round' };
-    style.dropShadow = { color: 0x2E2545, alpha: 0.28, blur: 2, angle: Math.PI / 2, distance: Math.max(2, size * 0.08) };
+    if (stroke) style.stroke = { color: stroke, width: Math.max(3, size * 0.16), join: 'round' };
+    /* 影は縁取りのある大きな文字だけ。小さな文字に影を落とすと潰れて読みにくい。 */
+    if (stroke) style.dropShadow = { color: 0x2E2545, alpha: 0.28, blur: 2, angle: Math.PI / 2, distance: Math.max(2, size * 0.08) };
     return new window.PIXI.Text({ text: str, style: style });
   }
 
@@ -124,7 +127,6 @@
         pick('mascot_happy', 360, 360, A.mascot(dark, false)),
         hasAsset('mascot_happy') ? pick(hasAsset('mascot_excited') ? 'mascot_excited' : 'mascot_happy')
                                  : texture(A.mascot(dark, true), 360, 360),
-        pick(['patient_postop', 'patient_infant', 'patient_child', 'patient_bed'].filter(hasAsset)[0] || 'patient_bed', 520, 360, A.patient('ok', dark, 'infant')),
         pick('ui_ribbon', 720, 200, A.ribbon(dark)),
         texture(A.bubble(dark), 200, 140),
         pick('ui_button_primary', 160, 120, A.plate('go', dark)),
@@ -140,9 +142,9 @@
       var AS = window.VentAssets;
       build({
         room: t[0], doctor: t[1], doctorBlink: t[2], mascot: t[3], mascotBlink: t[4],
-        patient: t[5], ribbon: t[6], bubble: t[7], plateGo: t[8], plate: t[9],
-        badgeGo: t[10], badge: t[11], barTrack: t[12], barFill: t[13], mote: t[14],
-        logo: t[15], icons: { go: t[16], course: t[17], cases: t[18], about: t[19] },
+        ribbon: t[5], bubble: t[6], plateGo: t[7], plate: t[8],
+        badgeGo: t[9], badge: t[10], barTrack: t[11], barFill: t[12], mote: t[13],
+        logo: t[14], icons: { go: t[15], course: t[16], cases: t[17], about: t[18] },
         nineGo: (AS && AS.nine('ui_button_primary')) || { left: 40, top: 40, right: 40, bottom: 44 },
         nine: (AS && AS.nine('ui_button')) || { left: 40, top: 40, right: 40, bottom: 44 }
       });
@@ -174,9 +176,16 @@
   }
 
   function fonts() {
-    if (!document.fonts || !document.fonts.ready) return Promise.resolve();
-    /* 書体が来る前に文字を焼くと、あとから差し替わらない。少しだけ待つ。 */
-    return Promise.race([document.fonts.ready, new Promise(function (r) { setTimeout(r, 1200); })]);
+    if (!document.fonts || !document.fonts.load) return Promise.resolve();
+    /* 書体が来る前に文字を焼くと、あとから差し替わらない。画面に出す文字ぶんの書体を先に取り寄せて待つ。 */
+    var sample = ['こどもの人工呼吸器シミュレーター', opts.line || '', opts.themeLabel || 'ポップ', '0123456789%']
+      .concat((opts.items || []).map(function (it) { return (it.title || '') + (it.sub || ''); })).join('');
+    var wants = [
+      document.fonts.load('800 20px "M PLUS Rounded 1c"', sample),
+      document.fonts.load('700 20px "M PLUS Rounded 1c"', sample),
+      document.fonts.load('400 20px "Dela Gothic One"', 'VentaSim')
+    ];
+    return Promise.race([Promise.all(wants).catch(function () {}), new Promise(function (r) { setTimeout(r, 2500); })]);
   }
 
   function box(mount) {
@@ -220,13 +229,11 @@
     layers.bg.addChild(layers.shade);
 
     /* 登場人物 */
-    layers.patient = sprite(t.patient);
-    layers.patient.anchor.set(0.5, 1);
     layers.mascot = sprite(t.mascot);
     layers.mascot.anchor.set(0.5, 1);
     layers.doctor = sprite(t.doctor);
     layers.doctor.anchor.set(0.5, 1);
-    layers.cast.addChild(layers.patient, layers.mascot, layers.doctor);
+    layers.cast.addChild(layers.mascot, layers.doctor);
 
     /* 光の粒 */
     layers.motes = [];
@@ -244,22 +251,22 @@
     /* ロゴ */
     layers.ribbon = sprite(t.ribbon);
     layers.ribbon.anchor.set(0.5);
-    layers.logo = text('VentaSim', 54, 0xFFFFFF, '900', 0x2E2545);
+    layers.logo = text('VentaSim', 54, 0xFFFFFF, '400', 0x2E2545);
+    layers.logo.style.fontFamily = LOGO_FONT;
     layers.logo.anchor.set(0.5);
     layers.logoArt = t.logo ? sprite(t.logo) : null;
     if (layers.logoArt) { layers.logoArt.anchor.set(0.5); layers.logo.visible = false; layers.ribbon.visible = false; }
     if (layers.logoArt) layers.ui.addChild(layers.logoArt);
-    layers.sub = text('こどもの人工呼吸器シミュレーター', 15, opts.dark ? 0xCFE0FF : 0x5A4A70, '800');
+    layers.sub = text('こどもの人工呼吸器シミュレーター', 18, opts.dark ? 0xCFE0FF : 0x4A3C62, '800');
     layers.sub.anchor.set(0.5);
     layers.ui.addChild(layers.ribbon, layers.logo, layers.sub);
 
     /* ふきだし */
     layers.bubble = nine(t.bubble, 48, 48, 48, 48);
     layers.tail = new P.Graphics();
-    layers.say = text(opts.line || '', 14, opts.dark ? 0xE8F0FF : 0x3A3050, '700');
+    layers.say = text(opts.line || '', 16, opts.dark ? 0xE8F0FF : 0x2E2545, '700');
     layers.say.anchor.set(0.5);
-    layers.say.style.dropShadow = false;
-    layers.ui.addChild(layers.tail, layers.bubble, layers.say);
+        layers.ui.addChild(layers.tail, layers.bubble, layers.say);
 
     /* メニュー */
     layers.menu = new P.Container();
@@ -274,7 +281,7 @@
     /* 足もと：進捗とテーマ */
     layers.barTrack = nine(t.barTrack, 20, 20, 20, 20);
     layers.barFill = nine(t.barFill, 20, 20, 20, 20);
-    layers.pct = text('0%', 14, opts.dark ? 0xCFE0FF : 0x5A4A70, '800');
+    layers.pct = text('0%', 16, opts.dark ? 0xCFE0FF : 0x4A3C62, '800');
     layers.pct.anchor.set(0, 0.5);
     layers.theme = makeChip(opts.themeLabel || 'ポップ', t);
     layers.ui.addChild(layers.barTrack, layers.barFill, layers.pct, layers.theme);
@@ -300,14 +307,13 @@
     var icon = t.icons && t.icons[item.id];
     var badge = sprite(icon || (item.primary ? t.badgeGo : t.badge));
     badge.anchor.set(0.5);
-    var glyph = text(icon ? '' : item.glyph, 22, 0xFFFFFF, '900', 0x2E2545);
+    var glyph = text(icon ? '' : item.glyph, 22, 0xFFFFFF, '800', 0x2E2545);
     glyph.anchor.set(0.5);
-    var title = text(item.title, 19, item.primary ? 0xFFFFFF : (opts.dark ? 0xE8F0FF : 0x3A3050), '900',
+    var title = text(item.title, 22, item.primary ? 0xFFFFFF : (opts.dark ? 0xE8F0FF : 0x2E2545), '800',
                      item.primary ? 0x8A3B10 : null);
     title.anchor.set(0, 0.5);
-    var sub = text(item.sub || '', 12, item.primary ? 0xFFF0DC : (opts.dark ? 0x9FB3D9 : 0x7A6B92), '700');
+    var sub = text(item.sub || '', 13, item.primary ? 0xFFF4E4 : (opts.dark ? 0x9FB3D9 : 0x6B5C86), '700');
     sub.anchor.set(0, 0.5);
-    sub.style.dropShadow = false;
     c.addChild(plate, badge, glyph, title, sub);
     c._parts = { plate: plate, badge: badge, glyph: glyph, title: title, sub: sub };
     c._item = item;
@@ -333,9 +339,8 @@
     c.eventMode = 'static';
     c.cursor = 'pointer';
     var plate = nine(t.plate, t.nine.left, t.nine.top, t.nine.right, t.nine.bottom);
-    var tx = text(label, 12, opts.dark ? 0xCFE0FF : 0x5A4A70, '800');
+    var tx = text(label, 13.5, opts.dark ? 0xCFE0FF : 0x4A3C62, '800');
     tx.anchor.set(0.5);
-    tx.style.dropShadow = false;
     c.addChild(plate, tx);
     c._parts = { plate: plate, label: tx };
     c.on('pointerup', function () { if (opts.onTheme) opts.onTheme(); });
@@ -375,16 +380,17 @@
     layers.ribbon.height = logoH;
     layers.ribbon.x = colCx;
     layers.ribbon.y = (short ? 14 : wide ? 34 : 24) + logoH / 2;
-    layers.logo.style.fontSize = Math.round(logoH * 0.52);
+    layers.logo.style.fontSize = Math.round(logoH * 0.50);
     layers.logo.style.stroke = { color: 0x2E2545, width: Math.max(4, logoH * 0.09), join: 'round' };
     layers.logo.x = colCx;
     layers.logo.y = layers.ribbon.y - logoH * 0.04;
     layers.sub.x = colCx;
-    layers.sub.y = layers.ribbon.y + logoH * 0.62;
+    layers.sub.style.fontSize = short ? 15 : (wide ? 19 : 17);
+    layers.sub.y = layers.ribbon.y + logoH * 0.64;
 
     /* ふきだし（文字の量で高さが決まるので先に置く） */
-    var bw = Math.min(col, 380);
-    layers.say.style.fontSize = short ? 12.5 : 14;
+    var bw = Math.min(col, 420);
+    layers.say.style.fontSize = short ? 13.5 : (wide ? 16.5 : 15.5);
     layers.say.style.wordWrap = true;
     layers.say.style.wordWrapWidth = bw - 34;
     var bh2 = Math.max(short ? 46 : 54, layers.say.height + 26);
@@ -395,7 +401,7 @@
     layers.say.y = layers.bubble.y + bh2 / 2;
 
     /* メニュー */
-    var bh = short ? 52 : (wide ? 66 : 62);
+    var bh = short ? 56 : (wide ? 78 : 70);
     var gap = short ? 7 : 9;
     var n = layers.menu.children.length;
     var footY, menuTop;
@@ -438,13 +444,6 @@
     layers.mascot.y = castBottom - castH * (wide ? 0.46 : 0.34);
     layers.mascot._baseY = layers.mascot.y;
 
-    layers.patient.height = castH * (wide ? 0.32 : 0.40);
-    layers.patient.width = layers.patient.height * (layers.patient.texture.width / layers.patient.texture.height);
-    layers.patient.x = Math.max(areaL + layers.patient.width * 0.5,
-      wide ? layers.doctor.x - layers.doctor.width * 0.5 - layers.patient.width * 0.34
-           : Math.max(layers.patient.width * 0.5 + 14, colCx - col * 0.30));
-    layers.patient.y = castBottom;
-    layers.patient.visible = castH > 150;
 
     /* ふきだしのしっぽは先生のほうへ向ける */
     var tx0 = Math.min(layers.bubble.x + bw - 40, Math.max(layers.bubble.x + 40, layers.doctor.x - 40));
@@ -462,7 +461,7 @@
       .fill({ color: opts.dark ? 0x0B1020 : 0xFFF8EE, alpha: opts.dark ? 0.62 : 0.72 });
 
     /* 足もと：進捗とテーマ */
-    var chipW = 74, chipH = 26;
+    var chipW = 88, chipH = 30;
 
     var barW = col - chipW - 64;
     fitNine(layers.barTrack, barW, 22);
@@ -474,7 +473,7 @@
     layers.pct.text = Math.round(ratio * 100) + '%';
     layers.pct.x = layers.barTrack.x + barW + 10;
     layers.pct.y = footY;
-    layers.theme.x = wide ? layers.pct.x + 52 : colCx + col / 2 - chipW;
+    layers.theme.x = wide ? layers.pct.x + 60 : colCx + col / 2 - chipW;
     layers.theme.y = footY - chipH / 2;
     fitNine(layers.theme._parts.plate, chipW, chipH + 6);
     layers.theme._parts.label.x = chipW / 2;
@@ -495,12 +494,12 @@
     p.glyph.style.fontSize = Math.round(h * 0.34);
     var tx = 34 + h * 0.42;
     p.title.x = tx;
-    p.title.style.fontSize = Math.round(h * 0.30);
+    p.title.style.fontSize = Math.round(h * 0.32);
     p.sub.x = tx;
-    p.sub.style.fontSize = Math.round(h * 0.19);
+    p.sub.style.fontSize = Math.round(h * 0.20);
     if (p.sub.text) {
-      p.title.y = h / 2 - h * 0.15;
-      p.sub.y = h / 2 + h * 0.21;
+      p.title.y = h / 2 - h * 0.16;
+      p.sub.y = h / 2 + h * 0.22;
       p.sub.visible = h > 46;
     } else {
       p.title.y = h / 2;
