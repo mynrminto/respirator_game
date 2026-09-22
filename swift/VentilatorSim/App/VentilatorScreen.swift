@@ -42,7 +42,9 @@ struct VentilatorScreen: View {
             showingBloodGas = controller.bloodGases.last
         }
         .sheet(item: $showingBloodGas) { gas in
-            BloodGasSheet(gas: gas, goals: controller.engine.patient.goals)
+            BloodGasSheet(gas: gas, goals: controller.engine.patient.goals,
+                          norms: controller.engine.norms,
+                          ageLabel: controller.engine.patient.ageLabel)
         }
         .sheet(isPresented: $showingWeaning) {
             WeaningSheet(controller: controller)
@@ -205,7 +207,9 @@ struct VentilatorScreen: View {
         let engine = controller.engine
         let trace = controller.trace
         let peakCeiling = max(40, (engine.measured.peakPressure + 6).rounded(.up))
-        let volumeCeiling = max(400, (max(engine.measured.tidalVolumeExp,
+        let volumeStep: Double = engine.patient.predictedBodyWeight < 6 ? 2
+            : (engine.patient.predictedBodyWeight < 20 ? 20 : 100)
+        let volumeCeiling = max(volumeStep * 2, (max(engine.measured.tidalVolumeExp,
                                           controller.settings.tidalVolume) * 1.5).rounded(.up))
         return ScopeView(
             lanes: [
@@ -226,22 +230,28 @@ struct VentilatorScreen: View {
         let engine = controller.engine
         let m = engine.measured
         let pbw = engine.patient.predictedBodyWeight
+        let n = engine.norms
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 1),
                                    GridItem(.flexible(), spacing: 1)], spacing: 1) {
             ValueTile(caption: "PIP", value: whole(m.peakPressure), unit: "cmH₂O",
                       limit: "≤\(Int(controller.settings.alarms.peakPressure))",
                       tone: m.peakPressure > controller.settings.alarms.peakPressure ? Chrome.critical : Chrome.screenInk)
             ValueTile(caption: "Pplat", value: optionalWhole(m.plateauPressure), unit: "cmH₂O",
-                      limit: "≤30",
-                      tone: (m.plateauPressure ?? 0) > 30 ? Chrome.critical : Chrome.screenInk)
+                      limit: "≤\(Int(n.plateauMax))",
+                      tone: (m.plateauPressure ?? 0) > n.plateauMax ? Chrome.critical : Chrome.screenInk)
             ValueTile(caption: "PEEP tot", value: oneDecimal(m.totalPEEP), unit: "cmH₂O")
             ValueTile(caption: "ΔP", value: optionalWhole(m.drivingPressure), unit: "cmH₂O",
-                      limit: "≤15",
-                      tone: (m.drivingPressure ?? 0) > 15 ? Chrome.critical : Chrome.screenInk)
-            ValueTile(caption: "Vte", value: whole(m.tidalVolumeExp), unit: "mL",
+                      limit: "≤\(Int(n.drivingPressureMax))",
+                      tone: (m.drivingPressure ?? 0) > n.drivingPressureMax ? Chrome.critical : Chrome.screenInk)
+            ValueTile(caption: "Vte",
+                      value: pbw < 6 ? oneDecimal(m.tidalVolumeExp) : whole(m.tidalVolumeExp), unit: "mL",
                       limit: String(format: "%.1f mL/kg", m.tidalVolumeExp / pbw),
-                      tone: m.tidalVolumeExp / pbw > 8.5 ? Chrome.critical : Chrome.screenInk)
-            ValueTile(caption: "MV", value: oneDecimal(m.minuteVolume), unit: "L/min")
+                      tone: m.tidalVolumeExp / pbw > n.tidalPerKg.upperBound + 1.5
+                          ? Chrome.critical : Chrome.screenInk)
+            ValueTile(caption: "MV",
+                      value: pbw < 10 ? String(format: "%.2f", m.minuteVolume) : oneDecimal(m.minuteVolume),
+                      unit: "L/min",
+                      limit: String(format: "%.0f mL/kg/分", m.minuteVolume * 1000 / pbw))
             ValueTile(caption: "RR tot", value: whole(m.respiratoryRateTotal), unit: "/min",
                       limit: "自発 \(Int(m.respiratoryRateSpontaneous))")
             ValueTile(caption: "I:E", value: m.ieRatio, unit: "")
@@ -249,17 +259,24 @@ struct VentilatorScreen: View {
             ValueTile(caption: "Raw", value: optionalWhole(m.airwayResistance), unit: "cmH₂O/L/s")
             ValueTile(caption: "auto-PEEP", value: oneDecimal(m.autoPEEP), unit: "cmH₂O",
                       tone: m.autoPEEP > 5 ? Chrome.critical : (m.autoPEEP > 2 ? Chrome.warning : Chrome.screenInk))
-            ValueTile(caption: "RSBI", value: optionalWhole(m.rsbi), unit: "", limit: "<105",
-                      tone: (m.rsbi ?? 0) > 105 ? Chrome.warning : Chrome.screenInk)
+            // 小児では f/VT を体重あたりで見る。成人の RSBI（<105）は体重が軽いほど大きく出て使えない。
+            ValueTile(caption: "f/VT",
+                      value: m.rsbiPerKg.map { String(format: "%.1f", $0) } ?? "––",
+                      unit: "/分/(mL/kg)", limit: "<8",
+                      tone: (m.rsbiPerKg ?? 0) > 8 ? Chrome.warning : Chrome.screenInk)
             ValueTile(caption: "SpO₂", value: whole(engine.spo2), unit: "%",
-                      tone: engine.spo2 < 90 ? Chrome.critical
-                          : (engine.spo2 < 94 ? Chrome.warning : Chrome.good))
+                      limit: "\(Int(n.spo2Target.lowerBound))–\(Int(n.spo2Target.upperBound))%",
+                      tone: engine.spo2 < n.spo2Target.lowerBound ? Chrome.critical
+                          : (engine.spo2 > n.spo2Target.upperBound + 2 ? Chrome.warning : Chrome.good))
             ValueTile(caption: "etCO₂", value: whole(engine.etco2), unit: "mmHg")
             ValueTile(caption: "HR", value: whole(engine.heartRate), unit: "/min",
-                      tone: engine.heartRate > 130 ? Chrome.warning : Chrome.screenInk)
+                      limit: "\(Int(n.heartRate.lowerBound))–\(Int(n.heartRate.upperBound))",
+                      tone: engine.heartRate > n.heartRate.upperBound * 1.15 ? Chrome.warning : Chrome.screenInk)
             ValueTile(caption: "ABP mean", value: whole(engine.meanArterialPressure), unit: "mmHg",
-                      tone: engine.meanArterialPressure < 60 ? Chrome.critical
-                          : (engine.meanArterialPressure < 65 ? Chrome.warning : Chrome.screenInk))
+                      limit: "≥\(Int(n.meanArterialPressureMin))",
+                      tone: engine.meanArterialPressure < n.meanArterialPressureMin ? Chrome.critical
+                          : (engine.meanArterialPressure < n.meanArterialPressureMin + 5
+                             ? Chrome.warning : Chrome.screenInk))
         }
         .frame(width: 220)
     }

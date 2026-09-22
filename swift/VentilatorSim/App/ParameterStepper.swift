@@ -6,9 +6,9 @@ struct VentilatorParameter: Identifiable {
     let id: String
     let label: String
     let unit: String
-    let range: ClosedRange<Double>
-    let step: Double
-    let digits: Int
+    var range: ClosedRange<Double>
+    var step: Double
+    var digits: Int
     let modes: Set<VentilationMode>?          // nil はすべてのモードで表示
     let read: (VentilatorSettings) -> Double
     let write: (inout VentilatorSettings, Double) -> Void
@@ -46,6 +46,32 @@ struct VentilatorParameter: Identifiable {
 
     static func applicable(to mode: VentilationMode) -> [VentilatorParameter] {
         all.filter { $0.modes == nil || $0.modes!.contains(mode) }
+    }
+
+    /// つまみの可動域は体重で 2 桁変わる（早産児の Vt は 5 mL、学童は 250 mL）。
+    /// 症例の DialLimits で数値だけ差し替える。
+    static func applicable(to mode: VentilationMode, limits: DialLimits) -> [VentilatorParameter] {
+        applicable(to: mode).map { p in
+            var p = p
+            let r: DialRange?
+            switch p.id {
+            case "vt":      r = limits.tidalVolume
+            case "rr":      r = limits.respiratoryRate
+            case "ti":      r = limits.inspiratoryTime
+            case "flow":    r = limits.inspiratoryFlow
+            case "pause":   r = limits.inspiratoryPause
+            case "trigger": r = limits.trigger
+            case "pinsp":   r = limits.inspiratoryPressure
+            case "ps":      r = limits.pressureSupport
+            default:        r = nil
+            }
+            if let r {
+                p.range = r.min...r.max
+                p.step = r.step
+                p.digits = r.decimals
+            }
+            return p
+        }
     }
 }
 

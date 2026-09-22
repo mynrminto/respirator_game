@@ -21,6 +21,14 @@ public struct Patient: Codable, Equatable {
     public var heightCm: Double
     public var age: Int
 
+    /// 小児では設定の基準が実体重になる。月齢から年齢相応の基準値が決まる。
+    public var weightKg: Double
+    public var ageMonths: Double
+    public var ageLabel: String
+    /// 回路＋フローセンサの死腔 (mL)。新生児回路は 1 mL、成人回路は 30 mL と桁が違う。
+    public var circuitDeadSpace: Double
+    public var normsOverride: NormsOverride?
+
     // 力学
     public var compliance: Double        // L/cmH2O
     public var resistanceInsp: Double    // cmH2O/(L/s)
@@ -55,9 +63,11 @@ public struct Patient: Codable, Equatable {
     public var prone: Bool = false
     public var goals: Goals
 
-    public var predictedBodyWeight: Double {
-        Physiology.predictedBodyWeight(sex: sex, heightCm: heightCm)
-    }
+    /// 小児では身長からの予測体重ではなく実体重を使う。
+    /// 成長期は身長と体重が一緒に動くので、体重がそのまま肺の大きさの目安になる。
+    public var predictedBodyWeight: Double { weightKg }
+
+    public var norms: AgeNorms { Physiology.norms(for: self) }
 
     /// 時定数 τ = R × C（呼気側）。3τ が呼気に必要な時間の目安になる。
     public var expiratoryTimeConstant: Double { resistanceExp * compliance }

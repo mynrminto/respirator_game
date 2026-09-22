@@ -59,6 +59,8 @@ public struct MeasuredValues: Equatable, Sendable {
     public var drivingPressure: Double?
     public var ieRatio: String = "1:2"
     public var rsbi: Double?
+    /// 小児の f/VT ＝ 呼吸回数 ÷ 一回換気量(mL/kg)。8 未満が離脱の目安。
+    public var rsbiPerKg: Double?
 }
 
 public struct BloodGas: Equatable, Sendable, Identifiable {

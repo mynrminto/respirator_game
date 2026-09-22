@@ -2,19 +2,22 @@ import SwiftUI
 import VentilatorCore
 
 /// 血液ガスの結果。目標域は症例ごとに違うので、症例側が持つ範囲と突き合わせて色を変える。
+/// 症例が目標を持たない項目は、年齢相応の正常域（AgeNorms）で判定する。
 struct BloodGasSheet: View {
     let gas: BloodGas
     let goals: Patient.Goals
+    let norms: AgeNorms
+    let ageLabel: String
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    row("pH", gas.pH, digits: 2, range: goals.pH)
-                    row("PaCO₂", gas.paco2, unit: "mmHg", digits: 0, range: goals.paco2)
-                    row("PaO₂", gas.pao2, unit: "mmHg", digits: 0, range: goals.pao2)
-                    row("HCO₃⁻", gas.hco3, unit: "mEq/L", digits: 1)
+                    row("pH", gas.pH, digits: 2, range: goals.pH ?? norms.abgPH)
+                    row("PaCO₂", gas.paco2, unit: "mmHg", digits: 0, range: goals.paco2 ?? norms.abgPaco2)
+                    row("PaO₂", gas.pao2, unit: "mmHg", digits: 0, range: goals.pao2 ?? norms.abgPao2)
+                    row("HCO₃⁻", gas.hco3, unit: "mEq/L", digits: 1, range: norms.abgHco3)
                     row("BE", gas.baseExcess, unit: "mEq/L", digits: 1)
                     row("SaO₂", gas.sao2, unit: "%", digits: 1)
                     row("乳酸", gas.lactate, unit: "mmol/L", digits: 1)
@@ -24,7 +27,7 @@ struct BloodGasSheet: View {
                 }
                 Section("読み") { Text(interpretation).font(.callout) }
             }
-            .navigationTitle("動脈血液ガス")
+            .navigationTitle("動脈血液ガス（\(ageLabel)）")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("閉じる") { dismiss() } } }
         }
     }
@@ -44,10 +47,11 @@ struct BloodGasSheet: View {
 
     private var interpretation: String {
         var parts: [String] = []
-        let acidotic = gas.pH < 7.35, alkalotic = gas.pH > 7.45
-        if acidotic && gas.paco2 > 45 { parts.append("呼吸性アシドーシス") }
-        if acidotic && gas.hco3 < 22 { parts.append("代謝性アシドーシス") }
-        if alkalotic && gas.paco2 < 35 { parts.append("呼吸性アルカローシス") }
+        // 正常域は年齢で変わる。成人の「pH 7.35〜7.45 / HCO₃ 22〜26」を新生児に当てると読み違える。
+        let acidotic = gas.pH < norms.abgPH.lowerBound, alkalotic = gas.pH > norms.abgPH.upperBound
+        if acidotic && gas.paco2 > norms.abgPaco2.upperBound { parts.append("呼吸性アシドーシス") }
+        if acidotic && gas.hco3 < norms.abgHco3.lowerBound { parts.append("代謝性アシドーシス") }
+        if alkalotic && gas.paco2 < norms.abgPaco2.lowerBound { parts.append("呼吸性アルカローシス") }
         if alkalotic && gas.hco3 > 26 { parts.append("代謝性アルカローシス") }
         if !acidotic && !alkalotic && gas.paco2 > 45 { parts.append("代償された高 CO₂ 血症") }
         if parts.isEmpty { parts.append("酸塩基はほぼ正常") }
@@ -81,8 +85,8 @@ struct WeaningSheet: View {
                 } else if let elapsed = controller.sbtElapsed, !controller.sbtFinished {
                     Section("SBT 実施中") {
                         LabeledContent("経過", value: "\(Int(elapsed / 60)) 分 / 目標 30 分")
-                        LabeledContent("RSBI", value: controller.engine.measured.rsbi
-                            .map { $0.formatted(.number.precision(.fractionLength(0))) } ?? "—")
+                        LabeledContent("f/VT（<8 が目安）", value: controller.engine.measured.rsbiPerKg
+                            .map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "—")
                         LabeledContent("呼吸数", value: "\(Int(controller.engine.measured.respiratoryRateTotal)) /分")
                         LabeledContent("呼吸筋疲労", value: "\(Int(controller.engine.fatigue * 100))%")
                         if let reason = controller.sbtFailureReason {

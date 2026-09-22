@@ -69,6 +69,12 @@ public final class VentilatorEngine {
     // MARK: - 内部状態
 
     private var compliance: Double { patient.compliance }
+    /// 年齢相応の基準値。正常域も上限も年齢で決まる。
+    public private(set) var norms: AgeNorms
+    /// つまみの可動域。体重から作る。
+    public private(set) var limits: DialLimits
+    private var tidalGain: Double = 1          // 自発呼吸の努力の補正係数
+    private var lastSpontaneousTidal: Double = 0   // L
     private var phaseTime: Double = 0
     private var sinceMandatory: Double = 0
     private var sinceBreath: Double = 0
@@ -110,10 +116,17 @@ public final class VentilatorEngine {
         self.patient = patient
         self.settings = settings
         self.sedation = patient.sedation
+        self.norms = Physiology.norms(for: patient)
+        self.limits = Physiology.dialLimits(weightKg: patient.predictedBodyWeight,
+                                            norms: Physiology.norms(for: patient))
         reset()
     }
 
     public func reset() {
+        norms = Physiology.norms(for: patient)
+        limits = Physiology.dialLimits(weightKg: patient.predictedBodyWeight, norms: norms)
+        tidalGain = 1
+        lastSpontaneousTidal = 0
         clock = 0
         volume = compliance * settings.peep
         airwayPressure = settings.peep
@@ -175,7 +188,8 @@ public final class VentilatorEngine {
     public func drawBloodGas() -> BloodGas {
         let jitter = { (scale: Double) in (Double.random(in: 0...1) - 0.5) * scale }
         let lactate = Physiology.clamp(
-            1.0 + (meanArterialPressure < 60 ? (60 - meanArterialPressure) * 0.06 : 0)
+            1.0 + (meanArterialPressure < norms.meanArterialPressureMin
+                   ? (norms.meanArterialPressureMin - meanArterialPressure) * 0.06 : 0)
                 + (spo2 < 85 ? 1.5 : 0), 0.4, 9)
         return BloodGas(time: clock,
                         pH: (pH + jitter(0.008)),
@@ -240,8 +254,13 @@ public final class VentilatorEngine {
     }
 
     private func recomputeDrive() {
+        let w = patient.predictedBodyWeight
         let vco2 = patient.vco2 * (1 + 0.13 * (patient.temperature - 37))
-        let restingVE = 0.1 * patient.predictedBodyWeight * (vco2 / 200)
+        /* 安静時分時換気量は「必要な肺胞換気量 ÷ (1 − 死腔率)」から出す。
+         * 成人の 0.1 L/kg/分という係数では、体重 1 kg の早産児で 2 桁ずれる。 */
+        let deadFraction = Physiology.clamp(
+            (2.0 * w + patient.circuitDeadSpace) / Swift.max(1, w * 7), 0.15, 0.7)
+        let restingVE = (0.863 * vco2 / patient.co2Setpoint) / (1 - deadFraction)
         var drive = 1 + 0.11 * (paco2 - patient.co2Setpoint)
         if pao2 < 60 { drive += (60 - pao2) * 0.022 }
         let currentPH = Physiology.pH(hco3: hco3, paco2: paco2)
@@ -251,22 +270,38 @@ public final class VentilatorEngine {
         let awake = Physiology.clamp(1 - sedation, 0, 1)
         let demand = restingVE * drive * awake
 
-        guard awake >= 0.06, demand >= 0.5 else {     // 深鎮静・筋弛緩 → 無呼吸
+        guard awake >= 0.06, demand >= 0.08 * restingVE else {   // 深鎮静・筋弛緩 → 無呼吸
             muscleAmplitude = 0
             muscleLoad = 0
             neuralCycle = 99
             return
         }
 
-        let rate = Physiology.clamp(10 + 1.9 * (demand - restingVE) + 26 * fatigue, 8, 48)
+        let baseRate = (norms.respiratoryRate.lowerBound + norms.respiratoryRate.upperBound) / 2
+        let demandRatio = demand / Swift.max(1e-6, restingVE)
+        let rate = Physiology.clamp(baseRate * (0.55 + 0.45 * demandRatio) + baseRate * fatigue,
+                                    norms.respiratoryRate.lowerBound * 0.7, norms.respiratoryRateMax)
         neuralCycle = 60 / rate
-        neuralInspTime = Physiology.clamp(0.62 * neuralCycle, 0.45, 1.3)
+        neuralInspTime = Physiology.clamp(0.62 * neuralCycle, norms.inspiratoryTimeMin, 1.3)
 
         let targetTidal = demand / rate                        // L
-        let needed = (targetTidal / compliance) * 0.62          // 抵抗分を含めた粗い逆算
-        let ceiling = patient.maxInspiratoryPressure * awake * (1 - 0.55 * fatigue)
+        /* 実際に出た一回換気量を見て、努力の大きさを少しずつ合わせ込む。
+         * 開ループの係数だけだと、吸気時間の短い小児で必要な換気量に届かない。 */
+        if lastSpontaneousTidal > 0, targetTidal > 0 {
+            let err = Physiology.clamp(targetTidal / lastSpontaneousTidal, 0.25, 4)
+            tidalGain = Physiology.clamp(tidalGain * (1 + 0.08 * (err - 1)), 0.5, 4)
+        }
+        let needed = (targetTidal / compliance) * 0.62 * tidalGain
+        /* 呼吸筋の余力。鎮静は「出せる力」を減らすが、疲労の分母にはしない。
+         * 分母に鎮静を入れると、深く鎮静した患者ほど全力で呼吸していることになってしまう。 */
+        let capacity = patient.maxInspiratoryPressure * (1 - 0.55 * fatigue)
+        let ceiling = capacity * awake
         muscleAmplitude = Physiology.clamp(needed, 0, ceiling)
-        muscleLoad = ceiling > 0 ? (muscleAmplitude / ceiling) * (rate / 16) : 0
+        /* 呼吸仕事量は年齢相応の呼吸数で正規化する。16 /分は成人の値で、
+         * そのままでは乳児の呼吸数だけで負荷が 3 倍に見えてしまう。 */
+        muscleLoad = capacity > 0
+            ? (muscleAmplitude / capacity) * Physiology.clamp(rate / baseRate, 0, 2.2)
+            : 0
     }
 
     private func updateFatigue(dt: Double) {
@@ -313,12 +348,16 @@ public final class VentilatorEngine {
                 let progress = Physiology.clamp(inspiredVolume / (settings.tidalVolume / 1000), 0, 1)
                 q = setFlow * (1 - 0.5 * progress)
             }
+            /* 早産児では 1 刻みで運ぶ量が一回換気量の数 % になるので、行き過ぎないよう切る。 */
+            let targetVolume = settings.tidalVolume / 1000
+            var dV = q * dt
+            if inspiredVolume + dV > targetVolume { dV = max(0, targetVolume - inspiredVolume) }
             flow = q
-            volume += q * dt
-            inspiredVolume += q * dt
+            volume += dV
+            inspiredVolume += dV
             airwayPressure = volume / compliance + patient.resistanceInsp * q - musclePressure
 
-            if inspiredVolume >= settings.tidalVolume / 1000 {
+            if inspiredVolume >= targetVolume - 1e-9 {
                 if settings.inspiratoryPause > 0 { beginPause() } else { endInspiration() }
             } else if airwayPressure > settings.alarms.peakPressure + 10 {
                 endInspiration()                      // 圧リミット
@@ -344,7 +383,8 @@ public final class VentilatorEngine {
                 }
             } else {
                 let cycleOff = peakFlowThisBreath * settings.expiratoryTriggerFraction
-                if (phaseTime > 0.25 && flow <= cycleOff) || phaseTime > 2.8 { endInspiration() }
+                let tiMinPS = norms.inspiratoryTimeMin * 0.8, tiMaxPS = norms.inspiratoryTimeMin * 7
+                if (phaseTime > tiMinPS && flow <= cycleOff) || phaseTime > tiMaxPS { endInspiration() }
             }
         }
         peakPressureThisBreath = max(peakPressureThisBreath, airwayPressure)
@@ -371,7 +411,7 @@ public final class VentilatorEngine {
         let triggerThreshold = settings.triggerFlow / 60
         let mandatoryInterval = 60 / max(1, settings.respiratoryRate)
 
-        if phaseTime > 0.25, flow > triggerThreshold {
+        if phaseTime > norms.triggerLockout, flow > triggerThreshold {
             // 吸気努力が auto-PEEP を上回れば流量が正に振れてトリガがかかる。
             // 上回れなければ ineffective effort になる（別に実装する必要はない）。
             if settings.mode.isSpontaneousOnly {
@@ -424,6 +464,7 @@ public final class VentilatorEngine {
         measured.peakPressure = peakPressureThisBreath
         let tidal = (volumeEndInsp - volumeEndExp) * 1000
         measured.tidalVolumeExp = tidal
+        if lastBreathWasSpontaneous { lastSpontaneousTidal = tidal / 1000 }
         phase = .expiration
         phaseTime = 0
         breaths.append(BreathRecord(time: clock, volume: tidal, spontaneous: lastBreathWasSpontaneous))
@@ -439,13 +480,13 @@ public final class VentilatorEngine {
     private func recomputeMechanics() {
         guard let plateau = measured.plateauPressure else { return }
         let tidal = volumeEndInsp - volumeEndExp
-        guard tidal > 0.05 else { return }
+        guard tidal > 0.0005 else { return }
         let driving = plateau - measured.totalPEEP
         measured.drivingPressure = driving
         measured.staticCompliance = driving > 0.5 ? (tidal * 1000) / driving : nil
         if settings.mode.isVolumeTargeted {
             let endFlow = settings.inspiratoryFlow / 60
-            measured.airwayResistance = endFlow > 0.05
+            measured.airwayResistance = endFlow > 0.004
                 ? (measured.peakPressure - plateau) / endFlow : nil
         }
     }
@@ -468,12 +509,21 @@ public final class VentilatorEngine {
         measured.respiratoryRateSpontaneous = Double(spontaneous) * 60 / span
         measured.minuteVolume = volumeSum / 1000 * 60 / span
 
+        /* 成人の RSBI（f/VT[L] < 105）は小児では常に桁外れになる。
+         * 小児では f ÷ (一回換気量 mL/kg) で見て、8 未満を目安にする。 */
+        var meanTidal: Double? = nil
         if spontaneous >= 2 {
-            let meanTidalL = (spontaneousVolumeSum / Double(spontaneous)) / 1000
-            measured.rsbi = meanTidalL > 0.02
-                ? min(250, (Double(spontaneous) * 60 / span) / meanTidalL) : 250
+            meanTidal = spontaneousVolumeSum / Double(spontaneous)
         } else if measured.respiratoryRateSpontaneous > 0, measured.tidalVolumeExp > 0 {
-            measured.rsbi = min(250, measured.respiratoryRateTotal / (measured.tidalVolumeExp / 1000))
+            meanTidal = measured.tidalVolumeExp
+        }
+        if let vt = meanTidal, vt > 0.2 {
+            let f = max(measured.respiratoryRateSpontaneous, 1)
+            measured.rsbi = min(3000, f / (vt / 1000))
+            measured.rsbiPerKg = min(60, f / (vt / patient.predictedBodyWeight))
+        } else if measured.respiratoryRateSpontaneous > 0 {
+            measured.rsbi = 3000
+            measured.rsbiPerKg = 60
         }
 
         let ti = lastInspiratoryTime
@@ -494,16 +544,17 @@ public final class VentilatorEngine {
         let vo2 = vco2 / Physiology.respiratoryQuotient
 
         // 死腔と肺胞換気量
-        let anatomicDeadSpace = 2.0 * patient.predictedBodyWeight / 1000     // L
-        let circuitDeadSpace = 0.030
-        let tidalL = max(0.05, measured.tidalVolumeExp / 1000)
+        let anatomicDeadSpace = 2.0 * patient.predictedBodyWeight / 1000     // L（2 mL/kg は小児も同じ）
+        let circuitDeadSpace = patient.circuitDeadSpace / 1000
+        let tidalL = max(0.0002, measured.tidalVolumeExp / 1000)
         let deadSpace = anatomicDeadSpace + circuitDeadSpace
             + patient.alveolarDeadSpaceFraction * tidalL
-        var alveolarVentilation = max(0.15, tidalL - deadSpace)
+        /* 死腔を引いた残りが肺胞換気量。体重で 2 桁変わるので床も体重比にする。 */
+        var alveolarVentilation = max(0.04 * tidalL, tidalL - deadSpace)
             * max(1, measured.respiratoryRateTotal)
 
         let plateau = measured.plateauPressure ?? (volume / compliance)
-        if plateau > 28 {                       // 過膨張は死腔を増やす
+        if plateau > norms.plateauMax - 2 {     // 過膨張は死腔を増やす
             alveolarVentilation *= Physiology.clamp(1 - (plateau - 28) * 0.02, 0.6, 1)
         }
 
@@ -516,7 +567,7 @@ public final class VentilatorEngine {
         let recruitable = 1 / (1 + exp((totalPEEP - patient.recruitmentP50) / patient.recruitmentK))
         var currentShunt = patient.shuntMinimum
             + (patient.shuntAtLowPEEP - patient.shuntMinimum) * recruitable
-        if plateau > 30 { currentShunt += (plateau - 30) * 0.006 }
+        if plateau > norms.plateauMax { currentShunt += (plateau - norms.plateauMax) * 0.006 }
         if patient.prone { currentShunt *= 0.75 }
         shunt = Physiology.clamp(currentShunt, 0.02, 0.65)
 
@@ -524,14 +575,15 @@ public final class VentilatorEngine {
         var targetCO = patient.cardiacOutput
             * Physiology.clamp(1 - 0.014 * max(0, measured.meanAirwayPressure - 5), 0.60, 1)
         if patient.volumeDepleted { targetCO *= 0.85 }
-        cardiacOutput = Physiology.approach(cardiacOutput, toward: max(1.8, targetCO), dt: d, tau: 25)
+        cardiacOutput = Physiology.approach(cardiacOutput,
+            toward: max(0.25 * patient.cardiacOutput, targetCO), dt: d, tau: 25)
 
         // 酸素化（シャント式を閉じた形で解く）
         let alveolarO2 = Physiology.alveolarPO2(fio2: settings.fio2, paco2: paco2)
         let endCapillary = Physiology.oxygenContent(po2: max(20, alveolarO2),
                                                     hemoglobin: patient.hemoglobin)
         let arterial = max(2, endCapillary
-            - shunt * vo2 / ((1 - shunt) * 10 * max(1.5, cardiacOutput)))
+            - shunt * vo2 / ((1 - shunt) * 10 * max(0.25 * patient.cardiacOutput, cardiacOutput)))
         let targetPaO2 = Physiology.po2(fromContent: arterial, hemoglobin: patient.hemoglobin)
         pao2 = Physiology.approach(pao2, toward: targetPaO2, dt: d, tau: 42)
         spo2 = Physiology.approach(spo2, toward: Physiology.saturation(po2: pao2) * 100,
@@ -548,16 +600,22 @@ public final class VentilatorEngine {
                                     dt: d, tau: 8)
 
         // 循環
-        let hrTarget = patient.heartRate
-            + Physiology.clamp((90 - spo2) * 1.8, 0, 35)
-            + Physiology.clamp((paco2 - 40) * 0.5, -8, 22)
-            + Physiology.clamp((7.35 - pH) * 60, 0, 25)
-            + 44 * max(0, muscleLoad - 0.6)
-        heartRate = Physiology.approach(heartRate, toward: Physiology.clamp(hrTarget, 45, 165),
+        let hrScale = norms.heartRate.upperBound / 100
+        var hrTarget = patient.heartRate
+            + Physiology.clamp((norms.spo2Target.lowerBound - spo2) * 1.8 * hrScale, 0, 35 * hrScale)
+            + Physiology.clamp((paco2 - 40) * 0.5 * hrScale, -8 * hrScale, 22 * hrScale)
+            + Physiology.clamp((7.35 - pH) * 60 * hrScale, 0, 25 * hrScale)
+            + 44 * hrScale * max(0, muscleLoad - 0.6)
+        // 新生児・乳児は重い低酸素で頻脈ではなく徐脈になる。
+        if norms.label == "新生児", spo2 < 78 { hrTarget -= (78 - spo2) * 3.2 }
+        heartRate = Physiology.approach(heartRate,
+            toward: Physiology.clamp(hrTarget, norms.heartRate.lowerBound * 0.75,
+                                     norms.heartRate.upperBound * 1.45),
                                         dt: d, tau: 12)
         let mapTarget = Physiology.clamp(
             patient.meanArterialPressure * (cardiacOutput / patient.cardiacOutput)
-                * (pH < 7.2 ? 0.88 : 1), 35, 130)
+                * (pH < 7.2 ? 0.88 : 1),
+            norms.meanArterialPressureMin * 0.5, norms.meanArterialPressureMin * 2.2)
         meanArterialPressure = Physiology.approach(meanArterialPressure, toward: mapTarget,
                                                    dt: d, tau: 15)
 
@@ -578,11 +636,13 @@ public final class VentilatorEngine {
         timeInTarget.total += dt
         if ok { timeInTarget.inTarget += dt }
 
-        if plateau > 30 { harm.highPlateau += dt }
-        if measured.tidalVolumeExp / patient.predictedBodyWeight > 8.5 { harm.highTidalVolume += dt }
+        if plateau > norms.plateauMax { harm.highPlateau += dt }
+        if measured.tidalVolumeExp / patient.predictedBodyWeight > norms.tidalPerKg.upperBound + 1.5 {
+            harm.highTidalVolume += dt
+        }
         if measured.autoPEEP > 3 { harm.autoPEEP += dt }
-        if spo2 < 88 { harm.hypoxia += dt }
-        if meanArterialPressure < 60 { harm.hypotension += dt }
+        if spo2 < norms.spo2Target.lowerBound - 3 { harm.hypoxia += dt }
+        if meanArterialPressure < norms.meanArterialPressureMin { harm.hypotension += dt }
         if settings.fio2 > 0.6 { harm.highFiO2 += dt }
     }
 
@@ -599,9 +659,9 @@ public final class VentilatorEngine {
         }
         if measured.minuteVolume > limits.minuteVolumeHigh { list.append(.init(message: "分時換気量 過大", severity: 1)) }
         if measured.respiratoryRateTotal > limits.respiratoryRateHigh { list.append(.init(message: "頻呼吸", severity: 1)) }
-        if spo2 < 90 { list.append(.init(message: "SpO₂ 低下", severity: 2)) }
+        if spo2 < norms.spo2Target.lowerBound { list.append(.init(message: "SpO₂ 低下", severity: 2)) }
         if measured.autoPEEP > 5 { list.append(.init(message: "auto-PEEP", severity: 1)) }
-        if meanArterialPressure < 60 { list.append(.init(message: "血圧低下", severity: 2)) }
+        if meanArterialPressure < norms.meanArterialPressureMin { list.append(.init(message: "血圧低下", severity: 2)) }
         alarms = list
     }
 

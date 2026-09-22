@@ -347,8 +347,15 @@ public enum LessonLibrary {
         return list[i + 1]
     }
 
-    /// 表示用に丸めた「6 mL/kg の目標値」。ヒントと判定でずれないよう 1 か所で計算する。
-    static func protectiveTidal(_ pbw: Double) -> Double {
-        (pbw * 6 / 10).rounded() * 10
+    /// 表示用の「x mL/kg の目標値」。ヒントと判定でずれないよう 1 か所で計算する。
+    /// 体重が 1 kg から 35 kg まで動くので、早産児では小数第 1 位まで見せる。
+    static func protectiveTidal(_ pbw: Double, _ perKg: Double = 6) -> Double {
+        pbw * perKg
+    }
+
+    /// 同じ値を画面に出すときの表記。6 kg 未満は 0.1 mL の桁まで。
+    static func mlkg(_ pbw: Double, _ perKg: Double) -> String {
+        let v = pbw * perKg
+        return pbw < 6 ? String(format: "%.1f", v) : String(format: "%.0f", v.rounded())
     }
 }

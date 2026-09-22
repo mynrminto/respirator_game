@@ -7,10 +7,15 @@ import Foundation
 
 private func makeEngine(for lesson: Lesson, sedation: Double = 1.0,
                         override: ((inout VentilatorSettings) -> Void)? = nil) -> VentilatorEngine {
-    var settings = VentilatorSettings()
+    // アプリと同じ順で組む。症例の推奨設定 → レッスンの上書き → 体重からのアラーム。
+    let patient = lesson.scenario.patient
+    var settings = lesson.scenario.initialSettings()
     lesson.prepare(&settings)
     override?(&settings)
-    let engine = VentilatorEngine(patient: lesson.scenario.patient, settings: settings)
+    settings.alarms = .forWeight(patient.predictedBodyWeight, norms: patient.norms,
+                                 tidalVolume: settings.tidalVolume,
+                                 respiratoryRate: settings.respiratoryRate)
+    let engine = VentilatorEngine(patient: patient, settings: settings)
     engine.sedation = sedation
     return engine
 }
@@ -79,12 +84,36 @@ struct LessonStructureTests {
 
     @Test("6 mL/kg の目標がダイヤルの範囲に収まる")
     func protectiveTargetsReachable() {
-        let range = 100.0...900.0        // ParameterStepper の「一回換気量」と同じ
-        for id in ["2-1", "4-4"] {
+        // ダイヤルの可動域は体重ごとに違う。早産児の 6 mL/kg は 6.6 mL しかない。
+        for id in ["2-1", "3-1", "4-4"] {
             let lesson = LessonLibrary.lesson(id: id)!
-            let target = LessonLibrary.protectiveTidal(lesson.scenario.patient.predictedBodyWeight)
-            #expect(range.contains(target), "\(id) の目標 \(target) mL")
+            let p = lesson.scenario.patient
+            let r = Physiology.dialLimits(weightKg: p.predictedBodyWeight, norms: p.norms).tidalVolume
+            let target = LessonLibrary.protectiveTidal(p.predictedBodyWeight)
+            #expect(target >= r.min && target <= r.max,
+                    "\(id) の目標 \(target) mL（範囲 \(r.min)〜\(r.max)）")
         }
+    }
+
+    /// レッスンが決め打ちする初期設定も、その症例のダイヤルの可動域に収まっていること。
+    @Test("レッスンの初期設定がすべてダイヤルの範囲内")
+    func lessonSettingsWithinDialRange() {
+        var outside: [String] = []
+        for lesson in LessonLibrary.all {
+            let p = lesson.scenario.patient
+            let l = Physiology.dialLimits(weightKg: p.predictedBodyWeight, norms: p.norms)
+            var s = lesson.scenario.initialSettings()
+            lesson.prepare(&s)
+            func chk(_ name: String, _ v: Double, _ r: DialRange) {
+                if v < r.min || v > r.max { outside.append("\(lesson.id):\(name)=\(v)") }
+            }
+            chk("vt", s.tidalVolume, l.tidalVolume)
+            chk("rr", s.respiratoryRate, l.respiratoryRate)
+            chk("flow", s.inspiratoryFlow, l.inspiratoryFlow)
+            chk("pause", s.inspiratoryPause, l.inspiratoryPause)
+            chk("trig", s.triggerFlow, l.trigger)
+        }
+        #expect(outside.isEmpty, "\(outside)")
     }
 }
 
@@ -132,10 +161,10 @@ struct LessonRuntimeTests {
         let lesson = LessonLibrary.lesson(id: "2-2")!
         let engine = makeEngine(for: lesson)
         let runtime = LessonRuntime(lesson: lesson)
-        engine.settings.respiratoryRate = 18
+        engine.settings.respiratoryRate = 24
         advance(engine, seconds: 90)
         let ctx = { context(engine, memory: runtime.memory) }
-        #expect(engine.measured.minuteVolume >= 6.0)
+        #expect(engine.measured.minuteVolume >= 3.0 && engine.measured.minuteVolume <= 4.2)
         #expect(runtime.poll(ctx(), seconds: 5) == nil)     // まだ 30 秒に足りない
         #expect(runtime.poll(ctx(), seconds: 30) != nil)
         #expect(runtime.index == 1)
@@ -183,19 +212,19 @@ struct LessonScenarioTests {
         #expect(engine.alarms.contains { $0.message.contains("気道内圧") })
     }
 
-    @Test("5-2：COPD に auto-PEEP が出て、呼吸回数を下げれば消える")
+    @Test("5-2：細気管支炎に auto-PEEP が出て、呼吸回数を下げれば消える")
     func autoPEEP() {
         let lesson = LessonLibrary.lesson(id: "5-2")!
 
         let bad = makeEngine(for: lesson)
-        advance(bad, seconds: 90)
+        advance(bad, seconds: 120)
         while bad.phase != .inspiration { bad.step(dt: 0.005) }
         bad.requestHold(.expiratory)
         advance(bad, seconds: 14)
         #expect(bad.measured.autoPEEP > 3)
 
-        let good = makeEngine(for: lesson) { $0.respiratoryRate = 10 }
-        advance(good, seconds: 120)
+        let good = makeEngine(for: lesson) { $0.respiratoryRate = 22 }
+        advance(good, seconds: 180)
         while good.phase != .inspiration { good.step(dt: 0.005) }
         good.requestHold(.expiratory)
         advance(good, seconds: 14)
@@ -206,28 +235,34 @@ struct LessonScenarioTests {
     func peepImprovesOxygenation() {
         let lesson = LessonLibrary.lesson(id: "4-3")!
         let low = makeEngine(for: lesson)
-        advance(low, seconds: 600, dt: 0.01)
+        advance(low, seconds: 900, dt: 0.01)
         let pfLow = low.pao2 / low.settings.fio2
 
         let high = makeEngine(for: lesson) { $0.peep = 14 }
-        advance(high, seconds: 600, dt: 0.01)
+        advance(high, seconds: 900, dt: 0.01)
         let pfHigh = high.pao2 / high.settings.fio2
         #expect(pfHigh > pfLow + 20)
 
-        // 開いたあとなら FiO2 を下げても SpO2 が保てる
+        // 課題どおり FiO2 60% まで下げても SpO2 92% 以上を保てること
         high.settings.fio2 = 0.6
         advance(high, seconds: 300, dt: 0.01)
-        #expect(high.spo2 >= 90)
+        #expect(high.spo2 >= 92)
     }
 
-    @Test("4-4：6 mL/kg なら Pplat 30 以下・ΔP 15 以下に収まる")
+    @Test("4-4：6 mL/kg なら年齢相応の Pplat・ΔP に収まる")
     func lungProtectiveTargetFits() {
         let lesson = LessonLibrary.lesson(id: "4-4")!
         let pbw = lesson.scenario.patient.predictedBodyWeight
-        let e = makeEngine(for: lesson) { $0.tidalVolume = LessonLibrary.protectiveTidal(pbw) }
-        advance(e, seconds: 120)
-        #expect((e.measured.plateauPressure ?? 99) <= 30)
-        #expect((e.measured.drivingPressure ?? 99) <= 15)
+        let target = (LessonLibrary.protectiveTidal(pbw) / 5).rounded() * 5
+        let e = makeEngine(for: lesson) { $0.tidalVolume = target; $0.inspiratoryPause = 0.3 }
+        advance(e, seconds: 180)
+        #expect((e.measured.plateauPressure ?? 99) <= e.norms.plateauMax)
+        #expect((e.measured.drivingPressure ?? 99) <= e.norms.drivingPressureMax)
+
+        // 課題どおり Vt を触らず、呼吸回数だけで pH 7.25 以上に届くこと
+        let byRate = makeEngine(for: lesson) { $0.tidalVolume = target; $0.respiratoryRate = 40 }
+        advance(byRate, seconds: 60 * 30, dt: 0.01)
+        #expect(byRate.pH >= 7.25, "pH \(byRate.pH) PaCO2 \(byRate.paco2)")
     }
 
     @Test("4-2：低換気から MV を増やすと PaCO2 が目標域に入る")
@@ -237,10 +272,19 @@ struct LessonScenarioTests {
         advance(e, seconds: 900, dt: 0.01)
         #expect(e.paco2 > 50)
 
-        e.settings.tidalVolume = 480
-        e.settings.respiratoryRate = 14
+        e.settings.tidalVolume = 180
+        e.settings.respiratoryRate = 20
         advance(e, seconds: 900, dt: 0.01)
         #expect(e.paco2 >= 33 && e.paco2 <= 48)
-        #expect(e.measured.minuteVolume >= 6.5)
+        #expect(e.measured.minuteVolume >= 3.2)
+    }
+
+    @Test("6-1：離脱の条件をすべて満たせる")
+    func weaningCriteriaReachable() {
+        let lesson = LessonLibrary.lesson(id: "6-1")!
+        let e = makeEngine(for: lesson, sedation: 0.2) { $0.peep = 5; $0.fio2 = 0.4 }
+        advance(e, seconds: 60 * 20, dt: 0.01)
+        let unmet = Weaning.readiness(for: e).filter { !$0.met }.map(\.label)
+        #expect(unmet.isEmpty, "満たせない条件: \(unmet)")
     }
 }
