@@ -176,13 +176,128 @@ struct LessonRuntimeTests {
         let engine = makeEngine(for: lesson)
         let runtime = LessonRuntime(lesson: lesson)
         let ctx = { context(engine, memory: runtime.memory) }
-        runtime.fire(.oxygenFlush, ctx())
-        for _ in 0..<3 {
-            guard let quiz = runtime.task?.quiz else { break }
-            runtime.answer(quiz.answer, ctx())
+        advance(engine, seconds: 60, dt: 0.01)
+        // 課題の種類どおりに順に通す。途中で止まったら構成が変わったということ。
+        var guardCount = 0
+        while !runtime.finished && guardCount < 40 {
+            guardCount += 1
+            guard let task = runtime.task else { break }
+            switch task.advance {
+            case .quiz(let quiz):
+                runtime.answer(quiz.answer, ctx())
+            case .event(let event):
+                if event == .inspiratoryHold { engine.requestHold(.inspiratory) }
+                runtime.fire(event, ctx())
+            case .condition:
+                advance(engine, seconds: 20, dt: 0.01)
+                runtime.poll(ctx(), seconds: 60)
+            }
         }
         #expect(runtime.finished)
         #expect(runtime.task == nil)
+    }
+}
+
+@Suite("教材は読み物ではなく操作であること")
+struct LessonShapeTests {
+
+    /* 画面のタイル（App 側の Readout）と設定キー（VentilatorParameter）に合わせた一覧。
+     * ここが食い違うと、光も帯の計測値も黙って出なくなるので、テストで固定しておく。 */
+    private static let readoutCaptions: Set<String> = [
+        "PIP", "Pplat", "PEEP tot", "ΔP", "Vte", "MV", "RR tot", "I:E",
+        "Cstat", "Raw", "auto-PEEP", "f/VT", "SpO₂", "etCO₂", "HR", "ABP mean"
+    ]
+    private static let parameterIDs: Set<String> = [
+        "vt", "rr", "pinsp", "ti", "flow", "peep", "fio2", "ps", "trig",
+        "esens", "rise", "pause", "sed"
+    ]
+    private static let hardKeyIDs: Set<String> = [
+        "kInsp", "kExp", "kO2", "kSuc", "kFrz", "kSpd", "kAbg", "kWean", "kLearn"
+    ]
+
+    @Test("watch がすべて実在の計測値を指す")
+    func watchTargetsExist() {
+        var bad: [String] = []
+        for lesson in LessonLibrary.all {
+            for task in lesson.tasks {
+                for caption in task.watch where !Self.readoutCaptions.contains(caption) {
+                    bad.append("\(lesson.id):\(caption)")
+                }
+            }
+        }
+        #expect(bad.isEmpty, "\(bad)")
+    }
+
+    @Test("spot がすべて実在の操作先を指す")
+    func spotTargetsExist() {
+        let modes = Set(VentilationMode.allCases.map(\.rawValue))
+        var bad: [String] = []
+        for lesson in LessonLibrary.all {
+            for task in lesson.tasks {
+                for spec in task.spot {
+                    let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
+                    let kind = parts[0]
+                    let arg = parts.count > 1 ? parts[1] : ""
+                    let ok: Bool
+                    switch kind {
+                    case "wave", "dial": ok = arg.isEmpty
+                    case "val":  ok = Self.readoutCaptions.contains(arg)
+                    case "key":  ok = Self.parameterIDs.contains(arg)
+                    case "hard": ok = Self.hardKeyIDs.contains(arg)
+                    case "mode": ok = modes.contains(arg)
+                    default:     ok = false
+                    }
+                    if !ok { bad.append("\(lesson.id):\(spec)") }
+                }
+            }
+        }
+        #expect(bad.isEmpty, "\(bad)")
+    }
+
+    /// 文章の量。ここが太ると「読む教材」に逆戻りするので、上限を決めておく。
+    @Test("指示も解説も一息で読める長さに収まっている")
+    func textStaysShort() {
+        let sample = LessonContext(engine: VentilatorEngine(patient: ScenarioLibrary.postoperative.patient,
+                                                            settings: ScenarioLibrary.postoperative.initialSettings()),
+                                   memory: LessonMemory())
+        var tooLong: [String] = []
+        for lesson in LessonLibrary.all {
+            if lesson.brief.count > 4 { tooLong.append("\(lesson.id) 解説が 4 行超") }
+            for line in lesson.brief where line.count > 100 {
+                tooLong.append("\(lesson.id) 解説 \(line.count)字")
+            }
+            for task in lesson.tasks {
+                let say = task.instruction(sample)
+                if say.count > 48 { tooLong.append("\(lesson.id) 指示 \(say.count)字") }
+                if let quiz = task.quiz, quiz.question.count > 62 {
+                    tooLong.append("\(lesson.id) 設問 \(quiz.question.count)字")
+                }
+            }
+        }
+        #expect(tooLong.isEmpty, "\(tooLong)")
+    }
+
+    @Test("課題の過半数が操作か観察（クイズに偏っていない）")
+    func mostlyHandsOn() {
+        var quizzes = 0, actions = 0
+        for lesson in LessonLibrary.all {
+            for task in lesson.tasks {
+                if task.quiz != nil { quizzes += 1 } else { actions += 1 }
+            }
+        }
+        #expect(actions > quizzes, "操作・観察 \(actions) / クイズ \(quizzes)")
+    }
+
+    @Test("観察の課題には必ず見どころが付いている")
+    func observationTasksPointSomewhere() {
+        var bare: [String] = []
+        for lesson in LessonLibrary.all {
+            for task in lesson.tasks {
+                guard case .condition = task.advance else { continue }
+                if task.watch.isEmpty && task.spot.isEmpty { bare.append(lesson.id) }
+            }
+        }
+        #expect(bare.isEmpty, "\(bare)")
     }
 }
 
@@ -277,6 +392,38 @@ struct LessonScenarioTests {
         advance(e, seconds: 900, dt: 0.01)
         #expect(e.paco2 >= 33 && e.paco2 <= 48)
         #expect(e.measured.minuteVolume >= 3.2)
+    }
+
+    @Test("5-3：気胸で PIP も Pplat も上がり、Vte は変わらず SpO2 が落ちる")
+    func suddenDesaturation() {
+        let lesson = LessonLibrary.lesson(id: "5-3")!
+        let engine = makeEngine(for: lesson)
+        let runtime = LessonRuntime(lesson: lesson)
+        let ctx = { context(engine, memory: runtime.memory) }
+        advance(engine, seconds: 120, dt: 0.01)
+        let peak0 = engine.measured.peakPressure
+        let plateau0 = engine.measured.plateauPressure ?? 0
+        let tidal0 = engine.measured.tidalVolumeExp
+        let spo20 = engine.spo2
+
+        runtime.enter(ctx())                     // 1 番目の onStart で急変が起きる
+        advance(engine, seconds: 300, dt: 0.01)
+        #expect(engine.measured.peakPressure > peak0 + 8)
+        #expect((engine.measured.plateauPressure ?? 0) > plateau0 + 8)
+        #expect(abs(engine.measured.tidalVolumeExp - tidal0) < tidal0 * 0.1)
+        #expect(engine.spo2 < spo20 - 3)
+
+        // 課題を順に通し、ドレーンが入る課題（5 番目）に着いたら元に戻ること
+        runtime.fire(.oxygenFlush, ctx())
+        engine.requestHold(.inspiratory)
+        advance(engine, seconds: 14, dt: 0.005)
+        runtime.fire(.inspiratoryHold, ctx())
+        runtime.poll(ctx(), seconds: 1)
+        if let quiz = runtime.task?.quiz { runtime.answer(quiz.answer, ctx()) }
+        runtime.enter(ctx())                     // 5 番目の onStart で肺が戻る
+        advance(engine, seconds: 600, dt: 0.01)
+        #expect(engine.measured.peakPressure < peak0 + 3)
+        #expect(engine.spo2 > spo20 - 2)
     }
 
     @Test("6-1：離脱の条件をすべて満たせる")

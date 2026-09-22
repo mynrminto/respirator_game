@@ -224,59 +224,18 @@ struct VentilatorScreen: View {
             cursor: trace.cursor,
             sampleCount: trace.capacity,
             sweepSeconds: trace.sweepSeconds)
+            .spotlight(controller.isSpotted("wave"), corner: Chrome.corner)
     }
 
     private var valueColumn: some View {
         let engine = controller.engine
-        let m = engine.measured
-        let pbw = engine.patient.predictedBodyWeight
-        let n = engine.norms
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 1),
                                    GridItem(.flexible(), spacing: 1)], spacing: 1) {
-            ValueTile(caption: "PIP", value: whole(m.peakPressure), unit: "cmH₂O",
-                      limit: "≤\(Int(controller.settings.alarms.peakPressure))",
-                      tone: m.peakPressure > controller.settings.alarms.peakPressure ? Chrome.critical : Chrome.screenInk)
-            ValueTile(caption: "Pplat", value: optionalWhole(m.plateauPressure), unit: "cmH₂O",
-                      limit: "≤\(Int(n.plateauMax))",
-                      tone: (m.plateauPressure ?? 0) > n.plateauMax ? Chrome.critical : Chrome.screenInk)
-            ValueTile(caption: "PEEP tot", value: oneDecimal(m.totalPEEP), unit: "cmH₂O")
-            ValueTile(caption: "ΔP", value: optionalWhole(m.drivingPressure), unit: "cmH₂O",
-                      limit: "≤\(Int(n.drivingPressureMax))",
-                      tone: (m.drivingPressure ?? 0) > n.drivingPressureMax ? Chrome.critical : Chrome.screenInk)
-            ValueTile(caption: "Vte",
-                      value: pbw < 6 ? oneDecimal(m.tidalVolumeExp) : whole(m.tidalVolumeExp), unit: "mL",
-                      limit: String(format: "%.1f mL/kg", m.tidalVolumeExp / pbw),
-                      tone: m.tidalVolumeExp / pbw > n.tidalPerKg.upperBound + 1.5
-                          ? Chrome.critical : Chrome.screenInk)
-            ValueTile(caption: "MV",
-                      value: pbw < 10 ? String(format: "%.2f", m.minuteVolume) : oneDecimal(m.minuteVolume),
-                      unit: "L/min",
-                      limit: String(format: "%.0f mL/kg/分", m.minuteVolume * 1000 / pbw))
-            ValueTile(caption: "RR tot", value: whole(m.respiratoryRateTotal), unit: "/min",
-                      limit: "自発 \(Int(m.respiratoryRateSpontaneous))")
-            ValueTile(caption: "I:E", value: m.ieRatio, unit: "")
-            ValueTile(caption: "Cstat", value: optionalWhole(m.staticCompliance), unit: "mL/cmH₂O")
-            ValueTile(caption: "Raw", value: optionalWhole(m.airwayResistance), unit: "cmH₂O/L/s")
-            ValueTile(caption: "auto-PEEP", value: oneDecimal(m.autoPEEP), unit: "cmH₂O",
-                      tone: m.autoPEEP > 5 ? Chrome.critical : (m.autoPEEP > 2 ? Chrome.warning : Chrome.screenInk))
-            // 小児では f/VT を体重あたりで見る。成人の RSBI（<105）は体重が軽いほど大きく出て使えない。
-            ValueTile(caption: "f/VT",
-                      value: m.rsbiPerKg.map { String(format: "%.1f", $0) } ?? "––",
-                      unit: "/分/(mL/kg)", limit: "<8",
-                      tone: (m.rsbiPerKg ?? 0) > 8 ? Chrome.warning : Chrome.screenInk)
-            ValueTile(caption: "SpO₂", value: whole(engine.spo2), unit: "%",
-                      limit: "\(Int(n.spo2Target.lowerBound))–\(Int(n.spo2Target.upperBound))%",
-                      tone: engine.spo2 < n.spo2Target.lowerBound ? Chrome.critical
-                          : (engine.spo2 > n.spo2Target.upperBound + 2 ? Chrome.warning : Chrome.good))
-            ValueTile(caption: "etCO₂", value: whole(engine.etco2), unit: "mmHg")
-            ValueTile(caption: "HR", value: whole(engine.heartRate), unit: "/min",
-                      limit: "\(Int(n.heartRate.lowerBound))–\(Int(n.heartRate.upperBound))",
-                      tone: engine.heartRate > n.heartRate.upperBound * 1.15 ? Chrome.warning : Chrome.screenInk)
-            ValueTile(caption: "ABP mean", value: whole(engine.meanArterialPressure), unit: "mmHg",
-                      limit: "≥\(Int(n.meanArterialPressureMin))",
-                      tone: engine.meanArterialPressure < n.meanArterialPressureMin ? Chrome.critical
-                          : (engine.meanArterialPressure < n.meanArterialPressureMin + 5
-                             ? Chrome.warning : Chrome.screenInk))
+            ForEach(Readout.all) { r in
+                ValueTile(caption: r.caption, value: r.value(engine), unit: r.unit,
+                          limit: r.limit?(engine), tone: r.tone?(engine))
+                    .spotlight(controller.isSpotted("val:" + r.caption), corner: Chrome.corner)
+            }
         }
         .frame(width: 220)
     }
@@ -290,6 +249,7 @@ struct VentilatorScreen: View {
                     tab(mode.rawValue,
                         selected: controller.settings.mode == mode,
                         tint: Chrome.isPop ? Chrome.accent : Chrome.flow) { controller.change(mode: mode) }
+                        .spotlight(controller.isSpotted("mode:" + mode.rawValue), corner: hardCorner)
                 }
                 Spacer(minLength: 16)
                 ForEach(SimulationController.Screen.allCases) { screen in
@@ -375,6 +335,7 @@ struct VentilatorScreen: View {
                                 lineWidth: Chrome.isPop ? 2 : 1))
             }
         )
+        .spotlight(controller.isSpotted("key:" + parameter.id), corner: Chrome.corner)
         .accessibilityLabel("\(parameter.label) \(shown.formatted()) \(parameter.unit)")
         .accessibilityHint(selected ? "ダイヤルで変更できます" : "押すとダイヤルで変更できます")
     }
@@ -412,6 +373,7 @@ struct VentilatorScreen: View {
                                 lineWidth: Chrome.isPop ? 2 : 1))
             }
         )
+        .spotlight(controller.isSpotted("key:sed"), corner: Chrome.corner)
     }
 
     // MARK: - ハードキー
@@ -421,29 +383,41 @@ struct VentilatorScreen: View {
             HStack(spacing: 5) {
                 DeviceKey(title: "吸気ポーズ",
                           isOn: holdKey == .inspiratory) { controller.requestHold(.inspiratory) }
+                    .spotlight(controller.isSpotted("hard:kInsp"), corner: hardCorner)
                 DeviceKey(title: "呼気ポーズ",
                           isOn: holdKey == .expiratory) { controller.requestHold(.expiratory) }
+                    .spotlight(controller.isSpotted("hard:kExp"), corner: hardCorner)
                 DeviceKey(title: "100% O₂") { controller.oxygenFlush() }
+                    .spotlight(controller.isSpotted("hard:kO2"), corner: hardCorner)
                 DeviceKey(title: "気管吸引") { controller.performSuction() }
+                    .spotlight(controller.isSpotted("hard:kSuc"), corner: hardCorner)
                 DeviceKey(title: "波形停止", isOn: controller.waveformsFrozen) {
                     controller.waveformsFrozen.toggle()
                 }
+                .spotlight(controller.isSpotted("hard:kFrz"), corner: hardCorner)
                 DeviceKey(title: speedLabel, tint: Chrome.sim,
                           isOn: controller.speed.rawValue > 1) { cycleSpeed() }
+                    .spotlight(controller.isSpotted("hard:kSpd"), corner: hardCorner)
                 DeviceKey(title: controller.pendingBloodGasAt == nil ? "血液ガス" : "採血中…",
                           tint: Chrome.sim,
                           isOn: controller.pendingBloodGasAt != nil) { controller.orderBloodGas() }
+                    .spotlight(controller.isSpotted("hard:kAbg"), corner: hardCorner)
                 DeviceKey(title: "離脱", tint: Chrome.sim) {
                     controller.openedWeaning()
                     showingWeaning = true
                 }
+                .spotlight(controller.isSpotted("hard:kWean"), corner: hardCorner)
                 DeviceKey(title: "学習コース", tint: Chrome.sim,
                           isOn: controller.lesson != nil) { showingCourse = true }
+                    .spotlight(controller.isSpotted("hard:kLearn"), corner: hardCorner)
             }
             .padding(.horizontal, 6).padding(.vertical, Chrome.isPop ? 6 : 5)
         }
         .background(Chrome.isPop ? Color.clear : Chrome.chassisTop)
     }
+
+    /// ハードキーはポップのときだけ丸い。光の枠もそれに合わせる。
+    private var hardCorner: CGFloat { Chrome.isPop ? 999 : Chrome.corner }
 
     private var holdKey: VentilatorEngine.HoldKind? {
         controller.engine.activeHold ?? controller.engine.awaitingHold
@@ -487,6 +461,7 @@ struct VentilatorScreen: View {
                      accessibilityValue: dialAccessibilityValue,
                      onStep: { controller.nudge($0) },
                      onCommit: { controller.commitPending() })
+                .spotlight(controller.isSpotted("dial"), corner: 999)
             Button { controller.commitPending() } label: {
                 Text("確定")
                     .font(Chrome.label(13, weight: Chrome.isPop ? .heavy : .semibold))
@@ -531,16 +506,4 @@ struct VentilatorScreen: View {
         return min(max((value - parameter.range.lowerBound) / span, 0), 1)
     }
 
-    // MARK: - 表示の小物
-
-    private func whole(_ value: Double) -> String {
-        value.isFinite ? String(Int(value.rounded())) : "––"
-    }
-    private func oneDecimal(_ value: Double) -> String {
-        value.isFinite ? String(format: "%.1f", value) : "––"
-    }
-    private func optionalWhole(_ value: Double?) -> String {
-        guard let value, value.isFinite else { return "––" }
-        return String(Int(value.rounded()))
-    }
 }

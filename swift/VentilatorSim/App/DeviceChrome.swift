@@ -1,4 +1,5 @@
 import SwiftUI
+import VentilatorCore
 
 /// 見た目は 2 通り。pop（既定）は明るくポップな筐体、device は従来の実機風。
 /// 中身（物理モデル・レッスン・操作の流れ）はどちらでも同じ。
@@ -338,6 +339,110 @@ struct ChipButton: View {
 }
 
 /// 計測値のタイル。単位と、あれば上限の目安を小さく添える。
+/* 機器の画面に並ぶ計測値。学習コースの帯も同じ定義を読むので、
+ * タイルと帯で表示がずれない（web/app.js の VALS と同じ並び・同じ文字列）。 */
+struct Readout: Identifiable {
+    let caption: String
+    let unit: String
+    let value: (VentilatorEngine) -> String
+    var limit: ((VentilatorEngine) -> String)? = nil
+    var tone: ((VentilatorEngine) -> Color)? = nil
+
+    var id: String { caption }
+
+    static func find(_ caption: String) -> Readout? { all.first { $0.caption == caption } }
+
+    private static func whole(_ v: Double) -> String { v.isFinite ? String(Int(v.rounded())) : "––" }
+    private static func wholeOpt(_ v: Double?) -> String { v.map { whole($0) } ?? "––" }
+    private static func one(_ v: Double) -> String { v.isFinite ? String(format: "%.1f", v) : "––" }
+
+    static let all: [Readout] = [
+        Readout(caption: "PIP", unit: "cmH₂O", value: { whole($0.measured.peakPressure) },
+                limit: { "≤\(Int($0.settings.alarms.peakPressure))" },
+                tone: { $0.measured.peakPressure > $0.settings.alarms.peakPressure
+                    ? Chrome.critical : Chrome.screenInk }),
+        Readout(caption: "Pplat", unit: "cmH₂O", value: { wholeOpt($0.measured.plateauPressure) },
+                limit: { "≤\(Int($0.norms.plateauMax))" },
+                tone: { ($0.measured.plateauPressure ?? 0) > $0.norms.plateauMax
+                    ? Chrome.critical : Chrome.screenInk }),
+        Readout(caption: "PEEP tot", unit: "cmH₂O", value: { one($0.measured.totalPEEP) }),
+        Readout(caption: "ΔP", unit: "cmH₂O", value: { wholeOpt($0.measured.drivingPressure) },
+                limit: { "≤\(Int($0.norms.drivingPressureMax))" },
+                tone: { ($0.measured.drivingPressure ?? 0) > $0.norms.drivingPressureMax
+                    ? Chrome.critical : Chrome.screenInk }),
+        Readout(caption: "Vte", unit: "mL",
+                value: { $0.patient.predictedBodyWeight < 6
+                    ? one($0.measured.tidalVolumeExp) : whole($0.measured.tidalVolumeExp) },
+                limit: { String(format: "%.1f mL/kg",
+                                $0.measured.tidalVolumeExp / $0.patient.predictedBodyWeight) },
+                tone: { $0.measured.tidalVolumeExp / $0.patient.predictedBodyWeight
+                    > $0.norms.tidalPerKg.upperBound + 1.5 ? Chrome.critical : Chrome.screenInk }),
+        Readout(caption: "MV", unit: "L/min",
+                value: { $0.patient.predictedBodyWeight < 10
+                    ? String(format: "%.2f", $0.measured.minuteVolume) : one($0.measured.minuteVolume) },
+                limit: { String(format: "%.0f mL/kg/分",
+                                $0.measured.minuteVolume * 1000 / $0.patient.predictedBodyWeight) }),
+        Readout(caption: "RR tot", unit: "/min", value: { whole($0.measured.respiratoryRateTotal) },
+                limit: { "自発 \(Int($0.measured.respiratoryRateSpontaneous))" }),
+        Readout(caption: "I:E", unit: "", value: { $0.measured.ieRatio }),
+        Readout(caption: "Cstat", unit: "mL/cmH₂O", value: { wholeOpt($0.measured.staticCompliance) }),
+        Readout(caption: "Raw", unit: "cmH₂O/L/s", value: { wholeOpt($0.measured.airwayResistance) }),
+        Readout(caption: "auto-PEEP", unit: "cmH₂O", value: { one($0.measured.autoPEEP) },
+                tone: { $0.measured.autoPEEP > 5 ? Chrome.critical
+                    : ($0.measured.autoPEEP > 2 ? Chrome.warning : Chrome.screenInk) }),
+        // 小児では f/VT を体重あたりで見る。成人の RSBI（<105）は体重が軽いほど大きく出て使えない。
+        Readout(caption: "f/VT", unit: "/分/(mL/kg)",
+                value: { $0.measured.rsbiPerKg.map { String(format: "%.1f", $0) } ?? "––" },
+                limit: { _ in "<8" },
+                tone: { ($0.measured.rsbiPerKg ?? 0) > 8 ? Chrome.warning : Chrome.screenInk }),
+        Readout(caption: "SpO₂", unit: "%", value: { whole($0.spo2) },
+                limit: { "\(Int($0.norms.spo2Target.lowerBound))–\(Int($0.norms.spo2Target.upperBound))%" },
+                tone: { $0.spo2 < $0.norms.spo2Target.lowerBound ? Chrome.critical
+                    : ($0.spo2 > $0.norms.spo2Target.upperBound + 2 ? Chrome.warning : Chrome.good) }),
+        Readout(caption: "etCO₂", unit: "mmHg", value: { whole($0.etco2) }),
+        Readout(caption: "HR", unit: "/min", value: { whole($0.heartRate) },
+                limit: { "\(Int($0.norms.heartRate.lowerBound))–\(Int($0.norms.heartRate.upperBound))" },
+                tone: { $0.heartRate > $0.norms.heartRate.upperBound * 1.15
+                    ? Chrome.warning : Chrome.screenInk }),
+        Readout(caption: "ABP mean", unit: "mmHg", value: { whole($0.meanArterialPressure) },
+                limit: { "≥\(Int($0.norms.meanArterialPressureMin))" },
+                tone: { $0.meanArterialPressure < $0.norms.meanArterialPressureMin ? Chrome.critical
+                    : ($0.meanArterialPressure < $0.norms.meanArterialPressureMin + 5
+                       ? Chrome.warning : Chrome.screenInk) })
+    ]
+}
+
+/* いま押すところ・見るところを光らせる。「画面の下の段にある設定キーで」と書く代わりに、
+ * 現物を光らせて指す。学習コースの課題の spot がこれを決める。 */
+struct Spotlight: ViewModifier {
+    var on: Bool
+    var corner: CGFloat
+    @State private var pulse = false
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if on {
+                RoundedRectangle(cornerRadius: corner)
+                    .strokeBorder(Chrome.pressure, lineWidth: 2)
+                    .shadow(color: Chrome.pressure.opacity(pulse ? 0 : 0.6), radius: pulse ? 10 : 1)
+                    .allowsHitTesting(false)
+                    .onAppear {
+                        withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) {
+                            pulse = true
+                        }
+                    }
+            }
+        }
+    }
+}
+
+extension View {
+    /// 学習コースが指している要素を光らせる。
+    func spotlight(_ on: Bool, corner: CGFloat = Chrome.corner) -> some View {
+        modifier(Spotlight(on: on, corner: corner))
+    }
+}
+
 struct ValueTile: View {
     let caption: String
     let value: String

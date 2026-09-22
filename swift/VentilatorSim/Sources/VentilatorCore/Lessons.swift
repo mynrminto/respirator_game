@@ -1,7 +1,9 @@
 import Foundation
 
 /* 学習コース。web/lessons.js と同じ内容・同じ判定で、呼吸器の操作を 1 から学べるようにしたもの。
- * 「読んで終わり」にしないため、解説はすべて実機画面上の操作課題とセットになっている。
+ * 方針は「読んで覚える」ではなく「まず触る → 結果を見る → 一言で意味を添える」。
+ * instruction は一息で読める指示だけにし、理屈は操作が終わったあとの explanation に回す。
+ * 背景の解説（brief）は帯の「解説」からいつでも読めるが、読まなくても先に進める。
  * ここはデータと進行のロジックだけを持ち、描画は App 側の LessonCoachView が行う。 */
 
 // MARK: - 機器の出来事
@@ -111,6 +113,14 @@ public struct LessonTask {
     public var instruction: (LessonContext) -> String
     public var hint: (LessonContext) -> String
     public var explanation: (LessonContext) -> String
+    /* 表示の指定。文章で「右の計測値の Vte を見てください」と書く代わりに、
+     * 見るべき値を帯にも出し（watch）、押すところを光らせる（spot）。
+     * 文字列は web/lessons.js とまったく同じものを使う。 */
+    /// 帯にも出しておく計測値。画面のタイルと同じ見出し（"Pplat" など）。
+    public var watch: [String]
+    /// いま押す／見るところ。"key:vt" / "val:Pplat" / "hard:kInsp" / "wave" / "dial"、
+    /// およびモードのタブ "mode:" ＋ そのモードの表示名（web とは表示名が違うのでそこだけ読み替える）。
+    public var spot: [String]
     public var onStart: ((LessonContext) -> Void)?
     public var onPass: ((LessonContext) -> Void)?
 
@@ -119,6 +129,8 @@ public struct LessonTask {
                 instruction: @escaping (LessonContext) -> String = { _ in "" },
                 hint: @escaping (LessonContext) -> String = { _ in "" },
                 explanation: @escaping (LessonContext) -> String = { _ in "" },
+                watch: [String] = [],
+                spot: [String] = [],
                 onStart: ((LessonContext) -> Void)? = nil,
                 onPass: ((LessonContext) -> Void)? = nil) {
         self.advance = advance
@@ -126,6 +138,8 @@ public struct LessonTask {
         self.instruction = instruction
         self.hint = hint
         self.explanation = explanation
+        self.watch = watch
+        self.spot = spot
         self.onStart = onStart
         self.onPass = onPass
     }
@@ -157,6 +171,14 @@ public extension LessonTask {
                                              answer: answer, explanation: why)))
     }
 
+    /// 課題のあいだ、帯にもこの計測値を出す。操作の前後を「前 → 後」で見せるのに使う。
+    func watching(_ captions: [String]) -> LessonTask {
+        var copy = self; copy.watch = captions; return copy
+    }
+    /// いま押す／見るところを光らせる。
+    func spotting(_ specs: [String]) -> LessonTask {
+        var copy = self; copy.spot = specs; return copy
+    }
     /// 解説を、そのときの計測値から組み立てたいとき。
     func explaining(_ body: @escaping (LessonContext) -> String) -> LessonTask {
         var copy = self; copy.explanation = body; return copy

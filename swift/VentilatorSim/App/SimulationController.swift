@@ -115,6 +115,36 @@ final class SimulationController {
                       memory: lessonRuntime?.memory ?? LessonMemory())
     }
 
+    /// いま課題が指している操作先。課題に取り組んでいるあいだだけ光らせる。
+    /// 解説を読んでいるあいだは消す（もうその操作は終わっているので）。
+    var lessonSpots: [String] {
+        guard lessonPhase == .task, let task = lessonRuntime?.task else { return [] }
+        return task.spot
+    }
+
+    func isSpotted(_ spec: String) -> Bool { lessonSpots.contains(spec) }
+
+    /* 帯にも出す計測値。課題に入った時点の値を控えておき、操作が終わったら「前 → 後」で見せる。
+     * 解説を出しているあいだも、いま終えた課題の計測値を出し続けたいので、
+     * 見出しの一覧ごと控えておく（index はもう次の課題を指している）。 */
+    private(set) var lessonWatch: [String] = []
+    private(set) var lessonWatchBefore: [String: String] = [:]
+    private var lessonWatchIndex = -1
+
+    /// 毎フレーム呼んでよい。課題が変わった瞬間だけ控えを取り直す。
+    private func refreshLessonWatch() {
+        guard let runtime = lessonRuntime else {
+            if lessonWatchIndex != -1 { lessonWatch = []; lessonWatchBefore = [:]; lessonWatchIndex = -1 }
+            return
+        }
+        guard lessonPhase == .task, lessonWatchIndex != runtime.index else { return }
+        lessonWatchIndex = runtime.index
+        lessonWatch = runtime.task?.watch ?? []
+        var snapshot: [String: String] = [:]
+        for caption in lessonWatch { snapshot[caption] = Readout.find(caption)?.value(engine) ?? "––" }
+        lessonWatchBefore = snapshot
+    }
+
     /// 5 Hz で更新する表示用スナップショット。60 fps で View を無効化しないための仕切り。
     private(set) var tickCount: Int = 0
 
@@ -276,6 +306,7 @@ final class SimulationController {
         recordTrend(simulated: simulated)
         updateTimers(simulated: simulated)
         advanceLesson(simulated: simulated)
+        refreshLessonWatch()
 
         displaySync += realSeconds
         if displaySync >= 0.2 {          // 数値表示は 5 Hz で十分
@@ -434,6 +465,9 @@ final class SimulationController {
         lessonRuntime = LessonRuntime(lesson: lesson)
         lessonPhase = .task
         lessonFeedback = ""
+        lessonWatch = []
+        lessonWatchBefore = [:]
+        lessonWatchIndex = -1
         lessonVersion &+= 1
         append("学習コース：\(lesson.title)")
     }
@@ -442,6 +476,9 @@ final class SimulationController {
         lessonRuntime = nil
         lessonPhase = .task
         lessonFeedback = ""
+        lessonWatch = []
+        lessonWatchBefore = [:]
+        lessonWatchIndex = -1
         lessonVersion &+= 1
     }
 

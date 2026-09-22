@@ -1,5 +1,7 @@
 /* エンジンの数値検証。解析解と突き合わせられるものから固める。
  * 症例はすべて小児なので、体重 1.1 kg から 35 kg までで同じ式が成り立つことを見る。 */
+const fs = require('fs');
+const path = require('path');
 const VE = require('./engine.js');
 const { SCENARIOS } = require('./scenarios.js');
 
@@ -381,6 +383,75 @@ console.log('\n18. 学習コースの構造');
   }
 }
 
+console.log('\n18b. 教材は読み物ではなく操作であること');
+{
+  const LS = require('./lessons.js');
+  const flat = LS.allLessons();
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+
+  // watch / spot が指す先が、実際に画面にあるものか。
+  const block = (open, close) => {
+    const i = app.indexOf(open);
+    return i < 0 ? '' : app.slice(i, app.indexOf(close, i));
+  };
+  const valKeys = new Set([...block('var VALS = [', '\n  ];').matchAll(/\{ k: '([^']+)'/g)].map(m => m[1]));
+  const keyIds = new Set([...block('var P = {', '\n  };').matchAll(/^\s+([a-z0-9]+):\s+\{ k: '/gm)].map(m => m[1]));
+  const hardIds = new Set([...html.matchAll(/class="hkey[^"]*" id="([^"]+)"/g)].map(m => m[1]));
+  const modeIds = new Set([...app.matchAll(/\{ id: '([A-Z-]+(?:-[A-Z]+)?)', label:/g)].map(m => m[1]));
+  ok('画面の計測値・設定キー・ハードキーを読み取れた',
+    valKeys.size >= 10 && keyIds.size >= 8 && hardIds.size >= 8,
+    `計測値 ${valKeys.size} / 設定キー ${keyIds.size} / ハードキー ${hardIds.size} / モード ${modeIds.size}`);
+
+  let badWatch = [], badSpot = [];
+  const checkSpot = (id, spec) => {
+    for (const one of (Array.isArray(spec) ? spec : [spec])) {
+      const i = one.indexOf(':');
+      const kind = i < 0 ? one : one.slice(0, i), arg = i < 0 ? '' : one.slice(i + 1);
+      if (kind === 'dial' || kind === 'wave') continue;
+      if (kind === 'val' && valKeys.has(arg)) continue;
+      if (kind === 'key' && keyIds.has(arg)) continue;
+      if (kind === 'hard' && hardIds.has(arg)) continue;
+      if (kind === 'mode' && modeIds.has(arg)) continue;
+      if (kind === 'screen' && ['wave', 'loops', 'trend'].includes(arg)) continue;
+      badSpot.push(`${id}:${one}`);
+    }
+  };
+  for (const { lesson } of flat) {
+    for (const t of lesson.tasks) {
+      for (const w of t.watch || []) if (!valKeys.has(w)) badWatch.push(`${lesson.id}:${w}`);
+      if (t.spot) checkSpot(lesson.id, t.spot);
+    }
+  }
+  ok('watch がすべて実在の計測値を指す', badWatch.length === 0, badWatch.join(' '));
+  ok('spot がすべて実在の操作先を指す', badSpot.length === 0, badSpot.join(' '));
+
+  // 文章の量。ここが太ると「読む教材」に逆戻りするので、上限を決めておく。
+  let longSay = [], longBrief = [], longQ = [];
+  let nAction = 0, nQuiz = 0, noWatch = [];
+  for (const { lesson } of flat) {
+    if (lesson.brief.length > 4) longBrief.push(lesson.id + ' 解説が 4 行超');
+    for (const b of lesson.brief) if (b.length > 100) longBrief.push(`${lesson.id}:${b.length}字`);
+    for (const t of lesson.tasks) {
+      if (typeof t.say === 'string' && t.say.length > 48) longSay.push(`${lesson.id}:${t.say.length}字`);
+      if (t.quiz && typeof t.quiz.q === 'string' && t.quiz.q.length > 62) longQ.push(`${lesson.id}:${t.quiz.q.length}字`);
+      if (t.quiz) nQuiz++; else nAction++;
+      // 待つだけ・見るだけの課題は、何を見ればよいかを画面で示していること
+      if (t.check && !t.quiz && !t.watch && !t.spot) noWatch.push(lesson.id);
+    }
+  }
+  ok('指示は一息で読める長さに収まっている', longSay.length === 0, longSay.join(' '));
+  ok('解説は 4 行以内・1 行 100 字以内', longBrief.length === 0, longBrief.join(' '));
+  ok('設問は 62 字以内', longQ.length === 0, longQ.join(' '));
+  ok('観察の課題には必ず見どころが付いている', noWatch.length === 0, noWatch.join(' '));
+  ok('課題の過半数が操作か観察（クイズに偏っていない）', nAction > nQuiz,
+    `操作・観察 ${nAction} 件 / クイズ ${nQuiz} 件`);
+
+  // レッスンを始めた瞬間に操作へ入れること（解説ダイアログで足止めしない）
+  ok('レッスン開始時に解説ダイアログを開かない',
+    !/fitAll\(\);\s*\n\s*openBrief\(\);/.test(app));
+}
+
 console.log('\n19. レッスンの進行');
 {
   const LS = require('./lessons.js');
@@ -512,6 +583,32 @@ console.log('\n20. レッスンの目標が到達可能か');
   ok('2-2 の MV 目標（3.0〜4.2）に届く', mvE.m.mv >= 3.0 && mvE.m.mv <= 4.2,
     `MV=${mvE.m.mv.toFixed(2)} L/分`);
 
+  // 5-3：急変の課題が本当に「PIP も Pplat も上がり、Vte は変わらず、SpO2 が落ちる」形になること
+  const l53 = LS.lessonById('5-3');
+  const e53 = mk('postop', Object.assign({}, l53.settings));
+  e53.sedation = 1.0; e53._recomputeDrive();
+  run(e53, 120, 0.01);
+  const before = { pip: e53.m.pip, plat: e53.m.pplat, vte: e53.m.vte, spo2: e53.spo2 };
+  const rt53 = new LS.Runtime(l53);
+  const ctx53 = () => ({ e: e53, s: e53.s, m: e53.m, pbw: e53.p.pbw, abgs: [], lastAbg: null, sbt: null });
+  rt53.enter(ctx53());                       // 1 番目の onStart で急変が起きる
+  run(e53, 300, 0.01);
+  expPause(e53);
+  ok('5-3 の急変で PIP も Pplat も上がる',
+    e53.m.pip > before.pip + 8 && e53.m.pplat > before.plat + 8,
+    `PIP ${before.pip.toFixed(0)}→${e53.m.pip.toFixed(0)} / Pplat ${before.plat.toFixed(0)}→${e53.m.pplat.toFixed(0)}`);
+  ok('5-3 の急変でも Vte は保たれる（リークではない）',
+    Math.abs(e53.m.vte - before.vte) < before.vte * 0.1,
+    `Vte ${before.vte.toFixed(0)}→${e53.m.vte.toFixed(0)} mL`);
+  ok('5-3 の急変で SpO2 が落ちる', e53.spo2 < before.spo2 - 3,
+    `SpO2 ${before.spo2.toFixed(0)}→${e53.spo2.toFixed(0)}%`);
+  // ドレーン後の課題で元に戻ること
+  rt53.index = 4; rt53.enter(ctx53());
+  run(e53, 600, 0.01);
+  ok('5-3 の処置で圧も酸素化も戻る',
+    e53.m.pip < before.pip + 3 && e53.spo2 > before.spo2 - 2,
+    `PIP=${e53.m.pip.toFixed(0)} SpO2=${e53.spo2.toFixed(0)}%`);
+
   // 6-1：離脱条件をすべて満たせること
   const l61 = LS.lessonById('6-1');
   const w = mk('postop', Object.assign({}, l61.settings, { peep: 5, fio2: 0.4 }));
@@ -521,6 +618,61 @@ console.log('\n20. レッスンの目標が到達可能か');
     w.s.fio2 <= 0.41 && w.s.peep <= 7 && (w.pao2 / w.s.fio2) >= 200 && w.ph >= 7.30
       && w.map >= w.nm.mapMin && w.sedation <= 0.4 && (w.m.rrSpont >= 4 || w.pmusAmp > 2),
     `P/F=${(w.pao2 / w.s.fio2).toFixed(0)} pH=${w.ph.toFixed(2)} MAP=${w.map.toFixed(0)}（下限 ${w.nm.mapMin}）`);
+}
+
+console.log('\n21. Web 版と iPhone 版がそろっているか');
+{
+  /* 片方だけ直すと、同じ教材のはずが別物になる。
+   * Swift はここではコンパイルできないので、レッスンの骨格だけを突き合わせる。 */
+  const LS = require('./lessons.js');
+  const dir = path.join(__dirname, '..', 'swift', 'VentilatorSim', 'Sources', 'VentilatorCore');
+  if (!fs.existsSync(dir)) {
+    console.log('  --   swift/ が無いので省略');
+  } else {
+    const src = ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift']
+      .map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+
+    // Swift 側のレッスンを、id ごとに切り出す
+    const swiftLessons = [];
+    const head = /id: "([0-9]-[0-9])", title: "([^"]+)", minutes: (\d+)/g;
+    let m, marks = [];
+    while ((m = head.exec(src))) marks.push({ id: m[1], title: m[2], minutes: +m[3], at: m.index });
+    marks.forEach((mk, i) => {
+      const body = src.slice(mk.at, i + 1 < marks.length ? marks[i + 1].at : src.length);
+      swiftLessons.push({
+        id: mk.id, title: mk.title, minutes: mk.minutes,
+        quizAnswers: [...body.matchAll(/answer: (\d+)/g)].map(x => +x[1]),
+        watch: [...body.matchAll(/\.watching\(\[([^\]]*)\]\)/g)].map(x => x[1]),
+        spot: [...body.matchAll(/\.spotting\(\[([^\]]*)\]\)/g)].map(x => x[1]),
+        holds: [...body.matchAll(/hold: (\d+)/g)].map(x => +x[1])
+      });
+    });
+
+    const js = LS.allLessons().map(x => x.lesson);
+    ok('Swift 側にも 19 レッスンある', swiftLessons.length === 19, `${swiftLessons.length} 件`);
+
+    let diff = [];
+    for (const l of js) {
+      const sw = swiftLessons.find(x => x.id === l.id);
+      if (!sw) { diff.push(l.id + ' が Swift に無い'); continue; }
+      if (sw.title !== l.title) diff.push(`${l.id} の題が違う`);
+      if (sw.minutes !== l.minutes) diff.push(`${l.id} の所要時間 ${l.minutes}/${sw.minutes}`);
+      const jsAnswers = l.tasks.filter(t => t.quiz).map(t => t.quiz.answer);
+      if (jsAnswers.join(',') !== sw.quizAnswers.join(',')) {
+        diff.push(`${l.id} のクイズの正解 [${jsAnswers}] / [${sw.quizAnswers}]`);
+      }
+      const jsHolds = l.tasks.filter(t => t.hold).map(t => t.hold);
+      if (jsHolds.join(',') !== sw.holds.join(',')) {
+        diff.push(`${l.id} の保持秒数 [${jsHolds}] / [${sw.holds}]`);
+      }
+      const jsWatch = l.tasks.filter(t => t.watch).length;
+      const jsSpot = l.tasks.filter(t => t.spot).length;
+      if (jsWatch !== sw.watch.length) diff.push(`${l.id} の watch の数 ${jsWatch}/${sw.watch.length}`);
+      if (jsSpot !== sw.spot.length) diff.push(`${l.id} の spot の数 ${jsSpot}/${sw.spot.length}`);
+    }
+    ok('題・所要時間・クイズの正解・保持秒数・見どころがそろっている', diff.length === 0,
+       diff.join(' / '));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

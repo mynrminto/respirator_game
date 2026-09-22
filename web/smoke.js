@@ -38,13 +38,21 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     console.log(vp.n, 'タイトルが消えた:', await p.locator('#title').isHidden());
     await p.screenshot({ path: `${SHOT}/${vp.n}-2-course.png` });
 
-    // 1-2「PIP と Pplat」を開く。解説 → 操作 → 課題の進行を確かめる。
+    // 1-2「PIP と Pplat」を開く。解説を読まずにいきなり操作へ入れること。
     await p.getByRole('button', { name: /PIP と Pplat/ }).click();
     await p.waitForTimeout(500);
-    await p.screenshot({ path: `${SHOT}/${vp.n}-3-brief.png` });
-    await p.getByRole('button', { name: '操作に進む' }).click();
+    await p.screenshot({ path: `${SHOT}/${vp.n}-3-lesson.png` });
+    console.log(vp.n, '開始直後にダイアログが無い:', (await p.locator('#modals .mbox').count()) === 0);
+    console.log(vp.n, '最初の指示:', (await p.locator('#cSay').innerText()).trim());
+    // 押すところが光っていること（文章で場所を説明しないための仕掛け）
+    console.log(vp.n, '吸気ポーズが光っている:',
+      await p.locator('#kInsp.spot').count() === 1);
+    // 解説は読みたい人だけが開ける
+    await p.locator('#cBrief').click();
     await p.waitForTimeout(400);
-    await p.screenshot({ path: `${SHOT}/${vp.n}-4-lesson.png` });
+    await p.screenshot({ path: `${SHOT}/${vp.n}-4-brief.png` });
+    await p.getByRole('button', { name: '操作に進む' }).click();
+    await p.waitForTimeout(300);
 
     const step = async () => (await p.locator('#cChap').innerText()).trim();
     // 解説が出ているあいだは「次へ」を押して先に進める
@@ -63,6 +71,11 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     await p.waitForTimeout(300);
     let say = await p.locator('#cSay').innerText();
     console.log(vp.n, '吸気ポーズ後の解説:', say.slice(0, 32));
+    await clearFeedback(1000);
+    // 測定を待つあいだ、見るべき計測値が帯の中に出ていること
+    await p.waitForTimeout(600);
+    console.log(vp.n, '帯に出ている計測値:',
+      (await p.locator('#cWatch .w b').allInnerTexts()).join(' / ') || '(なし)');
     await p.screenshot({ path: `${SHOT}/${vp.n}-5-measured.png` });
     await clearFeedback(6000);
     console.log(vp.n, 'Pplat 測定後:', await step());
@@ -71,12 +84,12 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     await p.screenshot({ path: `${SHOT}/${vp.n}-6-quiz.png` });
     const choices = p.locator('#cChoices button');
     console.log(vp.n, 'クイズの選択肢数:', await choices.count());
-    await choices.nth(0).click();            // 正解は 2 番目なので誤答になる
+    await choices.nth(1).click();            // 正解は 1 番目なので誤答になる
     await p.waitForTimeout(300);
     const hint = await p.locator('#cHint').innerText();
     console.log(vp.n, '誤答のフィードバック:', hint.trim().slice(0, 24) || '(なし)');
     await p.screenshot({ path: `${SHOT}/${vp.n}-7-wrong.png` });
-    await p.locator('#cChoices button').nth(1).click();
+    await p.locator('#cChoices button').nth(0).click();
     await p.waitForTimeout(300);
     say = await p.locator('#cSay').innerText();
     console.log(vp.n, '正解の解説:', say.slice(0, 28));
@@ -110,6 +123,7 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     await p.locator('#cQuit').click();
     await p.waitForTimeout(300);
     console.log(vp.n, '終了後に帯が消えた:', await p.locator('#coach').isHidden());
+    console.log(vp.n, '終了後に光が残っていない:', (await p.locator('.spot').count()) === 0);
 
     /* ---------- フリー操作（従来どおり動くこと） ---------- */
     await p.locator('#kMenu').click();

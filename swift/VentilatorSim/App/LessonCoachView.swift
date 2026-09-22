@@ -39,7 +39,10 @@ struct LessonCoachView: View {
                                        background: Coach.choice) {
                             DoctorView(mood: mood)
                         }
-                        content(for: runtime)
+                        VStack(alignment: .leading, spacing: 6) {
+                            content(for: runtime)
+                            watchStrip
+                        }
                     }
                     .padding(.horizontal, 10)
                     .padding(.bottom, 8)
@@ -57,12 +60,60 @@ struct LessonCoachView: View {
             .sheet(isPresented: $showingCourse) {
                 LessonCourseView { controller.startLesson($0) }
             }
-            .onChange(of: lesson.id) { _, _ in showingBrief = true }
-            .onAppear { showingBrief = true }
             .onChange(of: controller.lessonPhase) { _, phase in
                 if phase == .done { markCompleted(lesson.id) }
             }
         }
+    }
+
+    // MARK: - 課題に関係する計測値
+
+    /* 「右の計測値の Vte を見てください」と書く代わりに、その値を帯の中にも出す。
+     * 操作が終わったら、課題に入った時点の値を左に添えて「前 → 後」で見せる。 */
+    private var watchStrip: some View {
+        let engine = controller.engine
+        let showBefore = controller.lessonPhase != .task
+        let captions = controller.lessonWatch
+        return Group {
+            if !captions.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(captions, id: \.self) { caption in
+                        if let readout = Readout.find(caption) {
+                            let now = readout.value(engine)
+                            let before = showBefore ? controller.lessonWatchBefore[caption] : nil
+                            watchPill(readout, now: now, before: before)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func watchPill(_ readout: Readout, now: String, before: String?) -> some View {
+        let changed = before != nil && before != now
+        return HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(readout.caption)
+                .font(Chrome.label(9.5, weight: .bold))
+                .foregroundStyle(Coach.faint)
+            if let before, changed {
+                Text("\(before) →")
+                    .font(Chrome.digits(12, weight: .regular))
+                    .foregroundStyle(Coach.faint)
+            }
+            Text(now)
+                .font(Chrome.digits(15, weight: .bold))
+                .foregroundStyle(changed ? tint : Coach.ink)
+            Text(readout.unit)
+                .font(.system(size: 9))
+                .foregroundStyle(Coach.faint)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: Chrome.isPop ? 999 : Chrome.corner)
+                .fill(Coach.choice)
+                .overlay(RoundedRectangle(cornerRadius: Chrome.isPop ? 999 : Chrome.corner)
+                    .stroke(changed ? tint : Coach.dot, lineWidth: Chrome.isPop ? 1.5 : 1))
+        )
     }
 
     // MARK: - 見出し

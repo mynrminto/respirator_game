@@ -193,6 +193,11 @@
     'CPAP':    ['peep', 'fio2', 'trig', 'sed']
   };
 
+  function esc(t) {
+    return String(t).replace(/[&<>"]/g, function (c) {
+      return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
+    });
+  }
   function r0(v) { return v == null || !isFinite(v) ? '––' : String(Math.round(v)); }
   function r1(v) { return v == null || !isFinite(v) ? '––' : v.toFixed(1); }
 
@@ -523,7 +528,10 @@
       if (o.v.textContent !== txt) o.v.textContent = txt;
       if (o.d.lim) { var lt = o.d.lim(e); if (o.lim.textContent !== lt) o.lim.textContent = lt; }
       var tone = o.d.tone ? o.d.tone(e) : '';
-      if (o.n.dataset.tone !== tone) { o.n.className = 'val ' + tone; o.n.dataset.tone = tone; }
+      if (o.n.dataset.tone !== tone) {
+        o.n.className = 'val ' + tone + (o.n.dataset.spot ? ' spot' : '');
+        o.n.dataset.tone = tone;
+      }
     }
   }
 
@@ -543,6 +551,7 @@
       keyNodes[id] = { b: b, v: vs };
     });
     paintKeys();
+    if (S.lesson) applySpot(S.lesson.spot);
   }
   function fmtP(p, v) { return p.dec ? v.toFixed(p.dec) : String(Math.round(v)); }
   function paintKeys() {
@@ -1454,6 +1463,73 @@
     } catch (err) { /* プライベートブラウズなどでは記録できない。進行自体は続けられる。 */ }
   }
 
+  /* ---- 注目の光 ----
+   * 課題が「どこを押すか」「どこを見るか」を指すとき、文章で場所を説明せずに現物を光らせる。
+   * spec は 'key:vt' / 'val:Pplat' / 'hard:kInsp' / 'mode:PC-AC' / 'screen:wave' / 'dial' / 'wave'。 */
+  var spotted = [];
+
+  function spotEls(spec) {
+    var out = [];
+    (Array.isArray(spec) ? spec : [spec]).forEach(function (one) {
+      if (!one) return;
+      var i = one.indexOf(':');
+      var kind = i < 0 ? one : one.slice(0, i), arg = i < 0 ? '' : one.slice(i + 1), n;
+      if (kind === 'key') { if (keyNodes[arg]) out.push(keyNodes[arg].b); }
+      else if (kind === 'val') {
+        valNodes.forEach(function (o) { if (o.d.k === arg) out.push(o.n); });
+      } else if (kind === 'hard') { n = $(arg); if (n) out.push(n); }
+      else if (kind === 'mode' || kind === 'screen') {
+        var key = kind === 'mode' ? 'mode' : 'scr';
+        Array.prototype.forEach.call($('tabs').children, function (b) {
+          if (b.dataset[key] === arg) out.push(b);
+        });
+      } else if (kind === 'dial') { n = $('knob'); if (n) out.push(n); }
+      else if (kind === 'wave') { n = $('scopewrap'); if (n) out.push(n); }
+    });
+    return out;
+  }
+
+  function applySpot(spec) {
+    spotted.forEach(function (n) { n.classList.remove('spot'); delete n.dataset.spot; });
+    spotted = spec ? spotEls(spec) : [];
+    spotted.forEach(function (n) { n.classList.add('spot'); n.dataset.spot = '1'; });
+  }
+
+  /* ---- 課題に関係する計測値だけを帯にも出す ---- */
+  function watchRead(list) {
+    if (!list || !list.length) return null;
+    var e = S.eng, out = [];
+    list.forEach(function (k) {
+      for (var i = 0; i < VALS.length; i++) {
+        if (VALS[i].k === k) { out.push({ k: k, u: VALS[i].u, v: VALS[i].get(e) }); return; }
+      }
+    });
+    return out.length ? out : null;
+  }
+
+  function watchHtml(now, before) {
+    var h = '';
+    for (var i = 0; i < now.length; i++) {
+      var a = before && before[i] && before[i].k === now[i].k ? before[i].v : null;
+      var chg = a != null && a !== now[i].v;
+      h += '<div class="w' + (chg ? ' chg' : '') + '"><b>' + esc(now[i].k) + '</b>'
+        + (a != null ? '<em>' + esc(a) + ' →</em>' : '')
+        + '<span>' + esc(now[i].v) + '</span><i>' + esc(now[i].u) + '</i></div>';
+    }
+    return h;
+  }
+
+  function paintWatch() {
+    var L = S.lesson, box = $('cWatch');
+    if (!L) { box.hidden = true; return; }
+    var fb = (L.mode === 'feedback' || L.mode === 'done');
+    var now = watchRead(L.curWatch);
+    if (!now) { if (!box.hidden) { box.hidden = true; box.innerHTML = ''; } return; }
+    var h = watchHtml(now, fb ? L.snap : null);
+    if (box._h !== h) { box._h = h; box.innerHTML = h; }
+    box.hidden = false;
+  }
+
   function lessonCtx() {
     var e = S.eng;
     return {
@@ -1475,7 +1551,8 @@
     S.screen = 'wave';
     S.lesson = {
       id: id, lesson: lesson, chap: LS.chapterOf(id),
-      rt: new LS.Runtime(lesson), mode: 'task', sig: ''
+      rt: new LS.Runtime(lesson), mode: 'task', sig: '',
+      tix: -1, curWatch: null, snap: null, spot: null
     };
     var cb = $('coach');
     cb.hidden = false;
@@ -1483,13 +1560,14 @@
     cb.setAttribute('data-chap', S.lesson.chap ? S.lesson.chap.id : 'ch1');
     $('kLearn').classList.add('on');
     buildKeys(); syncTabs(); paintDial(); fitAll();
-    openBrief();
   }
 
   function endLesson(silent) {
     if (!S.lesson) return;
+    applySpot(null);
     S.lesson = null;
     $('coach').hidden = true;
+    $('cWatch').hidden = true; $('cWatch')._h = '';
     $('kLearn').classList.remove('on');
     if (!silent) fitAll();
   }
@@ -1554,6 +1632,19 @@
     var rt = L.rt, t = rt.task();
     var say = '', hint = '', choices = null, tone = '';
 
+    /* 課題が変わった瞬間に、その課題が見るべき計測値を控えておく。
+     * 操作のあと「前 → 後」で見せるのが、このコースの説明のしかた。 */
+    if (L.mode === 'task' && L.tix !== rt.index) {
+      L.tix = rt.index;
+      L.curWatch = t ? t.watch : null;
+      L.snap = watchRead(L.curWatch);
+      L.spot = t ? t.spot : null;
+      applySpot(L.spot);
+    } else if (L.mode !== 'task' && L.spot) {
+      L.spot = null;
+      applySpot(null);
+    }
+
     if (L.mode === 'done') {
       say = '🎉 このレッスンは終わりです。' + (rt.wrong ? '' : 'クイズは全問一度で正解でした。');
       tone = 'ok';
@@ -1563,7 +1654,8 @@
       choices = { kind: 'next' };
     } else if (t) {
       if (t.quiz) {
-        say = t.quiz.q;
+        /* 設問も画面の実測値から作れるようにしておく（架空の数字より、いま出ている数字で考えさせる）。 */
+        say = typeof t.quiz.q === 'function' ? t.quiz.q(rt.bind(lessonCtx())) : t.quiz.q;
         choices = { kind: 'quiz', list: t.quiz.choices };
         if (rt.feedback && rt.feedback.ok === false) { hint = rt.feedback.text; tone = ''; }
       } else {
@@ -1598,6 +1690,8 @@
       var hn = $('cHint'); hn.textContent = hint; hn.hidden = !hint;
       paintChoices(choices);
     }
+
+    paintWatch();
 
     var prog = $('cProg');
     var needBar = L.mode === 'task' && t && t.hold;

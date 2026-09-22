@@ -675,4 +675,17 @@ public final class VentilatorEngine {
     }
 
     public func restoreShunt(to value: Double) { patient.shuntAtLowPEEP = value }
+
+    /// 肺の硬さ。レッスンが気胸や片肺挿管を起こすときに、元の値を控えてから差し替える。
+    public var lungCompliance: Double { patient.compliance }
+    public func setLungCompliance(_ value: Double) { patient.compliance = max(0.0001, value) }
+
+    /// シャントの下限と PEEP が低いときの値。まとめて動かすと酸素化だけを悪くできる。
+    public var shuntSetting: (low: Double, minimum: Double) {
+        (patient.shuntAtLowPEEP, patient.shuntMinimum)
+    }
+    public func setShunt(low: Double, minimum: Double) {
+        patient.shuntAtLowPEEP = Physiology.clamp(low, 0.02, 0.9)
+        patient.shuntMinimum = Physiology.clamp(minimum, 0.02, 0.9)
+    }
 }
