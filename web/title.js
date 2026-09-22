@@ -54,6 +54,26 @@
 
   function sprite(t) { return new window.PIXI.Sprite(t); }
 
+  /* 生成画像（assets/）があればそれを、無ければ art.js の SVG を焼く。 */
+  function pick(name, w, h, svgUri) {
+    var AS = window.VentAssets;
+    if (AS && AS.has(name)) {
+      var sz = AS.size(name);
+      return texture(AS.url(name), sz.w, sz.h);
+    }
+    return texture(svgUri, w, h);
+  }
+
+  function hasAsset(name) { return !!(window.VentAssets && window.VentAssets.has(name)); }
+
+  /* 9 スライスを「テクスチャの高さが h になる縮尺」で貼る。角が潰れない。 */
+  function fitNine(ns, w, h) {
+    var k = h / ns.texture.height;
+    ns.scale.set(k);
+    ns.width = w / k;
+    ns.height = h / k;
+  }
+
   function nine(t, l, top, r, b) {
     return new window.PIXI.NineSliceSprite({ texture: t, leftWidth: l, topHeight: top, rightWidth: r, bottomHeight: b });
   }
@@ -82,29 +102,40 @@
       if (mount && app.canvas.parentNode !== mount) mount.appendChild(app.canvas);
       return fonts();
     }).then(function () {
+      return window.VentAssets ? window.VentAssets.ready : null;
+    }).then(function () {
       var dark = !!o.dark;
+      var icons = ['go', 'course', 'cases', 'about'].map(function (id) {
+        return hasAsset('icon_' + id) ? pick('icon_' + id) : Promise.resolve(null);
+      });
       return Promise.all([
-        texture(A.room(dark), 1600, 1000),
-        texture(A.doctor(dark, false), 420, 560),
-        texture(A.doctor(dark, true), 420, 560),
-        texture(A.mascot(dark, false), 360, 360),
-        texture(A.mascot(dark, true), 360, 360),
-        texture(A.patient('ok', dark), 520, 360),
-        texture(A.ribbon(dark), 720, 200),
+        pick(dark ? 'bg_title_night' : 'bg_title_day', 1600, 1000, A.room(dark)),
+        pick('doctor_normal', 420, 560, A.doctor(dark, false)),
+        hasAsset('doctor_normal') ? pick('doctor_normal') : texture(A.doctor(dark, true), 420, 560),
+        pick('mascot_happy', 360, 360, A.mascot(dark, false)),
+        hasAsset('mascot_happy') ? pick(hasAsset('mascot_excited') ? 'mascot_excited' : 'mascot_happy')
+                                 : texture(A.mascot(dark, true), 360, 360),
+        pick('patient_bed', 520, 360, A.patient('ok', dark)),
+        pick('ui_ribbon', 720, 200, A.ribbon(dark)),
         texture(A.bubble(dark), 200, 140),
-        texture(A.plate('go', dark), 160, 120),
-        texture(A.plate('plain', dark), 160, 120),
+        pick('ui_button_primary', 160, 120, A.plate('go', dark)),
+        pick('ui_button', 160, 120, A.plate('plain', dark)),
         texture(A.badge('#FF8A3D', dark), 96, 96),
         texture(A.badge('#5B7CFA', dark), 96, 96),
         texture(A.barTrack(dark), 120, 40),
         texture(A.barFill(), 120, 40),
-        texture(A.mote(dark ? '#9FC0FF' : '#FFF2C4'), 64, 64)
-      ]);
+        texture(A.mote(dark ? '#9FC0FF' : '#FFF2C4'), 64, 64),
+        hasAsset('logo') ? pick('logo') : Promise.resolve(null)
+      ].concat(icons));
     }).then(function (t) {
+      var AS = window.VentAssets;
       build({
         room: t[0], doctor: t[1], doctorBlink: t[2], mascot: t[3], mascotBlink: t[4],
         patient: t[5], ribbon: t[6], bubble: t[7], plateGo: t[8], plate: t[9],
-        badgeGo: t[10], badge: t[11], barTrack: t[12], barFill: t[13], mote: t[14]
+        badgeGo: t[10], badge: t[11], barTrack: t[12], barFill: t[13], mote: t[14],
+        logo: t[15], icons: { go: t[16], course: t[17], cases: t[18], about: t[19] },
+        nineGo: (AS && AS.nine('ui_button_primary')) || { left: 40, top: 40, right: 40, bottom: 44 },
+        nine: (AS && AS.nine('ui_button')) || { left: 40, top: 40, right: 40, bottom: 44 }
       });
       building = false;
       return true;
@@ -203,6 +234,9 @@
     layers.ribbon.anchor.set(0.5);
     layers.logo = text('VentaSim', 54, 0xFFFFFF, '900', 0x2E2545);
     layers.logo.anchor.set(0.5);
+    layers.logoArt = t.logo ? sprite(t.logo) : null;
+    if (layers.logoArt) { layers.logoArt.anchor.set(0.5); layers.logo.visible = false; layers.ribbon.visible = false; }
+    if (layers.logoArt) layers.ui.addChild(layers.logoArt);
     layers.sub = text('人工呼吸器シミュレーター', 15, opts.dark ? 0xCFE0FF : 0x5A4A70, '800');
     layers.sub.anchor.set(0.5);
     layers.ui.addChild(layers.ribbon, layers.logo, layers.sub);
@@ -249,10 +283,12 @@
     var c = new P.Container();
     c.eventMode = 'static';
     c.cursor = 'pointer';
-    var plate = nine(item.primary ? t.plateGo : t.plate, 40, 40, 40, 44);
-    var badge = sprite(item.primary ? t.badgeGo : t.badge);
+    var ins = item.primary ? t.nineGo : t.nine;
+    var plate = nine(item.primary ? t.plateGo : t.plate, ins.left, ins.top, ins.right, ins.bottom);
+    var icon = t.icons && t.icons[item.id];
+    var badge = sprite(icon || (item.primary ? t.badgeGo : t.badge));
     badge.anchor.set(0.5);
-    var glyph = text(item.glyph, 22, 0xFFFFFF, '900', 0x2E2545);
+    var glyph = text(icon ? '' : item.glyph, 22, 0xFFFFFF, '900', 0x2E2545);
     glyph.anchor.set(0.5);
     var title = text(item.title, 19, item.primary ? 0xFFFFFF : (opts.dark ? 0xE8F0FF : 0x3A3050), '900',
                      item.primary ? 0x8A3B10 : null);
@@ -284,7 +320,7 @@
     var c = new P.Container();
     c.eventMode = 'static';
     c.cursor = 'pointer';
-    var plate = nine(t.plate, 40, 40, 40, 44);
+    var plate = nine(t.plate, t.nine.left, t.nine.top, t.nine.right, t.nine.bottom);
     var tx = text(label, 12, opts.dark ? 0xCFE0FF : 0x5A4A70, '800');
     tx.anchor.set(0.5);
     tx.style.dropShadow = false;
@@ -306,17 +342,23 @@
     var short = h < 620 && !wide;
 
     /* 背景は画面を覆うように拡大 */
-    var s = Math.max(w / 1600, h / 1000);
+    var rw = layers.room.texture.width, rh = layers.room.texture.height;
+    var s = Math.max(w / rw, h / rh);
     layers.room.scale.set(s);
-    layers.room.x = (w - 1600 * s) / 2;
-    layers.room.y = (h - 1000 * s) / 2;
+    layers.room.x = (w - rw * s) / 2;
+    layers.room.y = (h - rh * s) / 2;
 
     var col = wide ? Math.min(470, w * 0.42) : Math.min(520, w - 28);
     var colCx = wide ? Math.max(col / 2 + 24, w * 0.29) : w / 2;
 
     /* ロゴ */
     var logoW = wide ? col : Math.min(col, w * 0.92);
-    var logoH = logoW * (200 / 720);
+    var ribbonRatio = layers.ribbon.texture.height / layers.ribbon.texture.width;
+    var logoH = logoW * (layers.logoArt ? layers.logoArt.texture.height / layers.logoArt.texture.width : ribbonRatio);
+    if (layers.logoArt) {
+      layers.logoArt.width = logoW; layers.logoArt.height = logoH;
+      layers.logoArt.x = colCx; layers.logoArt.y = (short ? 14 : wide ? 34 : 24) + logoH / 2;
+    }
     layers.ribbon.width = logoW;
     layers.ribbon.height = logoH;
     layers.ribbon.x = colCx;
@@ -334,8 +376,7 @@
     layers.say.style.wordWrap = true;
     layers.say.style.wordWrapWidth = bw - 34;
     var bh2 = Math.max(short ? 46 : 54, layers.say.height + 26);
-    layers.bubble.width = bw;
-    layers.bubble.height = bh2;
+    fitNine(layers.bubble, bw, bh2);
     layers.bubble.x = colCx - bw / 2;
     layers.bubble.y = layers.sub.y + (short ? 12 : 18);
     layers.say.x = colCx;
@@ -373,20 +414,20 @@
     }
 
     layers.doctor.height = castH;
-    layers.doctor.width = castH * (420 / 560);
+    layers.doctor.width = castH * (layers.doctor.texture.width / layers.doctor.texture.height);
     layers.doctor.x = wide ? areaR - layers.doctor.width * 0.5
       : Math.min(w - layers.doctor.width * 0.5 - 6, colCx + col * 0.22);
     layers.doctor.y = castBottom;
 
     layers.mascot.height = castH * (wide ? 0.32 : 0.42);
-    layers.mascot.width = layers.mascot.height;
+    layers.mascot.width = layers.mascot.height * (layers.mascot.texture.width / layers.mascot.texture.height);
     layers.mascot.x = Math.max(areaL + layers.mascot.width * 0.5,
       layers.doctor.x - layers.doctor.width * 0.58 - layers.mascot.width * 0.30);
     layers.mascot.y = castBottom - castH * (wide ? 0.46 : 0.34);
     layers.mascot._baseY = layers.mascot.y;
 
     layers.patient.height = castH * (wide ? 0.32 : 0.40);
-    layers.patient.width = layers.patient.height * (520 / 360);
+    layers.patient.width = layers.patient.height * (layers.patient.texture.width / layers.patient.texture.height);
     layers.patient.x = Math.max(areaL + layers.patient.width * 0.5,
       wide ? layers.doctor.x - layers.doctor.width * 0.5 - layers.patient.width * 0.34
            : Math.max(layers.patient.width * 0.5 + 14, colCx - col * 0.30));
@@ -405,10 +446,10 @@
     /* 足もと：進捗とテーマ */
     var chipW = 74, chipH = 26;
     var barW = col - chipW - 64;
-    layers.barTrack.width = barW; layers.barTrack.height = 22;
+    fitNine(layers.barTrack, barW, 22);
     layers.barTrack.x = colCx - col / 2; layers.barTrack.y = footY - 11;
     var ratio = opts.total ? Math.max(0, Math.min(1, opts.done / opts.total)) : 0;
-    layers.barFill.width = Math.max(22, barW * ratio); layers.barFill.height = 22;
+    fitNine(layers.barFill, Math.max(22, barW * ratio), 22);
     layers.barFill.x = layers.barTrack.x; layers.barFill.y = layers.barTrack.y;
     layers.barFill.visible = ratio > 0;
     layers.pct.text = Math.round(ratio * 100) + '%';
@@ -416,8 +457,7 @@
     layers.pct.y = footY;
     layers.theme.x = wide ? layers.pct.x + 52 : colCx + col / 2 - chipW;
     layers.theme.y = footY - chipH / 2;
-    layers.theme._parts.plate.width = chipW;
-    layers.theme._parts.plate.height = chipH + 6;
+    fitNine(layers.theme._parts.plate, chipW, chipH + 6);
     layers.theme._parts.label.x = chipW / 2;
     layers.theme._parts.label.y = chipH / 2 - 1;
 
@@ -428,7 +468,7 @@
   function layoutButton(c, w, h) {
     c._w = w; c._h = h;
     var p = c._parts;
-    p.plate.width = w; p.plate.height = h + 6;
+    fitNine(p.plate, w, h + 6);
     p.plate.x = 0; p.plate.y = 0;
     p.badge.x = 34; p.badge.y = h / 2 - 2;
     p.badge.width = h * 0.62; p.badge.height = h * 0.62;

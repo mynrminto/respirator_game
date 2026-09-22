@@ -8,6 +8,12 @@ const dir = __dirname;
 const out = process.argv[2] || path.join(dir, 'preview.html');
 
 let html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+// 生成画像の一覧があれば埋め込む（file:// では fetch できないため）。画像そのものは assets/ を相対参照する。
+const manifestPath = path.join(dir, 'assets', 'manifest.json');
+if (fs.existsSync(manifestPath)) {
+  html = html.replace('<script src="assets.js"></script>',
+    '<script>window.VENT_MANIFEST = ' + fs.readFileSync(manifestPath, 'utf8').trim() + ';</script>\n<script src="assets.js"></script>');
+}
 html = html.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => {
   const code = fs.readFileSync(path.join(dir, src), 'utf8');
   return '<script>\n/* ' + src + ' */\n' + code + '\n</script>';

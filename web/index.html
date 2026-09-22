@@ -544,6 +544,56 @@
     box-shadow:0 3px 0 var(--glip);font-weight:700}
   :root:not([data-theme="device"]) .cchoices button:active{transform:translateY(3px);box-shadow:none}
 
+
+  /* ============ 舞台（ポップのときだけ）============
+   * 機器を「絵の中の道具」として置く。横に広い画面では左右に患者と先生を立たせ、
+   * 機器本体は枠つきの筐体として中央に浮かせる。狭い画面では従来どおり全面。 */
+  .stage{position:fixed;inset:0;z-index:0;background:#F3E6EC center/cover no-repeat;display:none}
+  .stage::after{content:"";position:absolute;inset:0;background:rgba(255,242,236,.28);
+    backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+  .rail{position:absolute;top:0;bottom:0;width:var(--railw,0px);display:none;flex-direction:column;
+    align-items:center;justify-content:flex-end;gap:12px;padding:16px 10px 26px;z-index:1}
+  .rail.left{left:0} .rail.right{right:0}
+  .portrait{width:100%;display:grid;place-items:center}
+  .portrait img{display:block;max-width:100%;height:auto;filter:drop-shadow(0 8px 10px rgba(60,30,80,.28))}
+  .portrait.doc img{max-height:46vh}
+  .portrait.bed img{max-height:22vh}
+  .rtag{font-size:12px;font-weight:800;color:#fff;background:var(--accent2);border:3px solid var(--gline);
+    border-radius:999px;padding:5px 12px;box-shadow:0 3px 0 rgba(46,37,69,.3);max-width:100%;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rbubble{position:relative;font-size:12.5px;line-height:1.55;color:var(--ink);background:#fff;
+    border:3px solid var(--gline);border-radius:18px;padding:10px 13px;width:100%;
+    box-shadow:0 4px 0 rgba(46,37,69,.22)}
+  .rbubble::after{content:"";position:absolute;left:50%;bottom:-16px;width:0;height:0;
+    border:9px solid transparent;border-top:10px solid var(--gline);transform:translateX(-50%)}
+  @media(min-width:1180px){
+    :root:not([data-theme="device"]){--railw:230px}
+    :root:not([data-theme="device"]) .stage{display:block}
+    :root:not([data-theme="device"]) .rail{display:flex}
+    :root:not([data-theme="device"]) #device{left:var(--railw);right:var(--railw);top:10px;bottom:10px;
+      z-index:1;border-radius:24px;border:4px solid var(--gline);overflow:hidden;
+      box-shadow:0 10px 0 rgba(46,37,69,.22),0 28px 60px rgba(80,40,90,.35)}
+  }
+  @media(min-width:1500px){:root:not([data-theme="device"]){--railw:300px}}
+
+  /* ============ 生成画像が入ったときの差し替え ============
+   * assets.js が manifest を読むと html.assets が付く。板と枠を画像（9 スライス）にする。 */
+  html.assets:not([data-theme="device"]) .mbtn,
+  html.assets:not([data-theme="device"]) .tbtn,
+  html.assets:not([data-theme="device"]) .lesson,
+  html.assets:not([data-theme="device"]) .case,
+  html.assets:not([data-theme="device"]) .cchoices button{
+    border:22px solid transparent;border-image:var(--img-btn) var(--nine-btn) fill / 22px stretch;
+    box-shadow:none;background:none;padding:2px 6px}
+  html.assets:not([data-theme="device"]) .mbtn.go{
+    border-image:var(--img-btn-go) var(--nine-btn-go) fill / 22px stretch}
+  html.assets:not([data-theme="device"]) .lesson{border-left-width:22px}
+  html.assets:not([data-theme="device"]) .mbox{
+    border:36px solid transparent;border-image:var(--img-panel) var(--nine-panel) fill / 36px stretch;
+    box-shadow:0 28px 60px rgba(80,40,90,.35);background:none;border-radius:0}
+  html.assets:not([data-theme="device"]) .mhead{background:none;border-bottom:none;margin-top:-30px}
+  html.assets:not([data-theme="device"]) .mbody{background:none}
+
   /* ---- 達成の演出 ---- */
   #fx{position:fixed;inset:0;pointer-events:none;z-index:120;overflow:hidden}
   #fx i{position:absolute;width:9px;height:14px;border-radius:2px;will-change:transform,opacity;
@@ -566,6 +616,17 @@
   }
   @media (prefers-reduced-motion:reduce){#fx{display:none}.toast{animation:none;opacity:1}}
 </style>
+
+<div id="stage" class="stage" aria-hidden="true">
+  <aside class="rail left" id="railL">
+    <div class="portrait bed" id="portPatient"></div>
+    <div class="rtag" id="railCase">—</div>
+  </aside>
+  <aside class="rail right" id="railR">
+    <div class="rbubble" id="railSay">自由に操作できます。</div>
+    <div class="portrait doc" id="portDoc"></div>
+  </aside>
+</div>
 
 <div id="device">
   <div class="status">
@@ -662,6 +723,7 @@
 <div id="modals"></div>
 
 <script src="vendor/pixi.min.js"></script>
+<script src="assets.js"></script>
 <script src="characters.js"></script>
 <script src="art.js"></script>
 <script src="title.js"></script>

@@ -4,7 +4,7 @@
   'use strict';
 
   var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons, CH = window.VentChars;
-  var AR = window.VentArt;
+  var AR = window.VentArt, AS = window.VentAssets;
   var $ = function (id) { return document.getElementById(id); };
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
@@ -46,7 +46,7 @@
     if (b) b.textContent = name === 'device' ? '実機' : 'ポップ';
     try { window.localStorage.setItem(THEME_KEY, currentTheme()); } catch (err) { /* 記録できなくても動く */ }
     readPal();
-    if (redraw) { fitAll(); paintDial(); }
+    if (redraw) { fitAll(); paintDial(); paintStage(); }
   }
 
   function initTheme() {
@@ -202,6 +202,69 @@
     { k: 'ABP mean', u: 'mmHg', get: function (e) { return r0(e.map); }, tone: function (e) { return e.map < 60 ? 'hi' : (e.map < 65 ? 'mid' : ''); } }
   ];
 
+  /* ===================== 舞台（機器のまわり） =====================
+   * 横に広い画面では、機器の左に患者、右にみどり先生を立たせる。
+   * 患者の顔色は SpO₂ で変わり、先生の表情と一言は学習帯と同じものを映す。
+   * 生成画像（assets/）があればそれを、無ければ art.js の絵を使う。 */
+  var RAIL = { tone: null, mood: null, say: null, caseId: null, dark: null };
+
+  function applyAssets() {
+    var root = document.documentElement.style;
+    function setImg(v, name) {
+      var u = AS.url(name);
+      if (!u) return;
+      root.setProperty(v, 'url("' + u + '")');
+      var n = AS.nine(name);
+      if (n) root.setProperty(v.replace('--img', '--nine'), n.top + ' ' + n.right + ' ' + n.bottom + ' ' + n.left);
+    }
+    setImg('--img-btn', 'ui_button');
+    setImg('--img-btn-go', 'ui_button_primary');
+    setImg('--img-panel', 'ui_panel');
+    paintStage();
+  }
+
+  function paintStage() {
+    var st = $('stage');
+    if (!st) return;
+    var dark = currentTheme() === 'device';
+    var u = AS.url('bg_play') || AS.url(dark ? 'bg_title_night' : 'bg_title_day') || AR.room(dark);
+    st.style.backgroundImage = 'url("' + u + '")';
+    paintRails(true);
+  }
+
+  function patientTone(e) {
+    return e.spo2 < 90 ? 'bad' : (e.spo2 < 94 ? 'mid' : 'ok');
+  }
+
+  function paintRails(force) {
+    if (!$('railL') || !S.eng) return;
+    var dark = currentTheme() === 'device';
+    if (RAIL.dark !== dark) { RAIL.dark = dark; force = true; }
+
+    /* 患者。症例そのものの重さより良い顔色にはしない。 */
+    var rank = { ok: 0, mid: 1, bad: 2 };
+    var tone = patientTone(S.eng), base = PATIENT_TONE[S.scen.id] || 'ok';
+    if (rank[base] > rank[tone]) tone = base;
+    if (force || tone !== RAIL.tone) {
+      RAIL.tone = tone;
+      var pu = AS.url('patient_bed' + (tone === 'ok' ? '' : '_' + tone)) || AR.patient(tone, dark);
+      $('portPatient').innerHTML = '<img alt="" src="' + pu + '">';
+    }
+    if (force || S.scen.id !== RAIL.caseId) { RAIL.caseId = S.scen.id; $('railCase').textContent = S.scen.title; }
+
+    /* 先生。学習帯と同じ表情・同じ一言。 */
+    var L = S.lesson;
+    var mood = (L && L.mood) || 'normal';
+    if (force || mood !== RAIL.mood) {
+      RAIL.mood = mood;
+      var du = AS.url('doctor_' + mood) || AS.url('doctor_normal') || AR.doctor(dark, false);
+      $('portDoc').innerHTML = '<img alt="" src="' + du + '">';
+    }
+    var say = L ? ($('cSay').textContent || '') : (S.scen.oneLine || '自由に操作できます。');
+    if (say.length > 96) say = say.slice(0, 94) + '…';
+    if (force || say !== RAIL.say) { RAIL.say = say; $('railSay').textContent = say; }
+  }
+
   /* ===================== 起動 ===================== */
   function boot() {
     initTheme();
@@ -211,6 +274,7 @@
     buildTitle();
     window.addEventListener('resize', fitAll);
     requestAnimationFrame(frame);
+    AS.ready.then(applyAssets);
     showTitle();
   }
 
@@ -668,9 +732,11 @@
 
   /* ===================== メインループ ===================== */
   var lastT = 0;
+  var railT = 0;
   function frame(now) {
     requestAnimationFrame(frame);
     if (!lastT) { lastT = now; return; }
+    if (now - railT > 400) { railT = now; paintRails(false); }
     var real = Math.min(0.25, (now - lastT) / 1000); lastT = now;
     var e = S.eng;
     if (!e.extubated) {
