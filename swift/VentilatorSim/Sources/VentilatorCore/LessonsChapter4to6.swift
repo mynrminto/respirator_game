@@ -23,6 +23,10 @@ extension LessonLibrary {
                  "急性は PaCO₂ +10 で HCO₃⁻ +1、慢性は +3.5",
                  "正常値は年齢で違う。酸素化は P/F と OI で別に評価する"],
         tasks: [
+            .talk(.scene, "深夜 1 時。ハルト君の呼吸が少し浅い。みどり先生が採血の指示を出した。"),
+            .talk(.doctor, "血液ガスは 4 ステップで読みます。順番さえ守れば、迷いません。"),
+            .talk(.puku, "4 つも覚えるの？"),
+            .talk(.doctor, "pH → PaCO₂ → HCO₃⁻ → 代償。それだけです。まず採ってみましょう。"),
             .key("「血液ガス」を押して採血してください。", event: .orderBloodGas,
                  why: "結果が出るまで約 2 分かかります。急ぐときは「× 10」で早送りできます。")
                 .spotting(["hard:kAbg"]),
@@ -34,6 +38,7 @@ extension LessonLibrary {
                                   g.pH, g.paco2, g.pao2)
                 }
                 .watching(["etCO₂", "SpO₂"]),
+            .talk(.doctor, "返ってきましたね。では、その順番どおりに読む練習を 3 問。"),
             .quiz("pH 7.28 / PaCO₂ 58 / HCO₃⁻ 26。これは何ですか。",
                   ["代謝性アシドーシス",
                    "急性の呼吸性アシドーシス",
@@ -70,6 +75,9 @@ extension LessonLibrary {
                  "小児ほど死腔の割合が大きく、Vt を増やすほうが効く",
                  "発熱で CO₂ 産生が増える。効き始めるまで数分かかる"],
         tasks: [
+            .talk(.doctor, "CO₂ を下げる方法は、実は 1 つしかありません。何だと思いますか。"),
+            .talk(.puku, "酸素を増やす…？"),
+            .talk(.doctor, "違います。触ってみれば、身体で覚えられます。まず採血から。"),
             .key("まず採血して、いまの PaCO₂ を確かめてください。", event: .orderBloodGas)
                 .spotting(["hard:kAbg"]),
             .step("結果が返るまで待ちます。",
@@ -86,6 +94,7 @@ extension LessonLibrary {
                    "分時換気量を増やす",
                    "鎮静を深くする"], answer: 2,
                   why: "CO₂ を下げる方法は換気を増やすことだけです。FiO₂ も PEEP も酸素化のつまみで、CO₂ には効きません。"),
+            .talk(.doctor, "では動かします。効きはじめるまで数分かかることも、いっしょに覚えてください。"),
             .step("一回換気量と呼吸回数を上げて、MV を 3.2 L/分 以上にしてください。",
                   hold: 15,
                   why: "CO₂ が動くまで数分かかります。変えた直後に採血しても、まだ動いていません。",
@@ -107,6 +116,7 @@ extension LessonLibrary {
                                   g.paco2, g.pH)
                 }
                 .spotting(["hard:kAbg"]).watching(["MV", "etCO₂"]),
+            .talk(.puku, "量と回数、どっちを上げても同じじゃないの？"),
             .quiz("もっと下げたい。Vt 120→160 と RR 20→26、どちらがよく効きますか（MV の増分は同じ）。",
                   ["Vt を増やすほう",
                    "RR を上げるほう",
@@ -137,6 +147,9 @@ extension LessonLibrary {
                  "PEEP で肺胞を開いてから FiO₂ を下げる",
                  "PEEP を上げたら P/F・Pplat・血圧の 3 つを見る"],
         tasks: [
+            .talk(.scene, "ミオちゃんの FiO₂ は 80%。それでも SpO₂ は 90% を切りそうだ。"),
+            .talk(.puku, "酸素をこんなに吸わせてるのに、どうして上がらないの？"),
+            .talk(.doctor, "潰れた肺胞を、血が素通りしているからです。素通りする血には、濃い酸素は届きません。"),
             .key("まず採血して、いまの P/F 比を確かめてください。", event: .orderBloodGas)
                 .spotting(["hard:kAbg"]),
             .step("結果が返るまで待ちます。",
@@ -148,6 +161,7 @@ extension LessonLibrary {
                                   g.pfRatio)
                 }
                 .watching(["SpO₂", "Pplat"]),
+            .talk(.doctor, "だから先に肺胞を開きます。ここが PEEP の出番です。"),
             .step("PEEP を 14 cmH₂O まで上げて確定してください。",
                   hint: "実際は 2 cmH₂O ずつ上げて、Pplat と血圧を見ながら進めます。",
                   check: { $0.settings.peep >= 14 })
@@ -170,6 +184,7 @@ extension LessonLibrary {
                                   base, g.pfRatio)
                 }
                 .spotting(["hard:kAbg"]).watching(["SpO₂"]),
+            .talk(.doctor, "開いたら、酸素は下げる。この順番が大事です。"),
             .step("SpO₂ 92% 以上を保ったまま、FiO₂ を 60% 以下に下げてください。",
                   hold: 30,
                   why: "「PEEP で開いてから FiO₂ を下げる」という順番です。逆だと、FiO₂ だけが高いまま肺は潰れたまま、という状態が続きます。",
@@ -199,6 +214,9 @@ extension LessonLibrary {
                  "pH 7.20〜7.25 以上なら高 CO₂ を許す（PALICC は 7.15〜7.30）",
                  "頭蓋内圧上昇・肺高血圧・心不全では使えない"],
         tasks: [
+            .talk(.doctor, "P/F は良くなりました。でも今度は Pplat が高い。ここからは、何かを諦める相談です。"),
+            .talk(.puku, "諦める？"),
+            .talk(.doctor, "CO₂ を下げきることを諦めます。そのぶん肺を守る、という考え方です。"),
             .step("いまの Vte（mL/kg）と Pplat を確かめてください。",
                   check: { $0.measured.plateauPressure != nil && $0.measured.tidalVolumeExp > 100 })
                 .explaining { c in
@@ -228,6 +246,7 @@ extension LessonLibrary {
                     return String(format: "PaCO₂ %.0f mmHg、pH %.2f。", g.paco2, g.pH)
                 }
                 .spotting(["hard:kAbg"]).watching(["etCO₂"]),
+            .talk(.doctor, "どこまで許すのか。線を引いておきましょう。"),
             .quiz("3歳、pH 7.26 / PaCO₂ 58、Pplat 27、Vt は 6 mL/kg。どうしますか。",
                   ["Vt を増やして CO₂ を下げる",
                    "このままでよい（必要なら RR を少し上げる）",
@@ -269,6 +288,8 @@ extension LessonLibrary {
                  "PIP だけ上がる＝抵抗",
                  "PIP も Pplat も上がる＝コンプライアンス低下"],
         tasks: [
+            .talk(.scene, "午前 3 時。ハルト君のベッドでアラームが鳴った。気道内圧上限。"),
+            .talk(.doctor, "鳴ってから考えると遅い。順番を決めておきます。まず、いまの数字を控えます。"),
             .step("いまの PIP と Pplat を覚えておいてください。",
                   why: "これが平常時の値です。",
                   check: { $0.measured.plateauPressure != nil && $0.measured.staticCompliance != nil })
@@ -297,6 +318,7 @@ extension LessonLibrary {
                            c.memory["plat0"] ?? 0, c.measured.plateauPressure ?? 0)
                 }
                 .watching(["PIP", "Pplat", "Raw"]),
+            .talk(.doctor, "PIP と Pplat、どちらが上がったか。それだけで犯人が絞れます。"),
             .quiz("この所見から考えられるのはどれですか。",
                   ["肺が硬くなった",
                    "気道抵抗が上がった",
@@ -309,6 +331,8 @@ extension LessonLibrary {
                    "PEEP を下げる",
                    "呼吸回数を上げる"], answer: 1,
                   why: "吸引中は換気が止まり、陰圧で肺胞が潰れます。小児は酸素の蓄えが少なく、成人よりはるかに速く落ちます。カテーテルはチューブ内径の半分以下を選び、10〜15 秒以内で終えます。"),
+            .talk(.puku, "痰なら、すぐ吸っちゃえばいいんじゃないの？"),
+            .talk(.doctor, "吸引は酸素も一緒に持っていきます。先に貯金してから吸う。順番を守りましょう。"),
             .key("「100% O₂」を押してから「気管吸引」を押してください。", event: .suction,
                  why: "痰が取れました。抵抗が戻り、PIP が下がります。")
                 .passing { c in
@@ -339,6 +363,10 @@ extension LessonLibrary {
                  "呼気ポーズ（総 PEEP − 設定 PEEP）で測る",
                  "対策の第一は呼吸回数を下げること"],
         tasks: [
+            .talk(.scene, "RSV のそうた君（生後 4 か月）。呼吸回数を上げたのに、血圧が下がってきた。"),
+            .talk(.doctor, "入れることばかり見ていると、これを見落とします。吐けているかどうか。"),
+            .talk(.puku, "吐くのって、放っておけば出ていくんじゃないの？"),
+            .talk(.doctor, "細い気道では、出ていく時間が足りません。波形に出ます。見てください。"),
             .step("流量波形（真ん中、緑）を 20 秒見てください。呼気がゼロに戻りきっていますか。",
                   hold: 20,
                   why: "呼気が底からゼロに戻る前に、次の吸気で断ち切られています。これが吐き残しの形です。",
@@ -354,6 +382,7 @@ extension LessonLibrary {
                            c.measured.totalPEEP, c.settings.peep, c.memory["ap0"] ?? 0)
                 }
                 .spotting(["val:auto-PEEP"]).watching(["auto-PEEP", "PEEP tot", "ABP mean"]),
+            .talk(.doctor, "測れました。では、これを減らすにはどうするか。"),
             .quiz("auto-PEEP をいちばん確実に減らすのはどれですか。",
                   ["呼吸回数を下げる",
                    "一回換気量を上げる",
@@ -397,6 +426,10 @@ extension LessonLibrary {
                  "まず FiO₂ 100%、次に患者を見る",
                  "圧と量の動き方の組み合わせで切り分ける"],
         tasks: [
+            .talk(.scene, "SpO₂ 98 → 93 → 89。モニタの音が高くなる。"),
+            .talk(.doctor, "DOPE。チューブのずれ、詰まり、気胸、機械の不具合。この 4 つを順に切ります。"),
+            .talk(.puku, "4 つも、あわてて思い出せないよ…"),
+            .talk(.doctor, "だから手が先です。まず酸素。考えるのはそのあとで間に合います。"),
             .key("SpO₂ が下がりはじめました。最初の一手を打ってください。",
                  hint: "時間を稼いでから原因を探します。",
                  event: .oxygenFlush,
@@ -416,6 +449,7 @@ extension LessonLibrary {
                   why: "PIP も Pplat も上がり、Vte は設定どおり返っています。つまりリークでも抵抗でもなく、肺が硬くなった形です。",
                   check: { $0.measured.plateauPressure != nil && $0.holdSettled })
                 .watching(["PIP", "Pplat", "Vte"]),
+            .talk(.doctor, "圧の形と、聴診。2 つ合わせると 1 つに絞れます。"),
             .quiz("この所見に加えて、左の呼吸音が聞こえません。何を疑いますか。",
                   ["右片肺挿管または気胸",
                    "痰づまり",
@@ -460,6 +494,9 @@ extension LessonLibrary {
                  "小児は PEEP 7 以下・P/F 200 以上とやや厳しめ",
                  "抜管の可否は SBT の結果で決める"],
         tasks: [
+            .talk(.scene, "朝。ハルト君が目を開けて、チューブを気にして手を動かしている。"),
+            .talk(.puku, "元気そうだし、もう抜いちゃえば？"),
+            .talk(.doctor, "その「元気そう」を数字にして確かめるのが、この章です。"),
             .key("「離脱」キーを押して、条件のリストを見てください。", event: .openWeaning,
                  why: "× がついている項目が、いま足りていないものです。")
                 .spotting(["hard:kWean"]),
@@ -468,6 +505,7 @@ extension LessonLibrary {
                   why: "条件が揃いました。ここで初めて SBT に進めます。",
                   check: { c in Weaning.readiness(for: c.engine).allSatisfy(\.met) })
                 .spotting(["key:fio2", "key:peep", "key:sed"]).watching(["SpO₂", "RR tot", "ABP mean"]),
+            .talk(.doctor, "全部 ✓ になりました。では、このまま抜いていいでしょうか。"),
             .quiz("条件を全部満たしていれば、そのまま抜管してよいですか。",
                   ["よい",
                    "よくない。SBT で実際に耐えられるか確かめる",
@@ -499,6 +537,10 @@ extension LessonLibrary {
                  "f/VT = RR ÷ Vt(mL/kg)、8 超で失敗しやすい",
                  "肺が正常でも呼吸筋が弱ければ離脱できない"],
         tasks: [
+            .talk(.scene, "ギラン・バレーのあかりちゃん（7歳）。肺はきれい。でも、力が入らない。"),
+            .talk(.doctor, "肺が良くても外せないことがあります。この子で見るのは、肺ではなく筋力です。"),
+            .talk(.puku, "筋力って、どうやって測るの？"),
+            .talk(.doctor, "浅くて速い呼吸になるかどうかで分かります。f/VT という数字にします。"),
             .quiz("体重 22 kg の児が RR 40、一回換気量 110 mL。f/VT はいくつですか。",
                   ["1.8",
                    "8",
@@ -510,6 +552,7 @@ extension LessonLibrary {
                  event: .startSBT,
                  why: "PEEP 5 とチューブ抵抗ぶんの PS に切り替わり、30 分の計測が始まりました。")
                 .spotting(["hard:kWean"]),
+            .talk(.doctor, "30 分、そばで見ます。最初の 5 分ではなく、後半で崩れる子がいます。"),
             .step("30 分の SBT を最後まで見てください。f/VT と呼吸回数の動きに注目します。",
                   hint: "「× 10」または「× 60」で早送りできます。異常が出ると自動的に等速に戻ります。",
                   check: { $0.sbt.finished })
@@ -550,6 +593,8 @@ extension LessonLibrary {
                  "意識・咳嗽力・分泌物の 3 つを見る",
                  "小児は上気道浮腫の影響が大きい。カフリークテストを忘れない"],
         tasks: [
+            .talk(.scene, "ハルト君の SBT、2 回目。今日は最後まで持ちそうだ。"),
+            .talk(.doctor, "最後の関門です。呼吸の力だけでなく、気道を自分で守れるかを見ます。"),
             .step("「離脱」キーから SBT を開始し、最後まで完走させてください。",
                   hint: "早送りを使ってください。",
                   why: "SBT に通りました。",
@@ -561,12 +606,15 @@ extension LessonLibrary {
                    "鎮静を足してから抜管する",
                    "PS を上げて再評価"], answer: 1,
                   why: "咳ができなければ痰を出せず、意識がなければ誤嚥します。抜管しても結局戻ってきます。小児は気道が細いので、出せなかった痰がそのまま無気肺や再挿管につながります。"),
+            .talk(.doctor, "抜いたあとの 1 時間が、いちばん気が抜けません。"),
             .quiz("抜管 1 時間後、吸気時に高い「ヒューヒュー」音と陥没呼吸が出ました。何を考えますか。",
                   ["気管支喘息",
                    "上気道（声門下）の浮腫",
                    "肺水腫",
                    "正常な経過"], answer: 1,
                   why: "吸気性の stridor は上気道の狭窄で、小児では声門下がいちばん細く、ここが腫れます。アドレナリン吸入とステロイドで対応し、改善しなければ再挿管を早めに決めます。"),
+            .talk(.puku, "…だいじょうぶかな。"),
+            .talk(.doctor, "条件はそろいました。抜きましょう。"),
             .key("「離脱」キーから抜管してください。", event: .extubate)
                 .spotting(["hard:kWean"]),
             .step("結果を確認してください。",

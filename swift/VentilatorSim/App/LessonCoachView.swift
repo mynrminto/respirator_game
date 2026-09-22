@@ -23,6 +23,35 @@ struct LessonCoachView: View {
             return .normal
         }
     }
+    /// いまの話し手。会話の場面以外はみどり先生が進行役。
+    private var speaker: LessonSpeaker {
+        guard controller.lessonPhase == .task,
+              let who = controller.lessonRuntime?.task?.speaker else { return .doctor }
+        return who
+    }
+    private var currentTaskIsTalk: Bool {
+        controller.lessonPhase == .task && (controller.lessonRuntime?.task?.isTalk ?? false)
+    }
+    private var speakerTint: Color {
+        switch speaker {
+        case .puku:    return Chrome.volume
+        case .patient: return Chrome.accent
+        default:       return tint
+        }
+    }
+    @ViewBuilder
+    private var speakerPortrait: some View {
+        switch speaker {
+        case .puku:    MascotView(mood: mood == .sad ? .sad : .happy, breathing: false)
+        case .patient: PatientView(tone: patientTone)
+        default:       DoctorView(mood: mood)
+        }
+    }
+    private var patientTone: PatientView.Tone {
+        let worst = controller.engine.alarms.map(\.severity).max() ?? 0
+        return worst >= 2 ? .bad : (worst >= 1 ? .mid : .ok)
+    }
+
     @State private var collapsed = false
     @State private var showingBrief = false
     @State private var showingCourse = false
@@ -35,11 +64,18 @@ struct LessonCoachView: View {
                 header(lesson: lesson, runtime: runtime)
                 if !collapsed {
                     HStack(alignment: .top, spacing: 9) {
-                        CharacterBadge(size: 40, ring: Chrome.isPop ? tint.opacity(0.5) : nil,
-                                       background: Coach.choice) {
-                            DoctorView(mood: mood)
+                        if speaker != .scene {
+                            CharacterBadge(size: 40, ring: Chrome.isPop ? speakerTint.opacity(0.6) : nil,
+                                           background: Coach.choice) {
+                                speakerPortrait
+                            }
                         }
                         VStack(alignment: .leading, spacing: 6) {
+                            if !speaker.displayName.isEmpty && currentTaskIsTalk {
+                                Text(speaker.displayName)
+                                    .font(Chrome.label(10.5, weight: .heavy))
+                                    .foregroundStyle(speakerTint)
+                            }
                             content(for: runtime)
                             watchStrip
                         }
@@ -154,20 +190,22 @@ struct LessonCoachView: View {
         .padding(.bottom, 4)
     }
 
+    /* 点は「やること」の数だけ。会話の場面まで点にすると、読んだだけで進んだように見える。 */
     private func dots(runtime: LessonRuntime) -> some View {
-        HStack(spacing: Chrome.isPop ? 4 : 3) {
-            ForEach(0..<runtime.total, id: \.self) { i in
+        let spots = runtime.lesson.tasks.indices.filter { !runtime.lesson.tasks[$0].isTalk }
+        return HStack(spacing: Chrome.isPop ? 4 : 3) {
+            ForEach(spots, id: \.self) { i in
                 Circle()
                     .fill(dotColor(i, runtime: runtime))
                     .frame(width: Chrome.isPop ? 8 : 6, height: Chrome.isPop ? 8 : 6)
             }
         }
-        .accessibilityLabel("課題 \(min(runtime.index + 1, runtime.total)) / \(runtime.total)")
+        .accessibilityLabel("課題 \(min(runtime.actionDone + 1, runtime.actionTotal)) / \(runtime.actionTotal)")
     }
 
     private func dotColor(_ i: Int, runtime: LessonRuntime) -> Color {
         if i < runtime.index { return Chrome.isPop ? tint : Chrome.flow }
-        if i == runtime.index && controller.lessonPhase == .task { return Chrome.pressure }
+        if i == runtime.actionIndex && controller.lessonPhase == .task { return Chrome.pressure }
         return Coach.dot
     }
 
@@ -217,12 +255,34 @@ struct LessonCoachView: View {
             }
         case .task:
             if let task = runtime.task {
-                if let quiz = task.quiz {
+                if task.isTalk {
+                    talkView(task)
+                } else if let quiz = task.quiz {
                     quizView(quiz, runtime: runtime)
                 } else {
                     stepView(task, runtime: runtime)
                 }
             }
+        }
+    }
+
+    /* 会話の場面。ト書きは人のせりふではないので、細く寝かせて縦線で区別する。 */
+    private func talkView(_ task: LessonTask) -> some View {
+        let isScene = task.speaker == .scene
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(task.instruction(controller.lessonContext))
+                .font(.system(size: 12.5, weight: isScene ? .regular : .medium,
+                              design: .default))
+                .italic(isScene)
+                .foregroundStyle(isScene ? Coach.faint : Coach.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, isScene ? 9 : 0)
+                .overlay(alignment: .leading) {
+                    if isScene {
+                        Rectangle().fill(Coach.line).frame(width: 3)
+                    }
+                }
+            primaryButton("続ける") { controller.tapLesson() }
         }
     }
 
@@ -373,8 +433,8 @@ struct LessonCourseView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("呼吸器の操作を、実機の画面を触りながら順に覚えていくコースです。"
-                         + "各レッスンは短い解説と、画面上での操作課題・クイズで組み立ててあります。"
+                    Text("PICU と NICU の 6 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。"
+                         + "みどり先生とぷくぷくの会話を追っていくと、そのつど実機を触ることになります。"
                          + "上から順に進めるのが基本です。")
                         .font(.footnote).foregroundStyle(.secondary)
                     progressRow

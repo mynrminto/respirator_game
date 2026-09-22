@@ -23,6 +23,10 @@ extension LessonLibrary {
                  "流量波形は上が吸気・下が呼気",
                  "設定の Vt と実測の Vte は別物"],
         tasks: [
+            .talk(.scene, "午後 8 時、PICU。虫垂炎の手術を終えたハルト君（8歳）が、挿管されたまま運ばれてきた。"),
+            .talk(.doctor, "今夜の担当はあなたです。まずは、この機械が何を言っているのかを読めるようにしましょう。"),
+            .talk(.puku, "うわ、波形が 3 つもある…。どれが何なの？"),
+            .talk(.doctor, "上から 気道内圧、流量、換気量。どれがどれかは、動き方で見分けられます。"),
             .quiz("真ん中の緑の波形だけがゼロ線をまたいで上下しています。これは何ですか。",
                   ["気道内圧",
                    "流量",
@@ -30,6 +34,7 @@ extension LessonLibrary {
                    "二酸化炭素濃度"], answer: 1,
                   why: "流量です。上が吸気、下が呼気。上下するのは流量だけなので、これが見分けの目印になります。")
                 .spotting(["wave"]),
+            .talk(.doctor, "読めましたね。次は触ってみましょう。実機は 3 段階です。キーを押す、ダイヤルを回す、確定。"),
             .step("Vt を 180 mL にして確定してください。",
                   hint: "キーを押す → ダイヤルを回す → 確定。この 3 段階が実機の操作です。",
                   why: "確定を押すまで患者には反映されません。実機の誤操作防止と同じです。",
@@ -39,6 +44,8 @@ extension LessonLibrary {
                   why: "VC は入れる量を機械が保証するので、Vte はほぼ設定どおりに返ってきます。",
                   check: { $0.measured.tidalVolumeExp > 160 })
                 .spotting(["val:Vte"]).watching(["Vte", "MV"]),
+            .talk(.puku, "入れた量と、戻ってくる量って、ちがうことあるの？"),
+            .talk(.doctor, "あります。しかもそれが、いちばん最初に気づくべき異常です。"),
             .quiz("設定 180 mL に対して Vte が 120 mL しか戻りません。まず疑うのは何ですか。",
                   ["正常。気にしなくてよい",
                    "気管チューブ周囲のリーク",
@@ -63,6 +70,10 @@ extension LessonLibrary {
                  "Pplat は吸気ポーズで測る",
                  "上限は年齢で変わる（タイルの下に出ている）"],
         tasks: [
+            .talk(.scene, "ハルト君の設定はひとまず落ち着いた。みどり先生が、画面の圧の数字を指さす。"),
+            .talk(.doctor, "PIP は 22。でもこの数字だけでは、肺に何がかかっているかは分かりません。"),
+            .talk(.puku, "え、圧は圧じゃないの？"),
+            .talk(.doctor, "圧は 2 つあるんです。流れを押す分と、肺を膨らませる分。分けて測ってみましょう。"),
             .key("「吸気ポーズ」を押してください。",
                  event: .inspiratoryHold,
                  why: "次の吸気の終わりで弁が閉じ、圧が平らになります。")
@@ -71,6 +82,7 @@ extension LessonLibrary {
                   why: "平らになったところが Pplat。流れが止まったあとに残っている、肺胞の圧です。",
                   check: { $0.measured.plateauPressure != nil && $0.measured.drivingPressure != nil })
                 .spotting(["val:Pplat"]).watching(["PIP", "Pplat", "ΔP"]),
+            .talk(.doctor, "2 つに分かれました。どちらが何なのか、ここで確かめておきましょう。"),
             .quiz("出ている 3 つの数字のうち、気道抵抗にとられている分はどれですか。",
                   ["PIP − Pplat",
                    "Pplat − PEEP",
@@ -85,6 +97,8 @@ extension LessonLibrary {
                    "Vte ÷ Pplat"], answer: 1,
                   why: "ΔP ＝ Pplat − PEEP。予後との関連がいちばん強い圧で、画面にもタイルで出ています。")
                 .watching(["Pplat", "PEEP tot", "ΔP"]),
+            .talk(.puku, "じゃあ PIP が高いとき、どうすれば下げられるの？"),
+            .talk(.doctor, "流れを押す分を減らせばいい。速さを落としてみましょう。"),
             .step("吸気流量を 15 L/分 に下げて確定してください。",
                   hint: "この 8歳の児で 15〜30 L/分、乳児なら 5〜10 L/分が目安です。",
                   why: "ゆっくり押し込むぶん、抵抗にとられる圧が減ります。",
@@ -120,6 +134,9 @@ extension LessonLibrary {
                  "Raw =（PIP − Pplat）÷ 流量。チューブが細いほど大きい",
                  "上がったのがどちらかで原因が違う"],
         tasks: [
+            .talk(.doctor, "いまの 2 つの圧を、機械が勝手に割り算してくれています。それが Cstat と Raw。"),
+            .talk(.puku, "割り算？"),
+            .talk(.doctor, "肺の柔らかさと、気道の通りにくさです。夜中のアラームは、ほとんどこの 2 つで説明がつきます。"),
             .step("Cstat と Raw に数字が入るまで待ちます。",
                   hint: "吸気ポーズを 0.3 秒に設定してあるので、毎回の呼吸で自動的に測られます。",
                   check: { $0.measured.staticCompliance != nil && $0.measured.airwayResistance != nil })
@@ -132,6 +149,7 @@ extension LessonLibrary {
                   why: "Vte と ΔP は一緒に減り、Cstat はほとんど動きません。Cstat は設定ではなく肺そのものの性質だからです。",
                   check: { $0.settings.tidalVolume <= 120 })
                 .spotting(["key:vt"]).watching(["Vte", "ΔP", "Cstat"]),
+            .talk(.doctor, "数字が動いたとき、どちらが犯人か。言い当てられるようにしておきましょう。"),
             .quiz("体重 25 kg の児で Cstat が 24 → 10 mL/cmH₂O に下がりました。何が起きていますか。",
                   ["気道が細くなった",
                    "肺が硬くなった",
@@ -144,6 +162,8 @@ extension LessonLibrary {
                    "PEEP が高すぎる",
                    "一回換気量が大きすぎる"], answer: 1,
                   why: "差が開いた＝抵抗の増加です。痰、チューブの屈曲や閉塞、気管支攣縮を探します。小児はチューブが細いぶん、わずかな分泌物でも抵抗がはっきり上がります。"),
+            .talk(.puku, "吸気ポーズがあるなら、呼気ポーズもあるの？"),
+            .talk(.doctor, "あります。こちらは吐ききれているかを見るためのもの。第 5 章で主役になります。"),
             .key("「呼気ポーズ」を押して、総 PEEP を測ってください。", event: .expiratoryHold)
                 .spotting(["hard:kExp"]),
             .step("測り終わるのを待ちます。",
@@ -170,6 +190,10 @@ extension LessonLibrary {
                  "6〜8 mL/kg、ARDS では 5〜6、新生児は 4〜6",
                  "肥満児だけは身長相当の標準体重で"],
         tasks: [
+            .talk(.scene, "朝の回診。ハルト君の設定は、手術室から運ばれてきたときのままだった。"),
+            .talk(.doctor, "ここからは自分で決めます。最初に決めるのは一回換気量。基準は体重です。"),
+            .talk(.puku, "体重？ 身長じゃなくて？"),
+            .talk(.doctor, "小児では体重 1 kg あたり 6〜8 mL。まず、いまの値がいくつなのか確かめましょう。"),
             .step("いまの Vte を mL/kg で確かめてください。",
                   hint: "タイルの下に mL/kg が出ています。",
                   check: { $0.measured.tidalVolumeExp > 260 })
@@ -185,6 +209,8 @@ extension LessonLibrary {
                     String(format: "体重 %.1f kg × 6 ＝ 約 %@ mL です。", c.pbw, LessonLibrary.mlkg(c.pbw, 6))
                 }
                 .spotting(["key:vt"]).watching(["Vte", "Pplat", "ΔP"]),
+            .talk(.puku, "大人みたいに「だいたい 500 mL」じゃダメなの？"),
+            .talk(.doctor, "小児は 1 kg から 35 kg まで動きます。暗記では届きません。毎回かけ算します。"),
             .quiz("体重 6 kg の乳児に 6 mL/kg。一回換気量は何 mL ですか。",
                   ["16 mL",
                    "36 mL",
@@ -215,6 +241,9 @@ extension LessonLibrary {
                  "小児ほど死腔の割合が大きく、浅く速い換気は効率が悪い",
                  "吐ききるには 3τ の呼気時間が必要"],
         tasks: [
+            .talk(.doctor, "量が決まったら、次は回数。かけ算した分時換気量が、そのまま CO₂ を決めます。"),
+            .talk(.puku, "じゃあ回数は、多いほどいいの？"),
+            .talk(.doctor, "そこが落とし穴です。まず上げてみて、そのあと確かめましょう。"),
             .step("呼吸回数を上げて MV を 3.0〜4.2 L/分 に入れ、30 秒保ってください。",
                   hint: "Vt 150 mL なら RR 20〜28 のあたりです。", hold: 30,
                   why: "体重 25 kg では 120〜170 mL/kg/分 が安静時の目安です。乳児はもっと多く要ります（200 mL/kg/分 前後）。代謝が体重あたりで大きいからです。",
@@ -232,6 +261,7 @@ extension LessonLibrary {
                    "6 秒",
                    "10 秒"], answer: 1,
                   why: "3τ ＝ 約 2 秒。吸気 0.5 秒を足すと 1 呼吸 2.5 秒、つまり RR 24 が上限です。細気管支炎で「呼吸数を上げたのに CO₂ が下がらない」のはこれが理由です。"),
+            .talk(.doctor, "いま上げた回数で、この子が吐ききれているかどうか。測れば分かります。"),
             .key("「呼気ポーズ」で、空気が残っていないか確かめてください。", event: .expiratoryHold)
                 .spotting(["hard:kExp"]),
             .step("測り終わるのを待ちます。",
@@ -259,6 +289,9 @@ extension LessonLibrary {
                  "PEEP は肺胞を開く、効き方は遅い",
                  "PEEP を上げたら血圧を見る。血圧の下限も年齢で違う"],
         tasks: [
+            .talk(.doctor, "酸素化のつまみは 2 つだけ。FiO₂ と PEEP です。役割がまったく違います。"),
+            .talk(.puku, "SpO₂ が低かったら、とりあえず酸素を上げればいいんじゃないの？"),
+            .talk(.doctor, "とりあえずはそれで正解。ただ、下げ忘れないこと。まず下げるほうからやります。"),
             .step("SpO₂ 94% 以上のまま、FiO₂ を 40% 以下に下げて 40 秒保ちます。",
                   hint: "5〜10% ずつ下げて SpO₂ を確かめます。急ぐときは「× 10」で早送りできます。", hold: 40,
                   why: "この児は肺がほぼ正常なので、FiO₂ は早く下げられます。術後に 100% のまま放置されている子は珍しくありません。",
@@ -270,6 +303,7 @@ extension LessonLibrary {
                    "PEEP を上げる",
                    "一回換気量を増やす"], answer: 1,
                   why: "SpO₂ 100% は「PaO₂ が 100 以上のどこか」という意味しかなく、余裕の量は見えません。高い FiO₂ を続ける理由がないので下げます。"),
+            .talk(.doctor, "もう 1 つのつまみ、PEEP。上げると酸素化は良くなりますが、ただではありません。"),
             .step("PEEP を 12 cmH₂O まで上げて確定してください。",
                   check: { $0.settings.peep >= 12 })
                 .spotting(["key:peep"]).watching(["ABP mean", "Pplat", "SpO₂"]),
@@ -304,10 +338,14 @@ extension LessonLibrary {
                  "PC は圧を保証し量が動く",
                  "VC では Pplat、PC では Vte を見張る"],
         tasks: [
+            .talk(.scene, "別のベッドから呼ばれた。インフルエンザ肺炎のミオちゃん（3歳）。両肺が真っ白だ。"),
+            .talk(.doctor, "同じ肺でも、量を決めるか圧を決めるかで、この子の安全域が変わります。"),
             .step("圧波形（上、黄色）の形を見てください。斜めに立ち上がっています。",
                   why: "VC では流量が先に決まっているので、圧はその結果として出てきます。だから角が立ちます。",
                   check: { $0.measured.plateauPressure != nil })
                 .spotting(["wave"]).watching(["PIP", "Pplat", "Vte"]),
+            .talk(.puku, "モードって、いっぱいあって覚えられない…"),
+            .talk(.doctor, "覚えるのは 1 つだけ。何を機械が保証して、何を患者に預けるか。切り替えて見比べましょう。"),
             .key("上のタブで「PC-AC」に切り替えてください。", event: .modePressureAC,
                  why: "圧波形が四角い台形になりました。設定した圧まで一気に上げ、吸気のあいだ保っています。")
                 .spotting(["mode:A/C PC"]),
@@ -318,6 +356,7 @@ extension LessonLibrary {
                     "体重 \(Int(c.pbw)) kg なので目標は \(LessonLibrary.mlkg(c.pbw, 6)) mL 前後です。"
                 }
                 .spotting(["key:pinsp"]).watching(["Vte", "PIP", "Pplat"]),
+            .talk(.doctor, "では、この子の肺がもっと硬くなったとき。どちらが危ないでしょうか。"),
             .quiz("PC で換気中、無気肺が広がって肺が硬くなりました。何が起きますか。",
                   ["気道内圧が上がる",
                    "一回換気量が減る",
@@ -349,6 +388,8 @@ extension LessonLibrary {
                  "鈍い＝ミストリガ（子どもが苦しい）",
                  "敏感すぎ・リーク＝オートトリガ"],
         tasks: [
+            .talk(.scene, "ハルト君の麻酔が覚めてきた。胸が、機械より先に動きはじめている。"),
+            .talk(.doctor, "ここから患者が呼吸に参加します。その「吸いたい」を機械がどう受け取るかが、トリガです。"),
             .step("「鎮静」を 20% まで下げて確定してください。",
                   hint: "鎮静はシミュレーター側の操作なので、キーの色が違います。",
                   why: "呼吸中枢が働きはじめます。",
@@ -359,6 +400,8 @@ extension LessonLibrary {
                   why: "A/C なので、患者が吸うたびに設定どおりの換気が 1 回送られます。",
                   check: { $0.measured.respiratoryRateSpontaneous >= 4 })
                 .spotting(["val:RR tot"]).watching(["RR tot"]),
+            .talk(.puku, "感度を鈍くしたら、どうなるの？"),
+            .talk(.doctor, "やってみましょう。数字ではなく、圧波形に出ます。"),
             .step("トリガ感度を 5 L/分 にして確定し、圧波形を 25 秒見てください。", hold: 25,
                   why: "立ち上がりの前に、小さな下向きの切れ込みが出ています。この児は吸っているのに、機械が応えていません。",
                   check: { $0.settings.triggerFlow >= 4.5 })
@@ -369,6 +412,8 @@ extension LessonLibrary {
                    "何も感じない",
                    "過換気になる"], answer: 1,
                   why: "呼吸仕事量が増え、不穏の原因になります。「人工呼吸器と合わない」ときに鎮静を足す前に、トリガと auto-PEEP を疑うのが順序です。"),
+            .talk(.patient, "（ハルト君が顔をしかめ、胸だけが大きく動いている）"),
+            .talk(.doctor, "吸おうとしても機械が来ない。患者にとっていちばん苦しい設定です。戻しましょう。"),
             .step("トリガ感度を 1 L/分 に戻してください。",
                   why: "切れ込みが消え、この児の吸気に機械がついてくるようになりました。",
                   check: { $0.settings.triggerFlow <= 1.5 })
@@ -398,6 +443,7 @@ extension LessonLibrary {
                  "SIMV は決めた回数だけ強制、残りは自発",
                  "PSV は始めるのも止めるのも患者"],
         tasks: [
+            .talk(.doctor, "手伝い方には段階があります。全部やるか、足りない分だけ足すか、本人にまかせるか。"),
             .key("上のタブで「SIMV」に切り替えてください。", event: .modeSIMV,
                  why: "強制換気は設定 RR の回数だけになり、その合間の自発呼吸は PS で手伝われます。")
                 .spotting(["mode:SIMV+PS"]),
@@ -414,6 +460,8 @@ extension LessonLibrary {
                    "オートトリガ",
                    "無呼吸バックアップ"], answer: 1,
                   why: "患者の自発呼吸です。2 種類の呼吸が混ざるので、波形も大きい山と小さい山が交互に出ます。"),
+            .talk(.puku, "SIMV と PSV って、どう違うの？"),
+            .talk(.doctor, "SIMV は決めた回数だけ必ず送ります。PSV は 1 回も送りません。押せば分かります。"),
             .key("今度は「PSV」に切り替えてください。", event: .modePSV,
                  why: "強制換気がなくなりました。すべての呼吸を患者が始めています。")
                 .spotting(["mode:PSV"]),
@@ -424,6 +472,7 @@ extension LessonLibrary {
                     "体重 \(Int(c.pbw)) kg なので目標は \(LessonLibrary.mlkg(c.pbw, 6))〜\(LessonLibrary.mlkg(c.pbw, 8)) mL です。"
                 }
                 .spotting(["key:ps"]).watching(["Vte", "RR tot"]),
+            .talk(.doctor, "では、その「1 回も送らない」の怖いところを。"),
             .quiz("PSV 中に患者が鎮静で呼吸を止めたらどうなりますか。",
                   ["設定 RR で換気が続く",
                    "何も起こらず、無呼吸アラームとバックアップ換気が作動する",

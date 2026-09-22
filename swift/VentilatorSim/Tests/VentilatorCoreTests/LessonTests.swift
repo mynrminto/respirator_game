@@ -179,10 +179,12 @@ struct LessonRuntimeTests {
         advance(engine, seconds: 60, dt: 0.01)
         // 課題の種類どおりに順に通す。途中で止まったら構成が変わったということ。
         var guardCount = 0
-        while !runtime.finished && guardCount < 40 {
+        while !runtime.finished && guardCount < 80 {
             guardCount += 1
             guard let task = runtime.task else { break }
             switch task.advance {
+            case .talk:
+                runtime.tap(ctx())
             case .quiz(let quiz):
                 runtime.answer(quiz.answer, ctx())
             case .event(let event):
@@ -268,7 +270,11 @@ struct LessonShapeTests {
             }
             for task in lesson.tasks {
                 let say = task.instruction(sample)
-                if say.count > 48 { tooLong.append("\(lesson.id) 指示 \(say.count)字") }
+                // 指示は一息で読める長さ、会話はひと呼吸で話せる長さ。
+                let limit = task.isTalk ? 120 : 48
+                if say.count > limit {
+                    tooLong.append("\(lesson.id) \(task.isTalk ? "会話" : "指示") \(say.count)字")
+                }
                 if let quiz = task.quiz, quiz.question.count > 62 {
                     tooLong.append("\(lesson.id) 設問 \(quiz.question.count)字")
                 }
@@ -277,15 +283,28 @@ struct LessonShapeTests {
         #expect(tooLong.isEmpty, "\(tooLong)")
     }
 
-    @Test("課題の過半数が操作か観察（クイズに偏っていない）")
+    @Test("操作と観察がクイズより多い（クイズに偏っていない）")
     func mostlyHandsOn() {
-        var quizzes = 0, actions = 0
+        var quizzes = 0, actions = 0, talks = 0
         for lesson in LessonLibrary.all {
             for task in lesson.tasks {
-                if task.quiz != nil { quizzes += 1 } else { actions += 1 }
+                if task.isTalk { talks += 1 }
+                else if task.quiz != nil { quizzes += 1 }
+                else { actions += 1 }
             }
         }
-        #expect(actions > quizzes, "操作・観察 \(actions) / クイズ \(quizzes)")
+        #expect(actions > quizzes, "操作・観察 \(actions) / クイズ \(quizzes) / 会話 \(talks)")
+    }
+
+    @Test("どのレッスンも場面から始まり、会話が 3 場面以上ある")
+    func everyLessonOpensWithAScene() {
+        var bad: [String] = []
+        for lesson in LessonLibrary.all {
+            if lesson.tasks.first?.isTalk != true { bad.append("\(lesson.id) 冒頭が場面でない") }
+            let talks = lesson.tasks.filter(\.isTalk).count
+            if talks < 3 { bad.append("\(lesson.id) 会話 \(talks) 場面") }
+        }
+        #expect(bad.isEmpty, "\(bad)")
     }
 
     @Test("観察の課題には必ず見どころが付いている")

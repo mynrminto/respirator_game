@@ -43,7 +43,20 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     await p.waitForTimeout(500);
     await p.screenshot({ path: `${SHOT}/${vp.n}-3-lesson.png` });
     console.log(vp.n, '開始直後にダイアログが無い:', (await p.locator('#modals .mbox').count()) === 0);
-    console.log(vp.n, '最初の指示:', (await p.locator('#cSay').innerText()).trim());
+    // 物語から始まること。最初はト書きで、話し手の名前が出る会話が続く。
+    console.log(vp.n, '最初の場面:', (await p.locator('#cSay').innerText()).trim());
+    console.log(vp.n, 'ト書きの見た目:', await p.locator('#cSay.scene').count() === 1);
+    const talk = [];
+    for (let i = 0; i < 8; i++) {
+      const go = p.locator('#cChoices button', { hasText: '続ける' });
+      if (!(await go.count())) break;
+      const who = (await p.locator('#cWho').innerText().catch(() => '')).trim();
+      if (who) talk.push(who);
+      await go.first().click();
+      await p.waitForTimeout(200);
+    }
+    console.log(vp.n, '会話の話し手:', talk.join(' → ') || '(なし)');
+    console.log(vp.n, '会話のあとの指示:', (await p.locator('#cSay').innerText()).trim());
     // 押すところが光っていること（文章で場所を説明しないための仕掛け）
     console.log(vp.n, '吸気ポーズが光っている:',
       await p.locator('#kInsp.spot').count() === 1);
@@ -59,7 +72,7 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     const clearFeedback = async (ms) => {
       const until = Date.now() + ms;
       while (Date.now() < until) {
-        const n = p.locator('#cChoices button', { hasText: '次へ' });
+        const n = p.locator('#cChoices button', { hasText: /次へ|続ける/ });
         if (await n.count()) { await n.first().click(); await p.waitForTimeout(150); }
         else await p.waitForTimeout(150);
       }

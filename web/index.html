@@ -261,6 +261,16 @@
   :root[data-theme="device"] .csay.ok{color:#8CF0C4}
   .csay.ng{color:var(--crit)}
   .chint{margin-top:5px;font-size:11.5px;line-height:1.55;color:var(--dim)}
+
+  /* 誰がしゃべっているか。名前を出さないと、説明が宙に浮いて読みにくい。 */
+  .cwho{display:block;font-size:10.5px;font-weight:800;letter-spacing:.04em;margin-bottom:2px;color:var(--chap)}
+  .cwho.puku{color:#5B7CFA}
+  .cwho.pt{color:#FF5E8A}
+  :root[data-theme="device"] .cwho{color:#7FCFB2}
+  /* ト書き。人のせりふではなく場面の説明なので、細く寝かせて区別する。 */
+  .csay.scene{color:var(--dim);font-style:italic;font-weight:400;
+    border-left:3px solid var(--br);padding-left:9px}
+  :root[data-theme="device"] .csay.scene{border-left-color:#1F4639}
   /* 課題に関係する計測値だけを帯の中にも出す。目を画面のどこへ置くかを、文章で説明せずに済ませる。 */
   .cwatch{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .cwatch .w{display:flex;align-items:baseline;gap:5px;padding:3px 10px;border-radius:999px;
@@ -499,7 +509,11 @@
     border:2px solid var(--chap);margin-top:1px}
   .cav .chr{transform:scale(1.35) translateY(6%)}
   .ctext{flex:1;min-width:0}
+  .cav.puku{border-color:#5B7CFA;background:#EEF2FF}
+  .cav.pt{border-color:#FF5E8A;background:#FFF0F4}
+  .cav.none{display:none}
   :root[data-theme="device"] .cav{background:#0F1B18;border-color:#1F4639}
+  :root[data-theme="device"] .cav.puku,:root[data-theme="device"] .cav.pt{background:#0F1B18;border-color:#1F4639}
   @media(max-width:420px){.cav{width:32px;height:32px}}
 
   /* ---- タイトル画面 ---- */
@@ -735,6 +749,7 @@
       <div class="crow">
         <div class="cav" id="cAv"></div>
         <div class="ctext">
+          <b class="cwho" id="cWho" hidden></b>
           <div class="csay" id="cSay">—</div>
           <div class="cwatch" id="cWatch" hidden></div>
           <div class="chint" id="cHint" hidden></div>

@@ -118,7 +118,7 @@ final class SimulationController {
     /// いま課題が指している操作先。課題に取り組んでいるあいだだけ光らせる。
     /// 解説を読んでいるあいだは消す（もうその操作は終わっているので）。
     var lessonSpots: [String] {
-        guard lessonPhase == .task, let task = lessonRuntime?.task else { return [] }
+        guard lessonPhase == .task, let task = lessonRuntime?.task, !task.isTalk else { return [] }
         return task.spot
     }
 
@@ -489,6 +489,13 @@ final class SimulationController {
         lessonVersion &+= 1
     }
 
+    /// 会話の場面の「続ける」。物語を、読む人の速さで進める。
+    func tapLesson() {
+        guard let runtime = lessonRuntime, lessonPhase == .task else { return }
+        if let why = runtime.tap(lessonContext) { finishStep(why) }
+        lessonVersion &+= 1
+    }
+
     func answerLesson(_ choice: Int) {
         guard let runtime = lessonRuntime, lessonPhase == .task else { return }
         let result = runtime.answer(choice, lessonContext)
@@ -512,7 +519,8 @@ final class SimulationController {
     private func finishStep(_ why: String) {
         guard let runtime = lessonRuntime else { return }
         lessonFeedback = why
-        lessonPhase = runtime.finished ? .done : .feedback
+        // 会話の場面には一言が付かない。空の解説画面を挟むと物語が途切れるので、そのまま次へ。
+        lessonPhase = runtime.finished ? .done : (why.isEmpty ? .task : .feedback)
         if runtime.finished { celebrate(runtime.lesson) }
     }
 

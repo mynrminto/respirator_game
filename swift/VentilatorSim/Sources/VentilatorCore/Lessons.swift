@@ -1,7 +1,8 @@
 import Foundation
 
 /* 学習コース。web/lessons.js と同じ内容・同じ判定で、呼吸器の操作を 1 から学べるようにしたもの。
- * 方針は「読んで覚える」ではなく「まず触る → 結果を見る → 一言で意味を添える」。
+ * 方針は「物語を追ううちに手が動く」こと。場面（talk）で状況を作り、操作させ、
+ * その結果にみどり先生が一言を添える。ぷくぷくが学習者の代わりに「なんで？」と聞く。
  * instruction は一息で読める指示だけにし、理屈は操作が終わったあとの explanation に回す。
  * 背景の解説（brief）は帯の「解説」からいつでも読めるが、読まなくても先に進める。
  * ここはデータと進行のロジックだけを持ち、描画は App 側の LessonCoachView が行う。 */
@@ -99,12 +100,32 @@ public struct LessonQuiz {
     }
 }
 
+/// 帯でしゃべる人。ぷくぷくが学習者の代わりに聞き、みどり先生が答える。
+/// 説明を一方的に読ませるより、この往復のほうが頭に残る。
+public enum LessonSpeaker: String, Sendable {
+    case scene      // ト書き。人のせりふではなく場面の説明。
+    case doctor     // みどり先生
+    case puku       // ぷくぷく
+    case patient    // 患者・家族
+
+    public var displayName: String {
+        switch self {
+        case .scene:   return ""
+        case .doctor:  return "みどり先生"
+        case .puku:    return "ぷくぷく"
+        case .patient: return "患者・家族"
+        }
+    }
+}
+
 public struct LessonTask {
-    /// 課題が先に進む条件。3 つのうちちょうど 1 つ。
+    /// 課題が先に進む条件。4 つのうちちょうど 1 つ。
     public enum Advance {
         case condition((LessonContext) -> Bool)
         case event(LessonEvent)
         case quiz(LessonQuiz)
+        /// 会話・ト書きの場面。「続ける」を押すと進む。
+        case talk(LessonSpeaker)
     }
 
     public var advance: Advance
@@ -148,6 +169,13 @@ public struct LessonTask {
         if case .quiz(let q) = advance { return q }
         return nil
     }
+
+    /// 会話の場面なら、その話し手。
+    public var speaker: LessonSpeaker? {
+        if case .talk(let who) = advance { return who }
+        return nil
+    }
+    public var isTalk: Bool { speaker != nil }
 }
 
 public extension LessonTask {
@@ -163,6 +191,11 @@ public extension LessonTask {
     static func key(_ say: String, hint: String = "", event: LessonEvent, why: String = "") -> LessonTask {
         LessonTask(advance: .event(event),
                    instruction: { _ in say }, hint: { _ in hint }, explanation: { _ in why })
+    }
+
+    /// 会話・ト書きの場面。「続ける」を押すと次へ進む。
+    static func talk(_ who: LessonSpeaker, _ say: String) -> LessonTask {
+        LessonTask(advance: .talk(who), instruction: { _ in say })
     }
 
     /// 選択肢に答えて進む課題。
@@ -260,6 +293,17 @@ public final class LessonRuntime {
     public var task: LessonTask? { finished ? nil : lesson.tasks[index] }
     public var total: Int { lesson.tasks.count }
 
+    /* 進み具合は「やること」の数で数える。会話の場面まで数えると、
+     * 読んだだけで進んだように見えてしまう。 */
+    public var actionTotal: Int { lesson.tasks.filter { !$0.isTalk }.count }
+    public var actionDone: Int {
+        lesson.tasks.prefix(index).filter { !$0.isTalk }.count
+    }
+    /// いま向かっている「やること」の番号。会話の場面は飛ばす。無ければ nil。
+    public var actionIndex: Int? {
+        lesson.tasks.indices.first { $0 >= index && !lesson.tasks[$0].isTalk }
+    }
+
     /// 課題に入るときの副作用を 1 回だけ実行する。poll / fire / answer の前に呼ぶ。
     public func enter(_ context: LessonContext) {
         guard !finished, enteredIndex != index else { return }
@@ -307,6 +351,14 @@ public final class LessonRuntime {
         }
         lastAnswerWasWrong = false
         return (true, advance(context))
+    }
+
+    /// 会話の場面を読み終えて次へ。「続ける」を押したときに呼ぶ。
+    @discardableResult
+    public func tap(_ context: LessonContext) -> String? {
+        guard let task, task.isTalk else { return nil }
+        enter(context)
+        return advance(context)
     }
 
     /// hold 付きの課題で、あとどれだけ保てばよいかの割合。

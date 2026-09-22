@@ -1722,7 +1722,7 @@
       else if (first) celebrate('レッスン修了！ ' + n + ' / ' + all + ' 🎉');
       else celebrate('レッスン修了！ 🎉');
     }
-    else L.mode = 'feedback';
+    else L.mode = (r.why ? 'feedback' : 'task');
     L.fb = r.why || '';
     L.sig = '';
   }
@@ -1738,9 +1738,25 @@
     $('cQuit').onclick = function () { endLesson(false); };
   }
 
+  /* 話し手。ぷくぷくが学習者の代わりに「なんで？」と聞き、みどり先生が答える。
+   * 説明を一方的に読ませるより、この往復のほうが頭に残る。 */
+  var WHO_NAME = { doc: 'みどり先生', puku: 'ぷくぷく', pt: '患者・家族', scene: '' };
+
+  function paintSpeaker(who, mood) {
+    var av = $('cAv'), dark = currentTheme() === 'device';
+    av.className = 'cav ' + (who === 'scene' ? 'none' : (who || 'doc'));
+    if (who === 'scene') { av.innerHTML = ''; return; }
+    var src;
+    if (who === 'puku') src = AS.url('mascot_' + mood) || AS.url('mascot_happy') || AR.mascot(dark, false);
+    else if (who === 'pt') src = patientArt(S.scen, patientTone(S.eng), dark);
+    else src = AR.face(mood, dark);
+    av.innerHTML = '<img alt="" src="' + src + '">';
+  }
+
   /* 課題・解説・クイズの描画。毎フレーム呼ばれるので、中身が変わったときだけ差し替える。 */
   /* 先生の表情。正解や修了では笑い、クイズでは考え、誤答では困る。 */
   function coachMood(L, t) {
+    if (L.mode === 'task' && t && t.talk) return t.mood || (t.who === 'doc' ? 'normal' : 'happy');
     if (L.mode === 'done' || L.mode === 'feedback') return 'happy';
     if (t && t.quiz) {
       return (L.rt.feedback && L.rt.feedback.ok === false) ? 'sad' : 'think';
@@ -1754,7 +1770,7 @@
     var L = S.lesson;
     if (!L) return;
     var rt = L.rt, t = rt.task();
-    var say = '', hint = '', choices = null, tone = '';
+    var say = '', hint = '', choices = null, tone = '', who = '';
 
     /* 課題が変わった瞬間に、その課題が見るべき計測値を控えておく。
      * 操作のあと「前 → 後」で見せるのが、このコースの説明のしかた。 */
@@ -1776,6 +1792,12 @@
     } else if (L.mode === 'feedback') {
       say = L.fb; tone = 'ok';
       choices = { kind: 'next' };
+    } else if (t && t.talk) {
+      /* 会話の場面。押すところは光らせず、話し手と言葉だけを見せる。 */
+      say = typeof t.say === 'function' ? t.say(rt.bind(lessonCtx())) : (t.say || '');
+      who = t.who || 'doc';
+      tone = who === 'scene' ? 'scene' : '';
+      choices = { kind: 'talk', label: t.next || '続ける' };
     } else if (t) {
       if (t.quiz) {
         /* 設問も画面の実測値から作れるようにしておく（架空の数字より、いま出ている数字で考えさせる）。 */
@@ -1790,27 +1812,33 @@
 
     var pr = rt.progress();
     var mood = coachMood(L, t);
-    var sig = L.mode + '|' + rt.index + '|' + say + '|' + hint + '|' + tone
+    var sig = L.mode + '|' + rt.index + '|' + say + '|' + hint + '|' + tone + '|' + who
       + '|' + (choices ? choices.kind + (choices.list ? choices.list.length : '') : '-')
       + '|' + rt.answered + '|' + mood;
     if (sig !== L.sig) {
       L.sig = sig;
-      if (L.mood !== mood) {
-        L.mood = mood;
-        $('cAv').innerHTML = '<img alt="" src="' + AR.face(mood, currentTheme() === 'device') + '">';
+      if (L.mood !== mood || L.who !== who) {
+        L.mood = mood; L.who = who;
+        paintSpeaker(who, mood);
       }
       $('cTitle').textContent = L.lesson.title;
       $('cChap').textContent = L.chap.tag + '　' + (pr.done + (L.mode === 'done' ? 0 : 1)) + ' / ' + pr.total;
       var dots = $('cDots'); dots.innerHTML = '';
-      for (var i = 0; i < pr.total; i++) {
+      var acts = L.lesson.tasks, cur = rt.actionIndex();
+      for (var i = 0; i < acts.length; i++) {
+        if (acts[i].talk) continue;                 // 会話の場面は点にしない
         var d = el('span');
         if (i < rt.index) d.className = 'on';
-        else if (i === rt.index && L.mode === 'task') d.className = 'cur';
+        else if (i === cur && L.mode === 'task') d.className = 'cur';
         dots.appendChild(d);
       }
       var sayN = $('cSay');
       sayN.textContent = say;
       sayN.className = 'csay' + (tone ? ' ' + tone : '');
+      var wn = $('cWho');
+      wn.textContent = WHO_NAME[who] || '';
+      wn.className = 'cwho ' + (who || 'doc');
+      wn.hidden = !wn.textContent;
       var hn = $('cHint'); hn.textContent = hint; hn.hidden = !hint;
       paintChoices(choices);
     }
@@ -1839,6 +1867,14 @@
         };
         box.appendChild(b);
       });
+    } else if (choices.kind === 'talk') {
+      var tb = el('button', 'cbtn go', choices.label);
+      tb.style.flex = '0 0 auto';
+      tb.onclick = function () {
+        var r = rt.tap(lessonCtx());
+        if (r) afterAdvance(r);
+      };
+      box.appendChild(tb);
     } else if (choices.kind === 'next') {
       var n = el('button', 'cbtn go', '次へ');
       n.style.flex = '0 0 auto';
@@ -1887,8 +1923,8 @@
   function openCourse() {
     var done = doneSet();
     modal('学習コース', function (b, close) {
-      b.appendChild(el('p', '', '呼吸器の操作を、実機の画面を触りながら順に覚えていくコースです。'
-        + '各レッスンは短い解説と、画面上での操作課題・クイズで組み立ててあります。上から順に進めるのが基本です。'));
+      b.appendChild(el('p', '', 'PICU と NICU の 6 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。'
+        + 'みどり先生とぷくぷくの会話を追っていくと、そのつど実機を触ることになります。上から順に進めるのが基本です。'));
       var n = LS.allLessons().length;
       var nDone = done.filter(function (id) { return LS.lessonById(id); }).length;
       var pct = Math.round(nDone / n * 100);

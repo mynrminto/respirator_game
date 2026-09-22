@@ -5,6 +5,8 @@
  * ここはデータと判定ロジックだけを持ち、描画は app.js が行う。node からも読み込めるようにしてある。
  *
  * 課題 (task) は次のどれかで先に進む。
+ *   talk: true    … 会話・ト書きの場面。「続ける」を押すと進む。who で話し手を決める。
+ *                   who: 'scene'（ト書き）/ 'doc'（みどり先生）/ 'puku'（ぷくぷく）/ 'pt'（患者・家族）。
  *   check(c)      … 毎フレーム判定する。hold を付けるとその秒数（シミュレーション内）満たし続ける必要がある。
  *   event: 'name' … 機器のキーが押されたなどの出来事で進む。
  *   quiz          … 選択肢に答えると進む。q は文字列でも関数（実測値から作る）でもよい。
@@ -45,6 +47,22 @@
           '設定の Vt と実測の Vte は別物'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: '午後 8 時、PICU。虫垂炎の手術を終えたハルト君（8歳）が、挿管されたまま運ばれてきた。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '今夜の担当はあなたです。まずは、この機械が何を言っているのかを読めるようにしましょう。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'うわ、波形が 3 つもある…。どれが何なの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '上から 気道内圧、流量、換気量。どれがどれかは、動き方で見分けられます。'
+          },
+          {
             spot: 'wave',
             quiz: {
               q: '真ん中の緑の波形だけがゼロ線をまたいで上下しています。これは何ですか。',
@@ -52,6 +70,10 @@
               answer: 1,
               why: '流量です。上が吸気、下が呼気。上下するのは流量だけなので、これが見分けの目印になります。'
             }
+          },
+          {
+            talk: true, who: 'doc',
+            say: '読めましたね。次は触ってみましょう。実機は 3 段階です。キーを押す、ダイヤルを回す、確定。'
           },
           {
             say: 'Vt を 180 mL にして確定してください。',
@@ -65,6 +87,14 @@
             spot: 'val:Vte', watch: ['Vte', 'MV'],
             check: function (c) { return c.m.vte > 160; },
             why: 'VC は入れる量を機械が保証するので、Vte はほぼ設定どおりに返ってきます。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '入れた量と、戻ってくる量って、ちがうことあるの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'あります。しかもそれが、いちばん最初に気づくべき異常です。'
           },
           {
             quiz: {
@@ -91,6 +121,22 @@
           '上限は年齢で変わる（タイルの下に出ている）'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: 'ハルト君の設定はひとまず落ち着いた。みどり先生が、画面の圧の数字を指さす。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'PIP は 22。でもこの数字だけでは、肺に何がかかっているかは分かりません。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'え、圧は圧じゃないの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '圧は 2 つあるんです。流れを押す分と、肺を膨らませる分。分けて測ってみましょう。'
+          },
+          {
             say: '「吸気ポーズ」を押してください。',
             spot: 'hard:kInsp',
             event: 'hold:insp',
@@ -101,6 +147,10 @@
             spot: 'val:Pplat', watch: ['PIP', 'Pplat', 'ΔP'],
             check: function (c) { return c.m.pplat != null && c.m.dp != null; },
             why: '平らになったところが Pplat。流れが止まったあとに残っている、肺胞の圧です。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '2 つに分かれました。どちらが何なのか、ここで確かめておきましょう。'
           },
           {
             watch: ['PIP', 'Pplat', 'PEEP tot'],
@@ -119,6 +169,14 @@
               answer: 1,
               why: 'ΔP ＝ Pplat − PEEP。予後との関連がいちばん強い圧で、画面にもタイルで出ています。'
             }
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'じゃあ PIP が高いとき、どうすれば下げられるの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '流れを押す分を減らせばいい。速さを落としてみましょう。'
           },
           {
             say: '吸気流量を 15 L/分 に下げて確定してください。',
@@ -170,6 +228,18 @@
           '上がったのがどちらかで原因が違う'],
         tasks: [
           {
+            talk: true, who: 'doc',
+            say: 'いまの 2 つの圧を、機械が勝手に割り算してくれています。それが Cstat と Raw。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '割り算？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '肺の柔らかさと、気道の通りにくさです。夜中のアラームは、ほとんどこの 2 つで説明がつきます。'
+          },
+          {
             say: 'Cstat と Raw に数字が入るまで待ちます。',
             hint: '吸気ポーズを 0.3 秒に設定してあるので、毎回の呼吸で自動的に測られます。',
             spot: ['val:Cstat', 'val:Raw'], watch: ['Cstat', 'Raw'],
@@ -185,6 +255,10 @@
             check: function (c) { return c.s.vt <= 120; },
             why: 'Vte と ΔP は一緒に減り、Cstat はほとんど動きません。'
               + 'Cstat は設定ではなく肺そのものの性質だからです。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '数字が動いたとき、どちらが犯人か。言い当てられるようにしておきましょう。'
           },
           {
             quiz: {
@@ -203,6 +277,14 @@
               why: '差が開いた＝抵抗の増加です。痰、チューブの屈曲や閉塞、気管支攣縮を探します。'
                 + '小児はチューブが細いぶん、わずかな分泌物でも抵抗がはっきり上がります。'
             }
+          },
+          {
+            talk: true, who: 'puku',
+            say: '吸気ポーズがあるなら、呼気ポーズもあるの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'あります。こちらは吐ききれているかを見るためのもの。第 5 章で主役になります。'
           },
           {
             say: '「呼気ポーズ」を押して、総 PEEP を測ってください。',
@@ -242,6 +324,22 @@
           '肥満児だけは身長相当の標準体重で'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: '朝の回診。ハルト君の設定は、手術室から運ばれてきたときのままだった。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'ここからは自分で決めます。最初に決めるのは一回換気量。基準は体重です。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '体重？ 身長じゃなくて？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '小児では体重 1 kg あたり 6〜8 mL。まず、いまの値がいくつなのか確かめましょう。'
+          },
+          {
             say: 'いまの Vte を mL/kg で確かめてください。',
             hint: 'タイルの下に mL/kg が出ています。',
             spot: 'val:Vte', watch: ['Vte', 'Pplat', 'ΔP'],
@@ -257,6 +355,14 @@
             spot: 'key:vt', watch: ['Vte', 'Pplat', 'ΔP'],
             check: function (c) { return Math.abs(c.s.vt - c.pbw * 6) <= 25; },
             why: '肺保護の基本設定になりました。圧も一緒に下がっています。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '大人みたいに「だいたい 500 mL」じゃダメなの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '小児は 1 kg から 35 kg まで動きます。暗記では届きません。毎回かけ算します。'
           },
           {
             quiz: {
@@ -292,6 +398,18 @@
           '吐ききるには 3τ の呼気時間が必要'],
         tasks: [
           {
+            talk: true, who: 'doc',
+            say: '量が決まったら、次は回数。かけ算した分時換気量が、そのまま CO₂ を決めます。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'じゃあ回数は、多いほどいいの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'そこが落とし穴です。まず上げてみて、そのあと確かめましょう。'
+          },
+          {
             say: '呼吸回数を上げて MV を 3.0〜4.2 L/分 に入れ、30 秒保ってください。',
             hint: 'Vt 150 mL なら RR 20〜28 のあたりです。',
             spot: 'key:rr', watch: ['MV', 'RR tot'],
@@ -316,6 +434,10 @@
               why: '3τ ＝ 約 2 秒。吸気 0.5 秒を足すと 1 呼吸 2.5 秒、つまり RR 24 が上限です。'
                 + '細気管支炎で「呼吸数を上げたのに CO₂ が下がらない」のはこれが理由です。'
             }
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'いま上げた回数で、この子が吐ききれているかどうか。測れば分かります。'
           },
           {
             say: '「呼気ポーズ」で、空気が残っていないか確かめてください。',
@@ -349,6 +471,18 @@
           'PEEP を上げたら血圧を見る。血圧の下限も年齢で違う'],
         tasks: [
           {
+            talk: true, who: 'doc',
+            say: '酸素化のつまみは 2 つだけ。FiO₂ と PEEP です。役割がまったく違います。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'SpO₂ が低かったら、とりあえず酸素を上げればいいんじゃないの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'とりあえずはそれで正解。ただ、下げ忘れないこと。まず下げるほうからやります。'
+          },
+          {
             say: 'SpO₂ 94% 以上のまま、FiO₂ を 40% 以下に下げて 40 秒保ちます。',
             hint: '5〜10% ずつ下げて SpO₂ を確かめます。急ぐときは「× 10」で早送りできます。',
             spot: 'key:fio2', watch: ['SpO₂'],
@@ -365,6 +499,10 @@
               why: 'SpO₂ 100% は「PaO₂ が 100 以上のどこか」という意味しかなく、余裕の量は見えません。'
                 + '高い FiO₂ を続ける理由がないので下げます。'
             }
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'もう 1 つのつまみ、PEEP。上げると酸素化は良くなりますが、ただではありません。'
           },
           {
             say: 'PEEP を 12 cmH₂O まで上げて確定してください。',
@@ -414,10 +552,26 @@
           'VC では Pplat、PC では Vte を見張る'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: '別のベッドから呼ばれた。インフルエンザ肺炎のミオちゃん（3歳）。両肺が真っ白だ。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '同じ肺でも、量を決めるか圧を決めるかで、この子の安全域が変わります。'
+          },
+          {
             say: '圧波形（上、黄色）の形を見てください。斜めに立ち上がっています。',
             spot: 'wave', watch: ['PIP', 'Pplat', 'Vte'],
             check: function (c) { return c.m.pplat != null; },
             why: 'VC では流量が先に決まっているので、圧はその結果として出てきます。だから角が立ちます。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'モードって、いっぱいあって覚えられない…'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '覚えるのは 1 つだけ。何を機械が保証して、何を患者に預けるか。切り替えて見比べましょう。'
           },
           {
             say: '上のタブで「PC-AC」に切り替えてください。',
@@ -432,6 +586,10 @@
             check: function (c) { return Math.abs(vtPerKg(c) - 6) <= 1; },
             hold: 20,
             why: '同じ換気量を、今度は圧で作りました。VC と PC はゴールが同じで、道順が違うだけです。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'では、この子の肺がもっと硬くなったとき。どちらが危ないでしょうか。'
           },
           {
             quiz: {
@@ -468,6 +626,14 @@
           '敏感すぎ・リーク＝オートトリガ'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: 'ハルト君の麻酔が覚めてきた。胸が、機械より先に動きはじめている。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'ここから患者が呼吸に参加します。その「吸いたい」を機械がどう受け取るかが、トリガです。'
+          },
+          {
             say: '「鎮静」を 20% まで下げて確定してください。',
             hint: '鎮静はシミュレーター側の操作なので、キーの色が違います。',
             spot: 'key:sed', watch: ['RR tot'],
@@ -480,6 +646,14 @@
             spot: 'val:RR tot', watch: ['RR tot'],
             check: function (c) { return c.m.rrSpont >= 4; },
             why: 'A/C なので、患者が吸うたびに設定どおりの換気が 1 回送られます。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '感度を鈍くしたら、どうなるの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'やってみましょう。数字ではなく、圧波形に出ます。'
           },
           {
             say: 'トリガ感度を 5 L/分 にして確定し、圧波形を 25 秒見てください。',
@@ -502,6 +676,14 @@
               why: '呼吸仕事量が増え、不穏の原因になります。'
                 + '「人工呼吸器と合わない」ときに鎮静を足す前に、トリガと auto-PEEP を疑うのが順序です。'
             }
+          },
+          {
+            talk: true, who: 'pt',
+            say: '（ハルト君が顔をしかめ、胸だけが大きく動いている）'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '吸おうとしても機械が来ない。患者にとっていちばん苦しい設定です。戻しましょう。'
           },
           {
             say: 'トリガ感度を 1 L/分 に戻してください。',
@@ -535,6 +717,10 @@
           'PSV は始めるのも止めるのも患者'],
         tasks: [
           {
+            talk: true, who: 'doc',
+            say: '手伝い方には段階があります。全部やるか、足りない分だけ足すか、本人にまかせるか。'
+          },
+          {
             say: '上のタブで「SIMV」に切り替えてください。',
             spot: 'mode:SIMV-VC',
             event: 'mode:SIMV-VC',
@@ -559,6 +745,14 @@
             }
           },
           {
+            talk: true, who: 'puku',
+            say: 'SIMV と PSV って、どう違うの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'SIMV は決めた回数だけ必ず送ります。PSV は 1 回も送りません。押せば分かります。'
+          },
+          {
             say: '今度は「PSV」に切り替えてください。',
             spot: 'mode:PSV',
             event: 'mode:PSV',
@@ -572,6 +766,10 @@
             hold: 20,
             why: 'PS は「その子が楽に目標の換気量を出せる最小の圧」で決めます。'
               + '小児はチューブが細いぶん、同じ「ほとんど手伝わない」でも乳児 PS 8、学童 PS 5 と差がつきます。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'では、その「1 回も送らない」の怖いところを。'
           },
           {
             quiz: {
@@ -613,6 +811,22 @@
           '正常値は年齢で違う。酸素化は P/F と OI で別に評価する'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: '深夜 1 時。ハルト君の呼吸が少し浅い。みどり先生が採血の指示を出した。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '血液ガスは 4 ステップで読みます。順番さえ守れば、迷いません。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '4 つも覚えるの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'pH → PaCO₂ → HCO₃⁻ → 代償。それだけです。まず採ってみましょう。'
+          },
+          {
             say: '「血液ガス」を押して採血してください。',
             spot: 'hard:kAbg',
             event: 'abg:order',
@@ -626,6 +840,10 @@
               return 'pH ' + c.lastAbg.ph.toFixed(2) + ' / PaCO₂ ' + c.lastAbg.paco2.toFixed(0)
                 + ' / PaO₂ ' + c.lastAbg.pao2.toFixed(0) + '。この画面はハードキーからいつでも開き直せます。';
             }
+          },
+          {
+            talk: true, who: 'doc',
+            say: '返ってきましたね。では、その順番どおりに読む練習を 3 問。'
           },
           {
             quiz: {
@@ -670,6 +888,18 @@
           '発熱で CO₂ 産生が増える。効き始めるまで数分かかる'],
         tasks: [
           {
+            talk: true, who: 'doc',
+            say: 'CO₂ を下げる方法は、実は 1 つしかありません。何だと思いますか。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '酸素を増やす…？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '違います。触ってみれば、身体で覚えられます。まず採血から。'
+          },
+          {
             say: 'まず採血して、いまの PaCO₂ を確かめてください。',
             spot: 'hard:kAbg',
             event: 'abg:order',
@@ -694,6 +924,10 @@
             }
           },
           {
+            talk: true, who: 'doc',
+            say: 'では動かします。効きはじめるまで数分かかることも、いっしょに覚えてください。'
+          },
+          {
             say: '一回換気量と呼吸回数を上げて、MV を 3.2 L/分 以上にしてください。',
             hint: function (c) { return '体重 ' + c.pbw.toFixed(0) + ' kg。Vt は 8 mL/kg（約 '
               + mlkg(c, 8) + ' mL）まで安全に上げられます。'; },
@@ -713,6 +947,10 @@
               return 'PaCO₂ ' + c.lastAbg.paco2.toFixed(0) + ' mmHg、pH ' + c.lastAbg.ph.toFixed(2)
                 + '。換気量を増やしたぶんだけ CO₂ が抜けました。';
             }
+          },
+          {
+            talk: true, who: 'puku',
+            say: '量と回数、どっちを上げても同じじゃないの？'
           },
           {
             quiz: {
@@ -747,6 +985,18 @@
           'PEEP を上げたら P/F・Pplat・血圧の 3 つを見る'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: 'ミオちゃんの FiO₂ は 80%。それでも SpO₂ は 90% を切りそうだ。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '酸素をこんなに吸わせてるのに、どうして上がらないの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '潰れた肺胞を、血が素通りしているからです。素通りする血には、濃い酸素は届きません。'
+          },
+          {
             say: 'まず採血して、いまの P/F 比を確かめてください。',
             spot: 'hard:kAbg',
             event: 'abg:order',
@@ -762,6 +1012,10 @@
               return 'P/F 比 ' + Math.round(r) + '。'
                 + 'FiO₂ 80% を吸わせてもこれだけしか上がらないのは、シャントが大きいからです。';
             }
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'だから先に肺胞を開きます。ここが PEEP の出番です。'
           },
           {
             say: 'PEEP を 14 cmH₂O まで上げて確定してください。',
@@ -788,6 +1042,10 @@
               return 'P/F 比 ' + Math.round(c.mem.pf0) + ' → ' + Math.round(pf(c.lastAbg))
                 + '。FiO₂ は一切触っていません。開いた肺が増えた分です。';
             }
+          },
+          {
+            talk: true, who: 'doc',
+            say: '開いたら、酸素は下げる。この順番が大事です。'
           },
           {
             say: 'SpO₂ 92% 以上を保ったまま、FiO₂ を 60% 以下に下げてください。',
@@ -828,6 +1086,18 @@
           '頭蓋内圧上昇・肺高血圧・心不全では使えない'],
         tasks: [
           {
+            talk: true, who: 'doc',
+            say: 'P/F は良くなりました。でも今度は Pplat が高い。ここからは、何かを諦める相談です。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '諦める？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'CO₂ を下げきることを諦めます。そのぶん肺を守る、という考え方です。'
+          },
+          {
             say: 'いまの Vte（mL/kg）と Pplat を確かめてください。',
             spot: ['val:Vte', 'val:Pplat'], watch: ['Vte', 'Pplat', 'ΔP'],
             check: function (c) { return c.m.pplat != null && c.m.vte > 100; },
@@ -855,6 +1125,10 @@
             why: function (c) {
               return 'PaCO₂ ' + c.lastAbg.paco2.toFixed(0) + ' mmHg、pH ' + c.lastAbg.ph.toFixed(2) + '。';
             }
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'どこまで許すのか。線を引いておきましょう。'
           },
           {
             quiz: {
@@ -918,6 +1192,14 @@
           'PIP も Pplat も上がる＝コンプライアンス低下'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: '午前 3 時。ハルト君のベッドでアラームが鳴った。気道内圧上限。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '鳴ってから考えると遅い。順番を決めておきます。まず、いまの数字を控えます。'
+          },
+          {
             say: 'いまの PIP と Pplat を覚えておいてください。',
             spot: ['val:PIP', 'val:Pplat'], watch: ['PIP', 'Pplat', 'Raw'],
             check: function (c) { return c.m.pplat != null && c.m.cstat != null; },
@@ -948,6 +1230,10 @@
             }
           },
           {
+            talk: true, who: 'doc',
+            say: 'PIP と Pplat、どちらが上がったか。それだけで犯人が絞れます。'
+          },
+          {
             quiz: {
               q: 'この所見から考えられるのはどれですか。',
               choices: ['肺が硬くなった', '気道抵抗が上がった', 'PEEP が高すぎる', '回路のリーク'],
@@ -964,6 +1250,14 @@
               why: '吸引中は換気が止まり、陰圧で肺胞が潰れます。小児は酸素の蓄えが少なく、成人よりはるかに速く落ちます。'
                 + 'カテーテルはチューブ内径の半分以下を選び、10〜15 秒以内で終えます。'
             }
+          },
+          {
+            talk: true, who: 'puku',
+            say: '痰なら、すぐ吸っちゃえばいいんじゃないの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '吸引は酸素も一緒に持っていきます。先に貯金してから吸う。順番を守りましょう。'
           },
           {
             say: '「100% O₂」を押してから「気管吸引」を押してください。',
@@ -998,6 +1292,22 @@
           '対策の第一は呼吸回数を下げること'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: 'RSV のそうた君（生後 4 か月）。呼吸回数を上げたのに、血圧が下がってきた。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '入れることばかり見ていると、これを見落とします。吐けているかどうか。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '吐くのって、放っておけば出ていくんじゃないの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '細い気道では、出ていく時間が足りません。波形に出ます。見てください。'
+          },
+          {
             say: '流量波形（真ん中、緑）を 20 秒見てください。呼気がゼロに戻りきっていますか。',
             spot: 'wave', watch: ['RR tot', 'I:E'],
             check: function (c) { return true; },
@@ -1019,6 +1329,10 @@
               return '総 PEEP ' + c.m.peepTot.toFixed(1) + ' に対して設定 PEEP は ' + c.s.peep
                 + '。差の ' + c.mem.ap0.toFixed(1) + ' cmH₂O が auto-PEEP です。';
             }
+          },
+          {
+            talk: true, who: 'doc',
+            say: '測れました。では、これを減らすにはどうするか。'
           },
           {
             quiz: {
@@ -1083,6 +1397,22 @@
           '圧と量の動き方の組み合わせで切り分ける'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: 'SpO₂ 98 → 93 → 89。モニタの音が高くなる。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'DOPE。チューブのずれ、詰まり、気胸、機械の不具合。この 4 つを順に切ります。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '4 つも、あわてて思い出せないよ…'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'だから手が先です。まず酸素。考えるのはそのあとで間に合います。'
+          },
+          {
             say: 'SpO₂ が下がりはじめました。最初の一手を打ってください。',
             onStart: function (c) {
               c.mem.c0 = c.e.C;
@@ -1108,6 +1438,10 @@
             check: function (c) { return c.m.pplat != null && paused(c); },
             why: 'PIP も Pplat も上がり、Vte は設定どおり返っています。'
               + 'つまりリークでも抵抗でもなく、肺が硬くなった形です。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '圧の形と、聴診。2 つ合わせると 1 つに絞れます。'
           },
           {
             quiz: {
@@ -1164,6 +1498,18 @@
           '抜管の可否は SBT の結果で決める'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: '朝。ハルト君が目を開けて、チューブを気にして手を動かしている。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '元気そうだし、もう抜いちゃえば？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'その「元気そう」を数字にして確かめるのが、この章です。'
+          },
+          {
             say: '「離脱」キーを押して、条件のリストを見てください。',
             spot: 'hard:kWean',
             event: 'weaning:open',
@@ -1180,6 +1526,10 @@
                 && (c.m.rrSpont >= 4 || c.e.pmusAmp > 2);
             },
             why: '条件が揃いました。ここで初めて SBT に進めます。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '全部 ✓ になりました。では、このまま抜いていいでしょうか。'
           },
           {
             quiz: {
@@ -1222,6 +1572,22 @@
           '肺が正常でも呼吸筋が弱ければ離脱できない'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: 'ギラン・バレーのあかりちゃん（7歳）。肺はきれい。でも、力が入らない。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '肺が良くても外せないことがあります。この子で見るのは、肺ではなく筋力です。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '筋力って、どうやって測るの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '浅くて速い呼吸になるかどうかで分かります。f/VT という数字にします。'
+          },
+          {
             quiz: {
               q: '体重 22 kg の児が RR 40、一回換気量 110 mL。f/VT はいくつですか。',
               choices: ['1.8', '8', '40', '判定できない'],
@@ -1236,6 +1602,10 @@
             spot: 'hard:kWean',
             event: 'sbt:start',
             why: 'PEEP 5 とチューブ抵抗ぶんの PS に切り替わり、30 分の計測が始まりました。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '30 分、そばで見ます。最初の 5 分ではなく、後半で崩れる子がいます。'
           },
           {
             say: '30 分の SBT を最後まで見てください。f/VT と呼吸回数の動きに注目します。',
@@ -1288,6 +1658,14 @@
           '小児は上気道浮腫の影響が大きい。カフリークテストを忘れない'],
         tasks: [
           {
+            talk: true, who: 'scene',
+            say: 'ハルト君の SBT、2 回目。今日は最後まで持ちそうだ。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '最後の関門です。呼吸の力だけでなく、気道を自分で守れるかを見ます。'
+          },
+          {
             say: '「離脱」キーから SBT を開始し、最後まで完走させてください。',
             hint: '早送りを使ってください。',
             spot: 'hard:kWean', watch: ['f/VT', 'RR tot', 'SpO₂'],
@@ -1304,6 +1682,10 @@
             }
           },
           {
+            talk: true, who: 'doc',
+            say: '抜いたあとの 1 時間が、いちばん気が抜けません。'
+          },
+          {
             quiz: {
               q: '抜管 1 時間後、吸気時に高い「ヒューヒュー」音と陥没呼吸が出ました。何を考えますか。',
               choices: ['気管支喘息', '上気道（声門下）の浮腫', '肺水腫', '正常な経過'],
@@ -1311,6 +1693,14 @@
               why: '吸気性の stridor は上気道の狭窄で、小児では声門下がいちばん細く、ここが腫れます。'
                 + 'アドレナリン吸入とステロイドで対応し、改善しなければ再挿管を早めに決めます。'
             }
+          },
+          {
+            talk: true, who: 'puku',
+            say: '…だいじょうぶかな。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '条件はそろいました。抜きましょう。'
           },
           {
             say: '「離脱」キーから抜管してください。',
@@ -1376,8 +1766,23 @@
     return this.finished ? null : this.lesson.tasks[this.index];
   };
 
+  /* 進み具合は「やること」の数で数える。会話の場面まで数えると、
+   * 読んだだけで進んだように見えてしまう。 */
   Runtime.prototype.progress = function () {
-    return { done: this.index, total: this.lesson.tasks.length };
+    var t = this.lesson.tasks, done = 0, total = 0;
+    for (var i = 0; i < t.length; i++) {
+      if (t[i].talk) continue;
+      total++;
+      if (i < this.index) done++;
+    }
+    return { done: done, total: total };
+  };
+
+  /** いま向かっている「やること」の番号。会話の場面は飛ばす。無ければ -1。 */
+  Runtime.prototype.actionIndex = function () {
+    var t = this.lesson.tasks;
+    for (var i = this.index; i < t.length; i++) if (!t[i].talk) return i;
+    return -1;
   };
 
   /** 課題に入るときの副作用（病態を起こすなど）を 1 回だけ実行する。 */
@@ -1431,6 +1836,13 @@
     var r = this.advance(c);
     r.ok = true;
     return r;
+  };
+
+  /** 会話の場面。「続ける」を押すと次へ進む。物語を読者の速さで進めるための入り口。 */
+  Runtime.prototype.tap = function (c) {
+    var t = this.task();
+    if (!t || !t.talk) return null;
+    return this.advance(c);
   };
 
   Runtime.prototype.holdRatio = function () {

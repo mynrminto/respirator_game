@@ -344,8 +344,9 @@ console.log('\n18. 学習コースの構造');
     }
     if (!lesson.brief || !lesson.brief.length || !lesson.points || !lesson.points.length) badTask.push(lesson.id);
     for (const t of lesson.tasks) {
-      const kinds = [t.check, t.event, t.quiz].filter(Boolean).length;
+      const kinds = [t.check, t.event, t.quiz, t.talk].filter(Boolean).length;
       if (kinds !== 1) badTask.push(lesson.id + ' の課題の進み方が一意でない');
+      if (t.talk && !t.say) badTask.push(lesson.id + ' の会話に言葉がない');
       if (t.quiz) {
         const q = t.quiz;
         if (!(q.answer >= 0 && q.answer < q.choices.length)) badQuiz.push(lesson.id);
@@ -426,26 +427,43 @@ console.log('\n18b. 教材は読み物ではなく操作であること');
   ok('watch がすべて実在の計測値を指す', badWatch.length === 0, badWatch.join(' '));
   ok('spot がすべて実在の操作先を指す', badSpot.length === 0, badSpot.join(' '));
 
-  // 文章の量。ここが太ると「読む教材」に逆戻りするので、上限を決めておく。
-  let longSay = [], longBrief = [], longQ = [];
-  let nAction = 0, nQuiz = 0, noWatch = [];
+  // 文章の量。指示は一息で読める長さ、会話はひと呼吸で話せる長さ。
+  // どちらも太らせると「読む教材」に逆戻りする。
+  const WHO = ['scene', 'doc', 'puku', 'pt'];
+  let longSay = [], longBrief = [], longQ = [], longTalk = [], badWho = [];
+  let nAction = 0, nQuiz = 0, nTalk = 0, noWatch = [];
+  let noOpening = [], fewTalk = [];
   for (const { lesson } of flat) {
     if (lesson.brief.length > 4) longBrief.push(lesson.id + ' 解説が 4 行超');
     for (const b of lesson.brief) if (b.length > 100) longBrief.push(`${lesson.id}:${b.length}字`);
+    // レッスンは必ず場面から始まる。いきなり「◯◯を押してください」では物語にならない。
+    if (!lesson.tasks[0] || !lesson.tasks[0].talk) noOpening.push(lesson.id);
+    let talkHere = 0;
     for (const t of lesson.tasks) {
+      if (t.talk) {
+        talkHere++; nTalk++;
+        if (WHO.indexOf(t.who || 'doc') < 0) badWho.push(`${lesson.id}:${t.who}`);
+        if (typeof t.say === 'string' && t.say.length > 120) longTalk.push(`${lesson.id}:${t.say.length}字`);
+        continue;
+      }
       if (typeof t.say === 'string' && t.say.length > 48) longSay.push(`${lesson.id}:${t.say.length}字`);
       if (t.quiz && typeof t.quiz.q === 'string' && t.quiz.q.length > 62) longQ.push(`${lesson.id}:${t.quiz.q.length}字`);
       if (t.quiz) nQuiz++; else nAction++;
       // 待つだけ・見るだけの課題は、何を見ればよいかを画面で示していること
       if (t.check && !t.quiz && !t.watch && !t.spot) noWatch.push(lesson.id);
     }
+    if (talkHere < 3) fewTalk.push(`${lesson.id}:${talkHere}`);
   }
   ok('指示は一息で読める長さに収まっている', longSay.length === 0, longSay.join(' '));
+  ok('会話はひと呼吸で話せる長さ（120 字以内）', longTalk.length === 0, longTalk.join(' '));
   ok('解説は 4 行以内・1 行 100 字以内', longBrief.length === 0, longBrief.join(' '));
   ok('設問は 62 字以内', longQ.length === 0, longQ.join(' '));
   ok('観察の課題には必ず見どころが付いている', noWatch.length === 0, noWatch.join(' '));
-  ok('課題の過半数が操作か観察（クイズに偏っていない）', nAction > nQuiz,
-    `操作・観察 ${nAction} 件 / クイズ ${nQuiz} 件`);
+  ok('話し手がすべて実在する', badWho.length === 0, badWho.join(' '));
+  ok('どのレッスンも場面から始まる', noOpening.length === 0, noOpening.join(' '));
+  ok('どのレッスンにも会話が 3 場面以上ある', fewTalk.length === 0, fewTalk.join(' '));
+  ok('操作と観察がクイズより多い（クイズに偏っていない）', nAction > nQuiz,
+    `操作・観察 ${nAction} 件 / クイズ ${nQuiz} 件 / 会話 ${nTalk} 場面`);
 
   // レッスンを始めた瞬間に操作へ入れること（解説ダイアログで足止めしない）
   ok('レッスン開始時に解説ダイアログを開かない',
@@ -460,22 +478,28 @@ console.log('\n19. レッスンの進行');
   e.sedation = 1.0; e._recomputeDrive();
   const rt = new LS.Runtime(lesson);
   const ctx = () => ({ e, s: e.s, m: e.m, pbw: e.p.pbw, abgs: [], lastAbg: null, sbt: null });
+  // 会話の場面は「続ける」で読み飛ばせる。物語を挟んでも判定が壊れないことを、ここで確かめる。
+  const skipTalk = (r, c) => { let n = 0; while (r.task() && r.task().talk) { r.tap(c()); n++; } return n; };
 
+  ok('会話の場面から始まり、「続ける」で操作に着く', skipTalk(rt, ctx) > 0);
   ok('最初の課題はキー操作', rt.task().event === 'hold:insp');
-  ok('関係ないイベントでは進まない', rt.fire('hold:exp', ctx()) === null && rt.index === 0);
-  ok('正しいイベントで進む', rt.fire('hold:insp', ctx()) !== null && rt.index === 1);
+  const ix0 = rt.index;
+  ok('関係ないイベントでは進まない', rt.fire('hold:exp', ctx()) === null && rt.index === ix0);
+  ok('正しいイベントで進む', rt.fire('hold:insp', ctx()) !== null && rt.index === ix0 + 1);
 
   e.requestHold('insp');
   ok('測定前は進まない', rt.poll(ctx(), 0.5) === null);
   run(e, 14, 0.005);
-  ok('Pplat が出たら進む', rt.poll(ctx(), 0.5) !== null && rt.index === 2);
+  ok('Pplat が出たら進む', rt.poll(ctx(), 0.5) !== null && rt.index === ix0 + 2);
 
-  ok('3 番目はクイズ', !!rt.task().quiz);
+  skipTalk(rt, ctx);
+  ok('そのあとはクイズ', !!rt.task().quiz);
   const wrong = (rt.task().quiz.answer + 1) % rt.task().quiz.choices.length;
-  ok('誤答では進まない', rt.answer(wrong, ctx()).ok === false && rt.index === 2);
+  const qix = rt.index;
+  ok('誤答では進まない', rt.answer(wrong, ctx()).ok === false && rt.index === qix);
   ok('正解で進み、解説が返る', (() => {
     const r = rt.answer(rt.task().quiz.answer, ctx());
-    return r.ok === true && r.why.length > 0 && rt.index === 3;
+    return r.ok === true && r.why.length > 0 && rt.index === qix + 1;
   })());
 
   // hold 付きの課題は、条件を満たし続けた時間で進む。
@@ -486,8 +510,9 @@ console.log('\n19. レッスンの進行');
   const ctx2 = () => ({ e: e2, s: e2.s, m: e2.m, pbw: e2.p.pbw, abgs: [], lastAbg: null, sbt: null });
   e2.s.rr = 24;
   run(e2, 90, 0.005);
+  const ix2 = (skipTalk(rt2, ctx2), rt2.index);
   ok('条件を満たしても hold 前は進まない', rt2.poll(ctx2(), 5) === null, `MV=${e2.m.mv.toFixed(2)}`);
-  ok('満たし続ければ進む', rt2.poll(ctx2(), 30) !== null && rt2.index === 1);
+  ok('満たし続ければ進む', rt2.poll(ctx2(), 30) !== null && rt2.index === ix2 + 1);
 
   // onStart の副作用（病態を起こす）が効くこと。
   const l51 = LS.lessonById('5-1');
@@ -496,9 +521,11 @@ console.log('\n19. レッスンの進行');
   const rt3 = new LS.Runtime(l51);
   const ctx3 = () => ({ e: e3, s: e3.s, m: e3.m, pbw: e3.p.pbw, abgs: [], lastAbg: null, sbt: null });
   run(e3, 40, 0.005);
+  skipTalk(rt3, ctx3);                       // 場面の説明を読み飛ばす
   rt3.poll(ctx3(), 1);                       // 1 番目（平常時の記録）を通過させる
   ok('平常時の PIP を記録した', rt3.mem.pip0 > 0, `PIP=${(rt3.mem.pip0 || 0).toFixed(1)}`);
   const r0 = e3.p.Rinsp;
+  skipTalk(rt3, ctx3);
   rt3.poll(ctx3(), 1);                       // 2 番目に入ると onStart が発火する
   ok('痰づまりで気道抵抗が上がる', e3.p.Rinsp > r0 * 4, `Rinsp ${r0} → ${e3.p.Rinsp.toFixed(0)}`);
   run(e3, 30, 0.005);
@@ -591,7 +618,9 @@ console.log('\n20. レッスンの目標が到達可能か');
   const before = { pip: e53.m.pip, plat: e53.m.pplat, vte: e53.m.vte, spo2: e53.spo2 };
   const rt53 = new LS.Runtime(l53);
   const ctx53 = () => ({ e: e53, s: e53.s, m: e53.m, pbw: e53.p.pbw, abgs: [], lastAbg: null, sbt: null });
-  rt53.enter(ctx53());                       // 1 番目の onStart で急変が起きる
+  // 会話の場面を読み飛ばし、急変を起こす課題に入る
+  while (rt53.task() && rt53.task().talk) rt53.tap(ctx53());
+  rt53.enter(ctx53());                       // この課題の onStart で急変が起きる
   run(e53, 300, 0.01);
   expPause(e53);
   ok('5-3 の急変で PIP も Pplat も上がる',
@@ -603,7 +632,9 @@ console.log('\n20. レッスンの目標が到達可能か');
   ok('5-3 の急変で SpO2 が落ちる', e53.spo2 < before.spo2 - 3,
     `SpO2 ${before.spo2.toFixed(0)}→${e53.spo2.toFixed(0)}%`);
   // ドレーン後の課題で元に戻ること
-  rt53.index = 4; rt53.enter(ctx53());
+  // ドレーンを入れる課題（シャントと硬さを戻す onStart を持つ）まで進める
+  rt53.index = l53.tasks.findIndex(t => t.hold === 40);
+  rt53.enter(ctx53());
   run(e53, 600, 0.01);
   ok('5-3 の処置で圧も酸素化も戻る',
     e53.m.pip < before.pip + 3 && e53.spo2 > before.spo2 - 2,
@@ -644,7 +675,9 @@ console.log('\n21. Web 版と iPhone 版がそろっているか');
         quizAnswers: [...body.matchAll(/answer: (\d+)/g)].map(x => +x[1]),
         watch: [...body.matchAll(/\.watching\(\[([^\]]*)\]\)/g)].map(x => x[1]),
         spot: [...body.matchAll(/\.spotting\(\[([^\]]*)\]\)/g)].map(x => x[1]),
-        holds: [...body.matchAll(/hold: (\d+)/g)].map(x => +x[1])
+        holds: [...body.matchAll(/hold: (\d+)/g)].map(x => +x[1]),
+        // 会話の場面。話し手の並びまでそろっていること
+        talk: [...body.matchAll(/\.talk\(\.(scene|doctor|puku|patient), "/g)].map(x => x[1])
       });
     });
 
@@ -665,12 +698,17 @@ console.log('\n21. Web 版と iPhone 版がそろっているか');
       if (jsHolds.join(',') !== sw.holds.join(',')) {
         diff.push(`${l.id} の保持秒数 [${jsHolds}] / [${sw.holds}]`);
       }
+      const WHO = { scene: 'scene', doc: 'doctor', puku: 'puku', pt: 'patient' };
+      const jsTalk = l.tasks.filter(t => t.talk).map(t => WHO[t.who || 'doc']);
+      if (jsTalk.join(',') !== sw.talk.join(',')) {
+        diff.push(`${l.id} の会話 ${jsTalk.length} 場面 / ${sw.talk.length} 場面`);
+      }
       const jsWatch = l.tasks.filter(t => t.watch).length;
       const jsSpot = l.tasks.filter(t => t.spot).length;
       if (jsWatch !== sw.watch.length) diff.push(`${l.id} の watch の数 ${jsWatch}/${sw.watch.length}`);
       if (jsSpot !== sw.spot.length) diff.push(`${l.id} の spot の数 ${jsSpot}/${sw.spot.length}`);
     }
-    ok('題・所要時間・クイズの正解・保持秒数・見どころがそろっている', diff.length === 0,
+    ok('題・所要時間・クイズの正解・保持秒数・見どころ・会話がそろっている', diff.length === 0,
        diff.join(' / '));
   }
 }
