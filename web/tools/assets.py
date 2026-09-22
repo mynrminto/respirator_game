@@ -25,7 +25,8 @@ SHEETS = {
     'icons_sheet': ['icon_go', 'icon_course', 'icon_cases', 'icon_about'],
 }
 # 単体で来てもよいもの（シートの代わり）
-PATIENTS = ['patient_neonate', 'patient_infant', 'patient_child', 'patient_bed']
+PATIENTS = ['patient_postop', 'patient_rds', 'patient_bronchiolitis', 'patient_ards', 'patient_asthma', 'patient_gbs',
+            'patient_neonate', 'patient_infant', 'patient_child', 'patient_bed']
 SINGLES = ['doctor_normal', 'doctor_happy', 'doctor_think', 'doctor_alert'] + PATIENTS + ['ui_button', 'ui_button_primary', 'ui_panel', 'ui_ribbon',
            'logo', 'hud_patient_frame', 'fx_confetti']
 BACKGROUNDS = ['bg_title_day', 'bg_title_night', 'bg_play']

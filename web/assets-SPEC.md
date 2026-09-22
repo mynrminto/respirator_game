@@ -131,48 +131,107 @@ Top-left: happy smile. Top-right: excited, sparkling eyes, mouth open. Bottom-le
 surprised with round eyes. Bottom-right: sad, teary eyes, drooping. Even spacing.
 ```
 
-### 6. 患者（3 つの年齢層）— 症例の年齢で自動的に切り替わります
+### 6. 患者（症例ごとに 6 枚）— 症例を選ぶとその絵が出ます
 
-#### 6a. `patient_infant.png` 必須 — ベビーベッドの乳児
-サイズ: 1536×1024（横長）
+患者の絵だけは **キャラクターより写実寄り** にします。かわいさよりも「本物の PICU の子ども」に
+見えることを優先し、機材・ライン・表情に症例の情報を入れます。6 枚とも同じ画角・同じ絵柄で。
+共通の書き出しを **PATIENT_STYLE** として先頭に貼ってください（STYLE の代わりに使います）。
 
 ```
-{STYLE} A peaceful Japanese baby (about 6 months old) lying on its back in a hospital crib
-with white rounded rail bars behind, eyes closed, chubby rosy cheeks, one small tuft of
-dark hair, a tiny breathing tube at the mouth connected to a soft light-blue hose leading
-off to the left, a small pink blanket with white stars, a small teddy bear at the foot of
-the crib, three small ECG electrode stickers with thin colored leads on the chest, a red-glowing
-pulse-oximeter probe wrapped on one foot, a thin IV line taped to one hand, seen from the side
-at a slight angle. Whole crib fully visible with margin, on a solid flat bright green (#00FF00)
-background, nothing else.
+PATIENT_STYLE: Semi-realistic digital illustration for a pediatric intensive-care training
+game, medically accurate, soft painterly shading with a subtle clean dark outline, real
+hospital lighting, muted clinical colors with pastel accents, gentle and respectful mood,
+camera from the side of the bed slightly above, the whole bed or incubator fully visible
+with margin, on a solid flat bright green (#00FF00) background, nothing else, no text.
 ```
 
-#### 6b. `patient_neonate.png` 必須 — 保育器の新生児
+#### 6a. `patient_postop.png` — 小児外科術後（8歳 男児、25 kg）
 サイズ: 1536×1024
 
 ```
-{STYLE} A tiny newborn baby sleeping inside a hospital incubator: a transparent rounded
-acrylic dome on a light-gray cabinet base with two small wheels and a few small colored
-indicator lights, round hand ports on the dome, the baby lying on a white mattress with a
-small pink blanket, three tiny ECG electrode stickers with thin colored leads on the chest, a
-red-glowing pulse-oximeter probe on one foot, an umbilical line, a tiny breathing tube at the
-mouth with a thin light-blue hose leading off to the left through a port, seen from the side. Whole incubator fully visible with margin, on a solid
-flat bright green (#00FF00) background, nothing else.
+{PATIENT_STYLE} An 8-year-old Japanese boy, slim, lying on his back in a pediatric ICU bed
+with raised side rails, eyes closed, calm, still drowsy after surgery. A cuffed endotracheal
+tube taped at the corner of his mouth, connected to a blue-and-white ventilator circuit
+leading off to the left. Three ECG electrodes with colored leads on his chest, a pulse
+oximeter probe on one finger with a red glow, an IV line taped on the back of his hand,
+a white blanket folded to the waist over a light-blue hospital gown, a small drain tube
+under the blanket. Skin color normal and healthy. A small teddy bear at the head of the bed.
 ```
 
-#### 6c. `patient_child.png` 必須 — ベッドの学童
+#### 6b. `patient_rds.png` — 早産児の RDS（在胎 28 週、1.1 kg、保育器）
 サイズ: 1536×1024
 
 ```
-{STYLE} A calm Japanese child (about 8 years old) lying in a small hospital bed, eyes
-closed, peaceful expression, short dark hair, a breathing tube from the mouth connected to a
-soft light-blue hose leading off to the left, white pillow, pink blanket with white stars, a
-teddy bear tucked beside the child, ECG electrode leads on the chest, a pulse-oximeter probe
-clipped on one finger, an IV line on the arm, bed with a simple white frame and side rails,
-seen from the side at a slight angle from the foot of the bed. Whole bed fully visible with margin, on a solid flat
-bright green (#00FF00) background, nothing else.
+{PATIENT_STYLE} A tiny premature newborn (28 weeks, about 1.1 kg) lying inside a modern
+transparent acrylic infant incubator on a white mattress, red-pink translucent skin, very
+thin limbs, wearing only a tiny diaper and a small knitted cap, eyes covered by a soft
+eye shield. A tiny uncuffed endotracheal tube fixed with tape above the upper lip,
+connected through a port in the incubator wall to a thin ventilator circuit leading off to
+the left. Tiny ECG electrode stickers with fine leads on the chest, a pulse-oximeter wrap
+glowing red on one foot, a thin umbilical catheter, a temperature probe on the belly.
+The incubator sits on a light-gray cabinet base with small wheels, indicator lights and a
+control panel with a small display. Slightly labored breathing with visible chest
+retractions.
 ```
-注記: 顔色を変える差分（症例の重さと SpO₂ で血色が変わる）は 3 枚ともこちらで加工します。
+
+#### 6c. `patient_bronchiolitis.png` — RSV 細気管支炎（生後 4 か月、6 kg）
+サイズ: 1536×1024
+
+```
+{PATIENT_STYLE} A 4-month-old Japanese infant lying on her back in a hospital crib with
+white rail bars, chubby, flushed feverish cheeks, sweaty forehead, eyes closed, wearing a
+diaper and a light blanket to the waist. An uncuffed endotracheal tube taped at the mouth
+connected to a small ventilator circuit leading off to the left, a nasogastric tube taped
+on the cheek, three ECG electrode stickers with leads on the chest, a pulse-oximeter wrap
+glowing red on one foot, an IV line with a small splint on one arm. Chest slightly
+hyperinflated with visible retractions under the ribs.
+```
+
+#### 6d. `patient_ards.png` — 小児 ARDS（3歳 女児、14 kg、重症）
+サイズ: 1536×1024
+
+```
+{PATIENT_STYLE} A 3-year-old Japanese girl, lying on her back in a pediatric ICU bed,
+critically ill: pale skin with a faint bluish tint around the lips, feverish flushed
+cheeks, eyes closed, deeply sedated. A cuffed endotracheal tube taped at the corner of the
+mouth connected to a ventilator circuit leading off to the left, a nasogastric tube, three
+ECG electrodes with leads, a pulse-oximeter probe on one finger glowing red, a central
+venous line dressing on the neck, an arterial line on the wrist, two IV pumps' tubing
+coming in from the right. Light-blue hospital gown, blanket to the waist. Calm but
+serious atmosphere.
+```
+
+#### 6e. `patient_asthma.png` — 喘息重積発作（11歳 男児、35 kg）
+サイズ: 1536×1024
+
+```
+{PATIENT_STYLE} An 11-year-old Japanese boy, the largest patient, lying in a pediatric ICU
+bed with the head of the bed raised about 30 degrees, eyes closed but with a strained,
+uncomfortable expression, slightly sweaty, lips a little dusky. A cuffed endotracheal tube
+taped at the corner of the mouth connected to a ventilator circuit leading off to the
+left, a nebulizer chamber inline in the circuit, three ECG electrodes with leads, a pulse
+oximeter on one finger glowing red, an IV line on the forearm, a blood-pressure cuff on the
+upper arm. Chest visibly over-inflated. Light-blue hospital gown, blanket to the waist.
+```
+
+#### 6f. `patient_gbs.png` — ギラン・バレー症候群（7歳 女児、22 kg、意識清明）
+サイズ: 1536×1024
+
+```
+{PATIENT_STYLE} A 7-year-old Japanese girl, lying in a pediatric ICU bed with the head
+slightly raised, AWAKE and alert, eyes open looking toward the viewer, a calm gentle
+expression, healthy skin color, long dark hair tied to one side. A cuffed endotracheal
+tube taped at the corner of the mouth connected to a ventilator circuit leading off to the
+left, three ECG electrodes with leads, a pulse oximeter on one finger glowing red, an IV
+line on the arm. Her arms lie limp on the blanket. A picture book and a small teddy bear
+beside her on the bed. Light-blue hospital gown, blanket to the waist.
+```
+
+注記:
+- 症例 ID と同じファイル名にしてください（`patient_rds.png` など）。届いた症例から順に差し替わります。
+- 顔色の差分（SpO₂ が下がったときの青白さ）は 6 枚ともこちらで加工します。
+- 6 枚がそろう前の代わりとして、年齢層の 3 枚（`patient_neonate` / `patient_infant` / `patient_child`）を
+  出してもらってもかまいません。無くても動きます。
 
 ---
 

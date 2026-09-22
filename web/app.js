@@ -266,10 +266,12 @@
     return m < 1 ? 'neonate' : (m < 24 ? 'infant' : 'child');
   }
 
-  /* 患者の絵。生成画像があればそれ（patient_<kind>[_mid|_bad]、無ければ patient_bed）、無ければコード描画。 */
+  /* 患者の絵。生成画像があればそれ、無ければコード描画。優先順:
+   *   patient_<症例ID>[_mid|_bad] → patient_<年齢層>[...] → patient_bed[...] → コード描画 */
   function patientArt(sc, tone, dark) {
     var kind = patientKind(sc), suf = tone === 'ok' ? '' : '_' + tone;
-    return AS.url('patient_' + kind + suf) || AS.url('patient_bed' + suf) || AR.patient(tone, dark, kind);
+    return AS.url('patient_' + sc.id + suf) || AS.url('patient_' + kind + suf)
+      || AS.url('patient_bed' + suf) || AR.patient(tone, dark, kind);
   }
 
   function paintRails(force) {
