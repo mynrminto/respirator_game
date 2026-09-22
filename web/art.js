@@ -258,36 +258,36 @@
     return svg(W, H, g, defs);
   }
 
-  /* マスコット：ぷくぷく（肺） */
+  /* マスコット：ぷくぷく（ふわふわの「息」の精）。
+   * 肺そのものの形は怖いと言われたので、白くて丸い雲のような体に、頭に小さな空気の渦。 */
   function mascot(dark, blink) {
     var W = 360, H = 360;
-    var defs = rg('lung', 0.35, 0.3, 0.8, [[0, '#FFC3D2'], [0.55, '#FF8FA8'], [1, '#F26C8C']])
-      + rg('gloss', 0.3, 0.2, 0.5, [[0, '#FFFFFF', 0.85], [1, '#FFFFFF', 0]]);
+    var defs = rg('puff', 0.4, 0.3, 0.75, [[0, '#FFFFFF'], [0.6, '#F1F7FF'], [1, '#CFE2FF']])
+      + rg('gloss', 0.3, 0.2, 0.5, [[0, '#FFFFFF', 0.9], [1, '#FFFFFF', 0]]);
     var g = '';
-    g += '<ellipse cx="180" cy="336" rx="96" ry="14" fill="' + (dark ? '#000' : '#7A5C86') + '" opacity=".2"/>';
-    /* 気管 */
-    g += '<rect x="158" y="36" width="44" height="66" rx="18" fill="#F2F6FF" ' + outline(6) + '/>';
-    g += '<path d="M166 56 h28 M166 76 h28" stroke="#C6D2EC" stroke-width="7" stroke-linecap="round"/>';
-    /* 肺 */
-    g += '<path d="M168 96 q-14 8-40 22 q-54 30-54 104 q0 80 54 88 q40 6 40-46 z" fill="url(#lung)" ' + outline(7) + '/>';
-    g += '<path d="M192 96 q14 8 40 22 q54 30 54 104 q0 80-54 88 q-40 6-40-46 z" fill="url(#lung)" ' + outline(7) + '/>';
+    g += '<ellipse cx="180" cy="336" rx="100" ry="14" fill="' + (dark ? '#000' : '#7A5C86') + '" opacity=".2"/>';
+    /* 体：丸いこぶをつなげた雲 */
+    g += '<path d="M120 300 q-60 0-62-58 q-2-46 40-56 q-6-58 52-66 q30-40 76-14 q52-14 70 38 q44 8 44 56 q0 52-46 58 q-14 36-56 30 q-30 26-64 6 q-30 14-54 6z" fill="url(#puff)" ' + outline(7) + '/>';
     /* つや */
-    g += '<ellipse cx="110" cy="156" rx="34" ry="24" fill="url(#gloss)" transform="rotate(-22 110 156)"/>';
+    g += '<ellipse cx="128" cy="150" rx="40" ry="26" fill="url(#gloss)" transform="rotate(-18 128 150)"/>';
+    /* 頭の小さな空気の渦 */
+    g += '<path d="M198 110 q-6-40 30-42 q28 0 22 26 q-4 16-20 12" fill="none" ' + outline(7) + '/>';
     /* 表情 */
-    g += '<ellipse cx="116" cy="228" rx="20" ry="12" fill="#FF6E93" opacity=".6"/>';
-    g += '<ellipse cx="244" cy="228" rx="20" ry="12" fill="#FF6E93" opacity=".6"/>';
+    g += '<ellipse cx="118" cy="226" rx="22" ry="13" fill="#FF9DB5" opacity=".65"/>';
+    g += '<ellipse cx="246" cy="226" rx="22" ry="13" fill="#FF9DB5" opacity=".65"/>';
     if (blink) {
-      g += '<path d="M126 206 q14 14 28 0" fill="none" ' + outline(7) + '/>'
-        + '<path d="M206 206 q14 14 28 0" fill="none" ' + outline(7) + '/>';
+      g += '<path d="M128 204 q14 14 28 0" fill="none" ' + outline(7) + '/>'
+        + '<path d="M208 204 q14 14 28 0" fill="none" ' + outline(7) + '/>';
     } else {
-      g += '<ellipse cx="140" cy="204" rx="13" ry="17" fill="' + LINE + '"/><circle cx="145" cy="197" r="5" fill="#fff"/>'
-        + '<ellipse cx="220" cy="204" rx="13" ry="17" fill="' + LINE + '"/><circle cx="225" cy="197" r="5" fill="#fff"/>';
+      g += '<ellipse cx="142" cy="202" rx="13" ry="17" fill="' + LINE + '"/><circle cx="147" cy="195" r="5" fill="#fff"/>'
+        + '<ellipse cx="222" cy="202" rx="13" ry="17" fill="' + LINE + '"/><circle cx="227" cy="195" r="5" fill="#fff"/>';
     }
-    g += '<path d="M160 232 q20 24 40 0 q-20 32-40 0z" fill="#B23A5B" ' + outline(5) + '/>';
+    g += '<path d="M166 232 q16 18 32 0" fill="none" ' + outline(6) + '/>';
+    /* 手：小さな丸 */
+    g += '<circle cx="84" cy="262" r="16" fill="#FFFFFF" ' + outline(5) + '/><circle cx="280" cy="262" r="16" fill="#FFFFFF" ' + outline(5) + '/>';
     return svg(W, H, g, defs);
   }
 
-  /* 患者（ベッドごと）。tone で顔色と表示を変える。 */
   /* 患者。小児科なので、年齢層で見た目を変える。
    *   kind: 'neonate'（保育器の新生児） | 'infant'（ベビーベッドの乳児、既定） | 'child'（ベッドの学童）
    *   tone: 'ok' | 'mid' | 'bad'（顔色。SpO₂ と症例の重さで決まる） */

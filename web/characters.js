@@ -88,19 +88,18 @@
   }
 
   /* ===================== マスコット：ぷくぷく =====================
-   * 肺そのもの。呼吸に合わせてふくらむ。 */
+   * ふわふわの「息」の精。白い雲のような丸い体に、頭に小さな空気の渦。呼吸に合わせてふくらむ。 */
   function mascot(mood, opts) {
     opts = opts || {};
     var m = mood || 'happy';
     var g = '';
     if (opts.disc) g += '<circle cx="60" cy="60" r="58" fill="' + (opts.disc === true ? '#FFF0F4' : opts.disc) + '"/>';
     g += '<g class="puku">';
-    /* 気管 */
-    g += '<rect x="54" y="20" width="12" height="20" rx="5" fill="#EFF3FF" stroke="#C9D4F0" stroke-width="2"/>';
-    g += '<path d="M56 26 h8 M56 32 h8" stroke="#C9D4F0" stroke-width="2" stroke-linecap="round"/>';
-    /* 肺（左右） */
-    g += '<path d="M56 38 q-4 2-12 6 q-16 8-16 30 q0 24 16 26 q12 2 12-14 z" fill="#FF8FA8"/>';
-    g += '<path d="M64 38 q4 2 12 6 q16 8 16 30 q0 24-16 26 q-12 2-12-14 z" fill="#FF7E9B"/>';
+    /* 体 */
+    g += '<path d="M40 100 q-20 0-21-19 q-1-16 13-19 q-2-19 17-22 q10-13 25-5 q17-5 23 13 q15 3 15 19 q0 17-15 19 q-5 12-19 10 q-10 9-21 2 q-10 5-17 2z" fill="#F4F8FF" stroke="#2E2545" stroke-width="3" stroke-linejoin="round"/>';
+    g += '<ellipse cx="42" cy="52" rx="12" ry="7" fill="#FFFFFF" opacity=".9" transform="rotate(-18 42 52)"/>';
+    /* 頭の渦 */
+    g += '<path d="M66 37 q-2-13 10-14 q9 0 7 9 q-1 5-7 4" fill="none" stroke="#2E2545" stroke-width="3" stroke-linecap="round"/>';
     /* 表情 */
     g += blush(40, 80, 76, 6);
     g += eyes(m, 47, 73, 66, 5);

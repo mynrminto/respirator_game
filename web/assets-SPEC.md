@@ -39,9 +39,10 @@ standing, facing the viewer.
 ```
 
 ```
-CHARACTER "Puku-puku": a cute baby mascot shaped like a pair of small pink lungs with a tiny
-trachea on top, big round sparkling eyes, rosy cheeks, tiny smiling mouth, plump and bouncy,
-glossy, sometimes holding a small yellow star.
+CHARACTER "Puku-puku": a cute, friendly mascot that is a small puffy white cloud, like a
+soft round puff of breath, with big round sparkling eyes, rosy cheeks, a tiny smiling mouth,
+a little curl of air on top of its head, two tiny stubby arms, plump and bouncy, glossy,
+NOT an organ (no lungs, no anatomy), sometimes holding a small yellow star.
 ```
 
 ---
@@ -226,7 +227,7 @@ ribbon is empty (no text), centered on a solid flat bright green (#00FF00) backg
 ```
 {STYLE} Game title logo with the word "VentaSim" in bold rounded playful letters,
 white letters with a thick dark-navy outline and a soft pink-to-yellow gradient
-shadow, a small cute pink baby lungs mascot holding a yellow star peeking from behind
+shadow, a small cute puffy white cloud mascot holding a yellow star peeking from behind
 the letters, no other text, centered on a solid flat bright green (#00FF00) background.
 ```
 注記: 文字が崩れたら不要です。リボンの上に文字をコードで載せます。

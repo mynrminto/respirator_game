@@ -59,8 +59,6 @@ private enum Ink {
     static let scrubDark = Color(red: 0.118, green: 0.663, blue: 0.541)
     static let steth = Color(red: 0.271, green: 0.318, blue: 0.412)
     static let stethHead = Color(red: 0.561, green: 0.627, blue: 0.737)
-    static let lungL = Color(red: 1.000, green: 0.561, blue: 0.659)
-    static let lungR = Color(red: 1.000, green: 0.494, blue: 0.608)
     static let tube = Color(red: 0.812, green: 0.878, blue: 1.000)
     static let tubeLine = Color(red: 0.561, green: 0.690, blue: 0.933)
     static let pillow = Color(red: 0.918, green: 0.941, blue: 1.000)
@@ -206,7 +204,7 @@ struct DoctorView: View {
     }
 }
 
-/// マスコット「ぷくぷく」。肺そのもので、呼吸に合わせてふくらむ。
+/// マスコット「ぷくぷく」。ふわふわの「息」の精。白い雲のような丸い体で、呼吸に合わせてふくらむ。
 struct MascotView: View {
     var mood: CharacterMood = .happy
     var disc: Color? = nil
@@ -221,29 +219,33 @@ struct MascotView: View {
             let pen = Pen(size)
             if let disc { ctx.fill(pen.circle(60, 60, 58), with: .color(disc)) }
 
-            ctx.fill(pen.rounded(54, 20, 12, 20, 5),
-                     with: .color(Color(red: 0.937, green: 0.953, blue: 1.000)))
-            ctx.stroke(pen.rounded(54, 20, 12, 20, 5),
-                       with: .color(Color(red: 0.788, green: 0.831, blue: 0.941)), lineWidth: pen.w(2))
+            // 体：丸いこぶをつなげた雲
+            let body = pen.path { p, k in
+                p.move(to: k.p(40, 100))
+                p.addQuadCurve(to: k.p(19, 81), control: k.p(20, 100))
+                p.addQuadCurve(to: k.p(32, 62), control: k.p(18, 65))
+                p.addQuadCurve(to: k.p(49, 40), control: k.p(30, 43))
+                p.addQuadCurve(to: k.p(74, 35), control: k.p(59, 27))
+                p.addQuadCurve(to: k.p(97, 48), control: k.p(91, 30))
+                p.addQuadCurve(to: k.p(112, 67), control: k.p(112, 51))
+                p.addQuadCurve(to: k.p(97, 86), control: k.p(112, 84))
+                p.addQuadCurve(to: k.p(78, 96), control: k.p(92, 98))
+                p.addQuadCurve(to: k.p(57, 98), control: k.p(68, 105))
+                p.addQuadCurve(to: k.p(40, 100), control: k.p(47, 103))
+                p.closeSubpath()
+            }
+            ctx.fill(body, with: .color(Color(red: 0.957, green: 0.973, blue: 1.000)))
+            ctx.stroke(body, with: .color(Ink.line), lineWidth: pen.w(3))
+            ctx.fill(pen.ellipse(42, 52, 12, 7), with: .color(.white.opacity(0.9)))
 
-            let left = pen.path { p, k in
-                p.move(to: k.p(56, 38))
-                p.addQuadCurve(to: k.p(44, 44), control: k.p(52, 40))
-                p.addQuadCurve(to: k.p(28, 74), control: k.p(28, 52))
-                p.addQuadCurve(to: k.p(44, 100), control: k.p(28, 98))
-                p.addQuadCurve(to: k.p(56, 86), control: k.p(56, 102))
-                p.closeSubpath()
+            // 頭の小さな空気の渦
+            let swirl = pen.path { p, k in
+                p.move(to: k.p(66, 37))
+                p.addQuadCurve(to: k.p(76, 23), control: k.p(64, 24))
+                p.addQuadCurve(to: k.p(83, 32), control: k.p(85, 23))
+                p.addQuadCurve(to: k.p(76, 36), control: k.p(82, 37))
             }
-            let right = pen.path { p, k in
-                p.move(to: k.p(64, 38))
-                p.addQuadCurve(to: k.p(76, 44), control: k.p(68, 40))
-                p.addQuadCurve(to: k.p(92, 74), control: k.p(92, 52))
-                p.addQuadCurve(to: k.p(76, 100), control: k.p(92, 98))
-                p.addQuadCurve(to: k.p(64, 86), control: k.p(64, 102))
-                p.closeSubpath()
-            }
-            ctx.fill(left, with: .color(Ink.lungL))
-            ctx.fill(right, with: .color(Ink.lungR))
+            ctx.stroke(swirl, with: .color(Ink.line), style: StrokeStyle(lineWidth: pen.w(3), lineCap: .round))
 
             drawBlush(&ctx, pen, 40, 80, 76, 6)
             drawEyes(&ctx, pen, mood, 47, 73, 66, 5)
