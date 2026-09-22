@@ -1,0 +1,321 @@
+<title>VentaSim iPhone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --ground:#EBE6DF;
+  --ground2:#F6F3EE;
+  --surface:#FFFFFF;
+  --ink:#2A2440;
+  --dim:#6C6383;
+  --line:#D9D1C9;
+  --accent:#6A5BD0;
+  --accent-ink:#FFFFFF;
+  --rail-1:#D6D2CC;   /* 側面のチタン */
+  --rail-2:#8E8A85;
+  --rail-3:#BDB8B2;
+  --shadow:0 34px 70px rgba(48,36,70,.30),0 8px 20px rgba(48,36,70,.14);
+  --jp:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#16131E;
+    --ground2:#1E1A29;
+    --surface:#231F30;
+    --ink:#E9E4F4;
+    --dim:#998FB0;
+    --line:#332C45;
+    --accent:#A99CF2;
+    --accent-ink:#1B1626;
+    --rail-1:#5A5560;
+    --rail-2:#2C2932;
+    --rail-3:#464250;
+    --shadow:0 34px 70px rgba(0,0,0,.55),0 8px 20px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#16131E;
+  --ground2:#1E1A29;
+  --surface:#231F30;
+  --ink:#E9E4F4;
+  --dim:#998FB0;
+  --line:#332C45;
+  --accent:#A99CF2;
+  --accent-ink:#1B1626;
+  --rail-1:#5A5560;
+  --rail-2:#2C2932;
+  --rail-3:#464250;
+  --shadow:0 34px 70px rgba(0,0,0,.55),0 8px 20px rgba(0,0,0,.4);
+}
+
+html,body{height:100%;overflow:hidden}
+body{
+  margin:0;font-family:var(--jp);color:var(--ink);
+  background:
+    radial-gradient(120% 80% at 50% 0%, var(--ground2) 0%, var(--ground) 62%),
+    var(--ground);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+
+/* ── 上のバー ───────────────────────────── */
+.bar{
+  flex:none;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding-block:12px;padding-left:16px;padding-right:16px;
+  border-bottom:1px solid var(--line);
+}
+.name{font-weight:800;font-size:15px;letter-spacing:.02em;margin:0}
+.name small{display:block;font-weight:500;font-size:11.5px;color:var(--dim);letter-spacing:.06em;margin-top:2px}
+.bar .sp{flex:1;min-width:8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{
+  font:inherit;font-size:12px;font-weight:700;color:var(--dim);
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:6px 12px;cursor:pointer;line-height:1.2;
+  transition:color .12s,border-color .12s,background .12s;
+}
+.chip:hover{color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chip .px{font-weight:500;opacity:.72;margin-left:5px;font-variant-numeric:tabular-nums}
+
+/* ── 端末の置き場 ─────────────────────────── */
+.stage{flex:1;min-height:0;display:grid;place-items:center;padding:14px 16px}
+.fit{position:relative}
+
+.phone{
+  position:absolute;left:0;top:0;transform-origin:0 0;
+  border-radius:var(--r-out);
+  padding:var(--rail);
+  background:linear-gradient(145deg,var(--rail-1) 0%,var(--rail-3) 30%,var(--rail-2) 52%,var(--rail-3) 74%,var(--rail-1) 100%);
+  box-shadow:var(--shadow);
+}
+.phone::after{ /* 金属のふちの細い光 */
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.34),inset 0 0 0 2.5px rgba(0,0,0,.30);
+}
+.screen{
+  position:relative;overflow:hidden;background:var(--app-bg,#FFF8EE);
+  width:var(--w);height:var(--h);border-radius:var(--r-in);
+  box-shadow:0 0 0 2px #000;
+}
+/* 側面のボタン */
+.btn{position:absolute;background:linear-gradient(90deg,var(--rail-2),var(--rail-1));border-radius:2px}
+.btn.l{left:calc(var(--rail) * -1 + 1px);width:3px}
+.btn.r{right:calc(var(--rail) * -1 + 1px);width:3px;background:linear-gradient(270deg,var(--rail-2),var(--rail-1))}
+.btn.mute{top:112px;height:28px}
+.btn.up{top:158px;height:56px}
+.btn.dn{top:226px;height:56px}
+.btn.pw{top:180px;height:88px}
+
+/* ステータスバー・アイランド・ホームバー */
+.sbar{
+  position:absolute;left:0;right:0;top:0;height:var(--top);z-index:3;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 30px;padding-top:6px;
+  color:var(--app-ink,#262745);pointer-events:none;
+}
+.sbar .t{font-weight:700;font-size:15px;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.sbar .icons{display:flex;align-items:center;gap:6px}
+.island{
+  position:absolute;left:50%;transform:translateX(-50%);top:11px;
+  width:125px;height:36px;border-radius:20px;background:#000;z-index:4;pointer-events:none;
+}
+.notch{
+  position:absolute;left:50%;transform:translateX(-50%);top:0;
+  width:162px;height:31px;background:#000;z-index:4;pointer-events:none;
+  border-bottom-left-radius:20px;border-bottom-right-radius:20px;
+}
+.home{
+  position:absolute;left:50%;transform:translateX(-50%);bottom:9px;z-index:4;
+  width:140px;height:5px;border-radius:3px;background:var(--app-ink,#262745);opacity:.55;pointer-events:none;
+}
+/* アプリ本体 */
+/* iframe は置換要素なので bottom では高さが決まらない。高さを明示する。 */
+.app{position:absolute;left:0;top:var(--top);border:0;display:block;
+  width:100%;height:calc(100% - var(--top) - var(--bot))}
+.oops{
+  position:absolute;inset:var(--top) 0 var(--bot);z-index:2;display:none;
+  place-content:center;text-align:center;padding:24px;gap:10px;color:var(--ink);
+  font-size:13.5px;line-height:1.7;background:var(--ground2);
+}
+.oops.on{display:grid}
+.oops b{font-size:15px}
+
+/* ── 下の行 ────────────────────────────── */
+.foot{
+  flex:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding-block:10px;padding-left:16px;padding-right:16px;
+  border-top:1px solid var(--line);font-size:12px;color:var(--dim);line-height:1.6;
+}
+.foot .sp{flex:1;min-width:8px}
+.act{
+  font:inherit;font-size:12px;font-weight:700;color:var(--ink);
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:6px 13px;cursor:pointer;
+}
+.act:hover{border-color:var(--accent);color:var(--accent)}
+.act:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:560px){ .name small{display:none} }
+</style>
+
+<div class="bar">
+  <h1 class="name">VentaSim<small>こどもの人工呼吸器シミュレーター</small></h1>
+  <span class="sp"></span>
+  <div class="chips" id="chips" role="group" aria-label="端末を選ぶ"></div>
+</div>
+
+<div class="stage" id="stage">
+  <div class="fit" id="fit">
+    <div class="phone" id="phone">
+      <i class="btn l mute"></i><i class="btn l up"></i><i class="btn l dn"></i><i class="btn r pw"></i>
+      <div class="screen" id="screen">
+        <div class="sbar">
+          <span class="t" id="clock">9:41</span>
+          <span class="icons" aria-hidden="true">
+            <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 11.4 5.7 8.9a3.3 3.3 0 0 1 4.6 0L8 11.4Zm0-5.1a6 6 0 0 0-4.3 1.8L2.1 6.4a8.3 8.3 0 0 1 11.8 0l-1.6 1.7A6 6 0 0 0 8 6.3Zm0-4.6c2.9 0 5.6 1.1 7.6 3l-1.5 1.6A9 9 0 0 0 8 3.9a9 9 0 0 0-6.1 2.4L.4 4.7A10.9 10.9 0 0 1 8 1.7Z"/></svg>
+            <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x=".7" y=".7" width="21" height="10.6" rx="3.2" stroke="currentColor" stroke-opacity=".45" stroke-width="1.1"/><rect x="2.4" y="2.4" width="15" height="7.2" rx="1.9" fill="currentColor"/><path d="M23.4 4.2v3.6a2 2 0 0 0 0-3.6Z" fill="currentColor" fill-opacity=".45"/></svg>
+          </span>
+        </div>
+        <div class="island" id="island"></div>
+        <iframe class="app" id="app" title="VentaSim" allow="autoplay"></iframe>
+        <div class="oops" id="oops">
+          <b>アプリを枠の中に出せませんでした</b>
+          <span>この閲覧環境では、ページの中に別のページを埋め込めないようです。<br>Web 版のリンクからそのまま開いてください。</span>
+        </div>
+        <div class="home"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="foot">
+  <span id="hint">枠の中をそのまま触って操作できます。画面の大きさは実機と同じ論理ピクセルです。</span>
+  <span class="sp"></span>
+  <button class="act" id="reload" type="button">最初から</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var DEVICES = [
+    { id:"mini", name:"iPhone 13 mini", w:375, h:812, top:50, bot:34, rOut:52, rIn:42, rail:11, notch:true },
+    { id:"p16",  name:"iPhone 16",      w:393, h:852, top:59, bot:34, rOut:56, rIn:45, rail:11, notch:false },
+    { id:"max",  name:"iPhone 16 Pro Max", w:440, h:956, top:62, bot:34, rOut:60, rIn:49, rail:11, notch:false }
+  ];
+  var KEY = "ventsim.device.v1";
+  var phone = document.getElementById("phone");
+  var screenEl = document.getElementById("screen");
+  var island = document.getElementById("island");
+  var fit = document.getElementById("fit");
+  var stage = document.getElementById("stage");
+  var app = document.getElementById("app");
+  var oops = document.getElementById("oops");
+  var chips = document.getElementById("chips");
+  var current = DEVICES[1];
+
+  function saved(){
+    try { return localStorage.getItem(KEY); } catch(e){ return null; }
+  }
+  function remember(id){
+    try { localStorage.setItem(KEY, id); } catch(e){}
+  }
+
+  /* ── 端末の切り替え ── */
+  function apply(d){
+    current = d;
+    phone.style.setProperty("--w", d.w + "px");
+    phone.style.setProperty("--h", d.h + "px");
+    phone.style.setProperty("--top", d.top + "px");
+    phone.style.setProperty("--bot", d.bot + "px");
+    phone.style.setProperty("--r-out", d.rOut + "px");
+    phone.style.setProperty("--r-in", d.rIn + "px");
+    phone.style.setProperty("--rail", d.rail + "px");
+    island.className = d.notch ? "notch" : "island";
+    Array.prototype.forEach.call(chips.children, function(b){
+      b.setAttribute("aria-pressed", b.dataset.id === d.id ? "true" : "false");
+    });
+    remember(d.id);
+    resize();
+  }
+
+  DEVICES.forEach(function(d){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.dataset.id = d.id;
+    b.setAttribute("aria-pressed", "false");
+    b.innerHTML = d.name + '<span class="px">' + d.w + "×" + d.h + "</span>";
+    b.addEventListener("click", function(){ apply(d); });
+    chips.appendChild(b);
+  });
+
+  /* ── 画面に収まるように縮める ── */
+  function resize(){
+    var w = current.w + current.rail * 2;
+    var h = current.h + current.rail * 2;
+    var box = stage.getBoundingClientRect();
+    var s = Math.min((box.width - 8) / w, (box.height - 8) / h, 1);
+    if (!isFinite(s) || s <= 0) s = 1;
+    /* 縮めても置き場からはみ出さないよう、外枠の大きさも縮めた分に合わせる */
+    fit.style.width = Math.round(w * s) + "px";
+    fit.style.height = Math.round(h * s) + "px";
+    phone.style.transform = "scale(" + s + ")";
+  }
+  window.addEventListener("resize", resize);
+
+  /* ── 時計（実機と同じく実時間） ── */
+  function tick(){
+    var n = new Date();
+    document.getElementById("clock").textContent =
+      n.getHours() + ":" + String(n.getMinutes()).padStart(2, "0");
+  }
+  tick(); setInterval(tick, 20000);
+
+  /* ── アプリを読み込む。置き場所が違っても拾えるように順に試す ── */
+  apply(DEVICES.filter(function(d){ return d.id === saved(); })[0] || DEVICES[1]);
+
+  var SRCS = ["app/index.html", "index.html", "../index.html"];
+  var at = 0, settled = false;
+
+  function alive(){
+    try {
+      var d = app.contentDocument;
+      return !!(d && d.getElementById("title"));
+    } catch(e){ return false; }
+  }
+
+  function paint(){
+    /* 枠の中の大きさが決まってから測り直してもらう */
+    try { app.contentWindow.dispatchEvent(new Event("resize")); } catch(e){}
+    /* ステータスバーと枠の色をアプリ本体からもらう */
+    try {
+      var d = app.contentDocument, v = d.defaultView;
+      var bg = v.getComputedStyle(d.body).backgroundColor;
+      var ink = v.getComputedStyle(d.body).color;
+      if (bg && bg !== "rgba(0, 0, 0, 0)") screenEl.style.setProperty("--app-bg", bg);
+      if (ink) screenEl.style.setProperty("--app-ink", ink);
+    } catch(e){}
+  }
+
+  function tryNext(){
+    if (at >= SRCS.length){ oops.classList.add("on"); return; }
+    app.src = SRCS[at++];
+    setTimeout(function(){
+      if (settled) return;
+      if (alive()){ settled = true; paint(); setTimeout(paint, 1500); }
+      else tryNext();
+    }, 1400);
+  }
+  tryNext();
+
+  document.getElementById("reload").addEventListener("click", function(){
+    if (settled) { app.contentWindow.location.reload(); }
+    else { at = 0; settled = false; oops.classList.remove("on"); tryNext(); }
+  });
+
+  resize();
+})();
+</script>
