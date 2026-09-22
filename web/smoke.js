@@ -10,7 +10,7 @@ const SHOT = process.env.SHOT_DIR || '/tmp/claude-0';
 const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 (async () => {
-  const b = await chromium.launch({ executablePath: EXEC });
+  const b = await chromium.launch({ executablePath: EXEC, args: ['--allow-file-access-from-files'] });
   const errs = [];
   for (const vp of [{ w: 1180, h: 760, n: 'wide' }, { w: 390, h: 844, n: 'phone' }]) {
     const p = await b.newPage({ viewport: { width: vp.w, height: vp.h }, deviceScaleFactor: 2 });

@@ -234,6 +234,14 @@
     setImg('--img-btn', 'ui_button');
     setImg('--img-btn-go', 'ui_button_primary');
     setImg('--img-panel', 'ui_panel');
+    /* ダイアログの枠は上のリボン帯が高いので、辺ごとに枠幅を変える（左右 40px 基準）。 */
+    var pn = AS.nine('ui_panel');
+    if (pn && pn.left) {
+      var k = 40 / pn.left;
+      root.setProperty('--panelw', Math.round(pn.top * k) + 'px ' + Math.round(pn.right * k) + 'px '
+        + Math.round(pn.bottom * k) + 'px ' + Math.round(pn.left * k) + 'px');
+      root.setProperty('--mhead-shift', (-Math.round(pn.top * k * 0.5)) + 'px');
+    }
     paintStage();
   }
 

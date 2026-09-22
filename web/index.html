@@ -589,10 +589,15 @@
     border-image:var(--img-btn-go) var(--nine-btn-go) fill / 22px stretch}
   html.assets:not([data-theme="device"]) .lesson{border-left-width:22px}
   html.assets:not([data-theme="device"]) .mbox{
-    border:36px solid transparent;border-image:var(--img-panel) var(--nine-panel) fill / 36px stretch;
+    border:36px solid transparent;border-width:var(--panelw,36px);
+    border-image:var(--img-panel) var(--nine-panel) fill / var(--panelw,36px) stretch;
     box-shadow:0 28px 60px rgba(80,40,90,.35);background:none;border-radius:0}
-  html.assets:not([data-theme="device"]) .mhead{background:none;border-bottom:none;margin-top:-30px}
-  html.assets:not([data-theme="device"]) .mbody{background:none}
+  /* 見出しはリボン帯の中に置く。高さ 0 にして流れから外し、帯の中心まで持ち上げる。
+     枠自体は overflow を見せ、スクロールは本文側で行う。 */
+  html.assets:not([data-theme="device"]) .mbox{overflow:visible;display:flex;flex-direction:column}
+  html.assets:not([data-theme="device"]) .mhead{background:none;border-bottom:none;position:relative;
+    top:var(--mhead-shift,-30px);height:0;padding:0 24px;overflow:visible;z-index:2}
+  html.assets:not([data-theme="device"]) .mbody{background:none;overflow:auto;min-height:0;flex:1}
 
   /* ---- 達成の演出 ---- */
   #fx{position:fixed;inset:0;pointer-events:none;z-index:120;overflow:hidden}

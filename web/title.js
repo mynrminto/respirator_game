@@ -34,6 +34,15 @@
       var img = new Image();
       img.onload = function () {
         var r = dpr();
+        if (uri.slice(0, 5) !== 'data:') {
+          /* 生成画像（PNG）はそのまま貼る。SVG のように描き直す必要がない。 */
+          var t0 = window.PIXI.ImageSource
+            ? new window.PIXI.Texture({ source: new window.PIXI.ImageSource({ resource: img, resolution: 1 }) })
+            : window.PIXI.Texture.from(img);
+          tex[key] = t0;
+          resolve(t0);
+          return;
+        }
         var c = document.createElement('canvas');
         c.width = Math.max(1, Math.round(w * r));
         c.height = Math.max(1, Math.round(h * r));
@@ -115,7 +124,7 @@
         pick('mascot_happy', 360, 360, A.mascot(dark, false)),
         hasAsset('mascot_happy') ? pick(hasAsset('mascot_excited') ? 'mascot_excited' : 'mascot_happy')
                                  : texture(A.mascot(dark, true), 360, 360),
-        pick(hasAsset('patient_infant') ? 'patient_infant' : 'patient_bed', 520, 360, A.patient('ok', dark, 'infant')),
+        pick(['patient_postop', 'patient_infant', 'patient_child', 'patient_bed'].filter(hasAsset)[0] || 'patient_bed', 520, 360, A.patient('ok', dark, 'infant')),
         pick('ui_ribbon', 720, 200, A.ribbon(dark)),
         texture(A.bubble(dark), 200, 140),
         pick('ui_button_primary', 160, 120, A.plate('go', dark)),

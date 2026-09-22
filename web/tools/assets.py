@@ -32,6 +32,7 @@ SINGLES = ['doctor_normal', 'doctor_happy', 'doctor_think', 'doctor_alert'] + PA
 BACKGROUNDS = ['bg_title_day', 'bg_title_night', 'bg_play']
 NINE = ['ui_button', 'ui_button_primary', 'ui_panel', 'ui_ribbon', 'hud_patient_frame']
 MAX_SIDE = 1024   # 立ち絵はこれ以上大きくしない（iPhone のメモリと読み込み時間のため）
+PATIENT_SIDE = 768  # 患者は小さく出すので、顔色差分 ×3 のぶん軽くする
 
 
 def load(path):
@@ -91,9 +92,23 @@ def split_grid(img, cols=2, rows=2):
     return cells
 
 
-def nine_insets(img):
+# 9 スライスの内側幅（画像の幅・高さに対する割合）。無いものは短辺の 4 割。
+NINE_FRAC = {
+    # 上のリボン帯ごと角として固定し、本体だけ伸ばす。下は角の飾り縫いを含める。
+    'ui_panel': {'top': 0.30, 'right': 0.11, 'bottom': 0.19, 'left': 0.11},
+    # 両端の燕尾を固定して真ん中だけ伸ばす。
+    'ui_ribbon': {'top': 0.40, 'right': 0.13, 'bottom': 0.40, 'left': 0.13},
+}
+
+
+def nine_insets(img, name=None):
     """9 スライスの内側幅。角丸と縁取りは短辺の 4 割までに収まる前提で、
     その範囲を四隅として固定し、中央を伸ばす。"""
+    f = NINE_FRAC.get(name)
+    if f:
+        w, h = img.size
+        return {'left': int(w * f['left']), 'right': int(w * f['right']),
+                'top': int(h * f['top']), 'bottom': int(h * f['bottom'])}
     s = int(min(img.size) * 0.4)
     return {'left': s, 'right': s, 'top': s, 'bottom': s}
 
@@ -170,7 +185,7 @@ def main():
         img = cutout(load(p))
         for name, cell in zip(names, split_grid(img)):
             cell = shrink(autocrop(cell))
-            extra = nine_insets(cell) if name in NINE else None
+            extra = nine_insets(cell, name) if name in NINE else None
             put(name, cell, extra)
 
     # 単体
@@ -179,8 +194,8 @@ def main():
         if not p:
             continue
         print(name)
-        img = shrink(autocrop(cutout(load(p))))
-        extra = nine_insets(img) if name in NINE else None
+        img = shrink(autocrop(cutout(load(p))), PATIENT_SIDE if name in PATIENTS else MAX_SIDE)
+        extra = nine_insets(img, name) if name in NINE else None
         put(name, img, extra)
         if name in PATIENTS:
             put(name + '_mid', tone_variant(img, 'mid'))

@@ -1,0 +1,178 @@
+{
+ "bg_play": {
+  "h": 900,
+  "w": 1600
+ },
+ "bg_title_day": {
+  "h": 900,
+  "w": 1600
+ },
+ "bg_title_night": {
+  "h": 900,
+  "w": 1600
+ },
+ "doctor_alert": {
+  "h": 602,
+  "w": 407
+ },
+ "doctor_happy": {
+  "h": 622,
+  "w": 389
+ },
+ "doctor_normal": {
+  "h": 621,
+  "w": 329
+ },
+ "doctor_think": {
+  "h": 602,
+  "w": 330
+ },
+ "fx_confetti": {
+  "h": 676,
+  "w": 1024
+ },
+ "hud_patient_frame": {
+  "bottom": 390,
+  "h": 1024,
+  "left": 390,
+  "right": 390,
+  "top": 390,
+  "w": 976
+ },
+ "icon_about": {
+  "h": 540,
+  "w": 537
+ },
+ "icon_cases": {
+  "h": 537,
+  "w": 536
+ },
+ "icon_course": {
+  "h": 534,
+  "w": 536
+ },
+ "icon_go": {
+  "h": 534,
+  "w": 536
+ },
+ "mascot_alert": {
+  "h": 539,
+  "w": 553
+ },
+ "mascot_excited": {
+  "h": 532,
+  "w": 564
+ },
+ "mascot_happy": {
+  "h": 526,
+  "w": 564
+ },
+ "mascot_sad": {
+  "h": 509,
+  "w": 560
+ },
+ "patient_ards": {
+  "h": 746,
+  "w": 768
+ },
+ "patient_ards_bad": {
+  "h": 746,
+  "w": 768
+ },
+ "patient_ards_mid": {
+  "h": 746,
+  "w": 768
+ },
+ "patient_asthma": {
+  "h": 706,
+  "w": 767
+ },
+ "patient_asthma_bad": {
+  "h": 706,
+  "w": 767
+ },
+ "patient_asthma_mid": {
+  "h": 706,
+  "w": 767
+ },
+ "patient_bronchiolitis": {
+  "h": 768,
+  "w": 661
+ },
+ "patient_bronchiolitis_bad": {
+  "h": 768,
+  "w": 661
+ },
+ "patient_bronchiolitis_mid": {
+  "h": 768,
+  "w": 661
+ },
+ "patient_gbs": {
+  "h": 706,
+  "w": 767
+ },
+ "patient_gbs_bad": {
+  "h": 706,
+  "w": 767
+ },
+ "patient_gbs_mid": {
+  "h": 706,
+  "w": 767
+ },
+ "patient_postop": {
+  "h": 733,
+  "w": 767
+ },
+ "patient_postop_bad": {
+  "h": 733,
+  "w": 767
+ },
+ "patient_postop_mid": {
+  "h": 733,
+  "w": 767
+ },
+ "patient_rds": {
+  "h": 768,
+  "w": 762
+ },
+ "patient_rds_bad": {
+  "h": 768,
+  "w": 762
+ },
+ "patient_rds_mid": {
+  "h": 768,
+  "w": 762
+ },
+ "ui_button": {
+  "bottom": 101,
+  "h": 253,
+  "left": 101,
+  "right": 101,
+  "top": 101,
+  "w": 1024
+ },
+ "ui_button_primary": {
+  "bottom": 100,
+  "h": 252,
+  "left": 100,
+  "right": 100,
+  "top": 100,
+  "w": 1024
+ },
+ "ui_panel": {
+  "bottom": 168,
+  "h": 886,
+  "left": 112,
+  "right": 112,
+  "top": 265,
+  "w": 1024
+ },
+ "ui_ribbon": {
+  "bottom": 81,
+  "h": 203,
+  "left": 133,
+  "right": 133,
+  "top": 81,
+  "w": 1024
+ }
+}
