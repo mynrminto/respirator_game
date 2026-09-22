@@ -278,7 +278,7 @@ body{
   apply(DEVICES.filter(function(d){ return d.id === saved(); })[0] || DEVICES[1]);
 
   var SRCS = ["app/index.html", "index.html", "../index.html"];
-  var at = 0, settled = false;
+  var settled = false;
 
   function alive(){
     try {
@@ -300,20 +300,50 @@ body{
     } catch(e){}
   }
 
-  function tryNext(){
-    if (at >= SRCS.length){ oops.classList.add("on"); return; }
-    app.src = SRCS[at++];
-    setTimeout(function(){
-      if (settled) return;
-      if (alive()){ settled = true; paint(); setTimeout(paint, 1500); }
-      else tryNext();
-    }, 1400);
+  /* どれが本物かは先に取りに行って確かめる。時間で切ると、回線が遅いときに
+     読み込めているのに「失敗」と誤判定してしまう。 */
+  function probe(i, done){
+    if (i >= SRCS.length) { done(null); return; }
+    fetch(SRCS[i], { cache: "no-store" }).then(function(r){
+      if (!r.ok) throw new Error(r.status);
+      return r.text();
+    }).then(function(t){
+      if (t.indexOf('id="title"') < 0) throw new Error("別のページ");
+      done(SRCS[i]);
+    }).catch(function(){ probe(i + 1, done); });
   }
-  tryNext();
+
+  /* fetch が通らない環境（file:// など）では、枠に入れてから中身で判定する */
+  function load(src, rest){
+    oops.classList.remove("on");
+    app.addEventListener("load", function once(){
+      app.removeEventListener("load", once);
+      if (alive()){
+        settled = true;
+        paint(); setTimeout(paint, 1200); setTimeout(paint, 3000);
+      } else if (rest && rest.length){
+        load(rest[0], rest.slice(1));
+      } else {
+        oops.classList.add("on");
+      }
+    });
+    app.src = src;
+  }
+
+  function start(){
+    settled = false;
+    probe(0, function(src){
+      if (src) load(src, []);
+      else load(SRCS[0], SRCS.slice(1));
+    });
+    /* 枠そのものが許されていない環境では load も来ない。黙って白いままにしない。 */
+    setTimeout(function(){ if (!settled) oops.classList.add("on"); }, 12000);
+  }
+  start();
 
   document.getElementById("reload").addEventListener("click", function(){
-    if (settled) { app.contentWindow.location.reload(); }
-    else { at = 0; settled = false; oops.classList.remove("on"); tryNext(); }
+    if (settled) { try { app.contentWindow.location.reload(); } catch(e){ start(); } }
+    else start();
   });
 
   resize();

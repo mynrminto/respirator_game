@@ -56,7 +56,7 @@ struct ScenarioListView: View {
     private func tone(_ id: String) -> PatientView.Tone {
         switch id {
         case "ards", "asthma": return .bad
-        case "copd": return .mid
+        case "rds", "bronchiolitis": return .mid
         default: return .ok
         }
     }
