@@ -83,7 +83,25 @@ npm install playwright   # 画面の通し確認をする場合
 node web/smoke.js
 ```
 
-Swift 側は Xcode で `swift/VentilatorSim/Package.swift` を開くか、
+ブラウザの中で iPhone の枠に入れて確かめるには `web/iphone.html` を開きます。
+実機と同じ論理ピクセル（iPhone 13 mini / 16 / 16 Pro Max）で、ステータスバーと
+ホームバーの分を差し引いた範囲にアプリを置くので、実機の見え方とずれません。
+
+## iPhone アプリを動かす
+
+macOS と Xcode 16 以降が要ります。
+
+```sh
+git clone https://github.com/mynrminto/respirator_game
+open respirator_game/swift/VentilatorSim.xcodeproj
+```
+
+Xcode が開いたら、上の実行先を iPhone のシミュレータにして ⌘R です。
+スキーム **VentaSim** は用意済みなので、選び直す必要はありません。
+
+`swift/VentilatorSim/App/` が画面、`swift/VentilatorSim/`（Package.swift）が
+ローカルパッケージ `VentilatorCore` として繋がっています。呼吸生理エンジンだけを
+試すなら Xcode なしでも動きます。
 
 ```sh
 cd swift/VentilatorSim

@@ -56,21 +56,43 @@ Paw + Pmus = V/C + R·V̇
 
 ## ビルド
 
-ライブラリとテストは Swift Package Manager だけで動きます。
+iPhone のシミュレータで動かすには、**一つ上の階層の** `swift/VentilatorSim.xcodeproj`
+を開きます（このフォルダの `Package.swift` ではありません）。
 
+```sh
+open swift/VentilatorSim.xcodeproj
 ```
+
+実行先を iPhone のシミュレータにして ⌘R です。スキーム **VentaSim** は共有済みなので
+選び直す必要はありません。必要な設定はすべてプロジェクトに入っています。
+
+| | |
+| --- | --- |
+| ターゲット | iOS 17.0 以上、iPhone のみ、縦向き固定 |
+| Bundle ID | `com.mynrminto.VentaSim` |
+| 画面 | `VentilatorSim/App/` を Xcode 16 の同期フォルダとして丸ごと取り込む |
+| ロジック | `VentilatorSim/`（Package.swift）をローカルパッケージ `VentilatorCore` として参照 |
+| 画像 | `web/assets` をフォルダ参照で同梱（`Bundle.main/assets/`）。Web 版と同じ PNG |
+| アイコン | `App/Assets.xcassets`。みどり先生の仮アイコン（`logo.png` が来たら差し替える） |
+
+`App/` にファイルを足したときプロジェクトを編集する必要はありません。同期フォルダなので
+Xcode が自動で拾います。
+
+Xcode を使わずロジックだけ試すこともできます。
+
+```sh
+cd swift/VentilatorSim
 swift test
 ```
 
-`App/` は SwiftUI（iOS 17 以上）です。Xcode で iOS App ターゲットを作り、
-このパッケージをローカルパッケージとして追加したうえで `App/` の各ファイルを
-ターゲットに含めてください。
+> `.xcodeproj` が開けなかったときは、`swift/project.yml` から作り直せます
+> （`brew install xcodegen && cd swift && xcodegen generate`）。
 
 > このリポジトリは Swift ツールチェーンのない環境で書かれているため、まだコンパイルを
 > 通していません。初回ビルドで小さな修正が必要になる可能性があります。
 > 一方で `Sources/VentilatorCore` の数値モデルは、同じ式を実装した JavaScript 版で
-> 34 件の検証テスト（時定数、auto-PEEP、Cstat、Raw、VA と PaCO₂ の関係、PEEP と酸素化、
-> 慢性代償、SBT の失敗、刻み幅非依存性）を通してあります。
+> 110 件の検証テスト（時定数、auto-PEEP、Cstat、Raw、VA と PaCO₂ の関係、PEEP と酸素化、
+> 慢性代償、SBT の失敗、刻み幅非依存性、レッスンの到達可能性）を通してあります。
 
 ## 免責
 
