@@ -68,9 +68,15 @@ struct ScenarioListView: View {
                     ForEach(ScenarioLibrary.all) { scenario in
                         Button { selected = scenario } label: {
                             HStack(spacing: 12) {
-                                CharacterBadge(size: 46, ring: Chrome.accent.opacity(0.3),
+                                CharacterBadge(size: 46, zoom: 1,
+                                               ring: Chrome.accent.opacity(0.3),
                                                background: Chrome.panel2) {
-                                    PatientView(tone: tone(scenario.id))
+                                    FaceArt(AppAssets.patientNames(caseID: scenario.id,
+                                                                   tone: tone(scenario.id)),
+                                            focus: CharacterArt.patientFocus(scenario.id),
+                                            zoom: CharacterArt.patientZoom) {
+                                        PatientView(tone: tone(scenario.id))
+                                    }
                                 }
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(scenario.tag)

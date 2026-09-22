@@ -11,15 +11,33 @@ import UIKit
 /// 対応する Web 側の仕組みは `web/assets.js` の VentAssets。
 enum AppAssets {
 
-    /// manifest.json に載っている名前。ここに無いものはファイルを探しに行かない。
-    private static let names: Set<String> = {
+    /// manifest.json に載っている名前と、その絵の大きさ。ここに無いものはファイルを
+    /// 探しに行かない。大きさは FaceArt が顔の位置を出すのに使う。
+    private static let sizes: [String: CGSize] = {
         guard let url = Bundle.main.url(forResource: "manifest", withExtension: "json",
                                         subdirectory: "assets"),
-              let data = try? Data(contentsOf: url) else { return [] }
+              let data = try? Data(contentsOf: url) else { return [:] }
         let parsed = try? JSONSerialization.jsonObject(with: data)
-        guard let table = parsed as? [String: Any] else { return [] }
-        return Set(table.keys)
+        guard let table = parsed as? [String: Any] else { return [:] }
+        var out: [String: CGSize] = [:]
+        for (name, entry) in table {
+            let box = entry as? [String: Any]
+            let w = (box?["w"] as? NSNumber)?.doubleValue ?? 1
+            let h = (box?["h"] as? NSNumber)?.doubleValue ?? 1
+            out[name] = CGSize(width: w, height: h)
+        }
+        return out
     }()
+
+    private static var names: Set<String> { Set(sizes.keys) }
+
+    /// 絵の大きさ（ピクセル）。無ければ nil。
+    static func size(named name: String) -> CGSize? { sizes[name] }
+
+    static func size(anyOf candidates: [String]) -> CGSize? {
+        for name in candidates where sizes[name] != nil { return sizes[name] }
+        return nil
+    }
 
     private static var cache: [String: Image] = [:]
 
@@ -91,4 +109,105 @@ struct Art<Fallback: View>: View {
             fallback
         }
     }
+}
+
+/// 全身の一枚絵から、顔のところだけを切り出して出す。渡された場所いっぱいに広がるので、
+/// 丸く抜くところ（CharacterBadge）が大きさを決める。
+/// Web 版の `.cav img`（object-fit: cover と顔に寄せた object-position）と同じ考え方で、
+/// 絵の中の `focus`（0〜1 の割合）が枠の中心に来るように置く。
+///
+///     FaceArt(["doctor_happy", "doctor_normal"]) { DoctorView(mood: .happy) }
+struct FaceArt<Fallback: View>: View {
+    var names: [String]
+    /// 顔の位置。絵の幅・高さに対する割合。
+    var focus: CGPoint
+    /// 幅の何倍に広げるか。1 で幅ぴったり、大きくするほど顔に寄る。
+    var zoom: CGFloat
+    var fallback: Fallback
+
+    init(_ names: [String], focus: CGPoint = CGPoint(x: 0.5, y: 0.18), zoom: CGFloat = 1,
+         @ViewBuilder fallback: () -> Fallback) {
+        self.names = names
+        self.focus = focus
+        self.zoom = zoom
+        self.fallback = fallback()
+    }
+
+    var body: some View {
+        if let image = AppAssets.image(anyOf: names), let source = AppAssets.size(anyOf: names) {
+            GeometryReader { geo in
+                let side = min(geo.size.width, geo.size.height)
+                let width = side * zoom
+                let height = width * source.height / max(1, source.width)
+                image
+                    .resizable()
+                    .frame(width: width, height: height)
+                    // 顔を中心に置く。端を越えると余白が出るので、はみ出す幅までに抑える。
+                    .offset(x: Self.shift(side: side, drawn: width, focus: focus.x),
+                            y: Self.shift(side: side, drawn: height, focus: focus.y))
+                    .frame(width: side, height: side, alignment: .topLeading)
+                    .clipped()
+            }
+            .accessibilityHidden(true)
+        } else {
+            fallback
+        }
+    }
+
+    /// 絵の focus の点を枠の中心へ動かす量。枠からはみ出した範囲に丸める。
+    private static func shift(side: CGFloat, drawn: CGFloat, focus: CGFloat) -> CGFloat {
+        let wanted = side / 2 - focus * drawn
+        return min(0, max(side - drawn, wanted))
+    }
+}
+
+/// どの絵をどう切り出すかの表。Web 版 app.js の DOC_ART と PT_FOCUS と同じ値を持つ。
+/// 絵が入っていなければ FaceArt が Characters.swift のコード描画に落ちるので、
+/// ここに並べた名前が全部そろっている必要はない。
+enum CharacterArt {
+
+    /// みどり先生。sad の絵は無いので think で代える。
+    static func doctorNames(_ mood: CharacterMood) -> [String] {
+        let first: String
+        switch mood {
+        case .happy: first = "doctor_happy"
+        case .think: first = "doctor_think"
+        case .alert: first = "doctor_alert"
+        case .sad:   first = "doctor_think"
+        case .normal: first = "doctor_normal"
+        }
+        return first == "doctor_normal" ? [first] : [first, "doctor_normal"]
+    }
+
+    /// 全身の絵の上のほうが頭。少しだけ下げて、髪の上に余白を残す。
+    static let doctorFocus = CGPoint(x: 0.5, y: 0.20)
+
+    static func mascotNames(_ mood: CharacterMood) -> [String] {
+        switch mood {
+        case .sad:   return ["mascot_sad", "mascot_happy"]
+        case .alert: return ["mascot_alert", "mascot_happy"]
+        case .happy: return ["mascot_excited", "mascot_happy"]
+        default:     return ["mascot_happy"]
+        }
+    }
+
+    /// ぷくぷくはほぼ正方形なので、まん中をそのまま出す。
+    static let mascotFocus = CGPoint(x: 0.5, y: 0.5)
+    static let mascotZoom: CGFloat = 1.1
+
+    /// 患者はベッドごとの一枚絵。顔の位置は症例ごとに違う。
+    private static let patientFocusByCase: [String: CGPoint] = [
+        "postop":        CGPoint(x: 0.36, y: 0.15),
+        "rds":           CGPoint(x: 0.47, y: 0.25),
+        "bronchiolitis": CGPoint(x: 0.74, y: 0.26),
+        "asthma":        CGPoint(x: 0.66, y: 0.21),
+        "gbs":           CGPoint(x: 0.63, y: 0.25),
+        "ards":          CGPoint(x: 0.58, y: 0.30)
+    ]
+
+    static func patientFocus(_ caseID: String) -> CGPoint {
+        patientFocusByCase[caseID] ?? CGPoint(x: 0.5, y: 0.28)
+    }
+
+    static let patientZoom: CGFloat = 3.4
 }

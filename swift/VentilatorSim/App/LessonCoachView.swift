@@ -42,9 +42,21 @@ struct LessonCoachView: View {
     @ViewBuilder
     private var speakerPortrait: some View {
         switch speaker {
-        case .puku:    MascotView(mood: mood == .sad ? .sad : .happy, breathing: false)
-        case .patient: PatientView(tone: patientTone)
-        default:       DoctorView(mood: mood)
+        case .puku:
+            FaceArt(CharacterArt.mascotNames(mood), focus: CharacterArt.mascotFocus,
+                    zoom: CharacterArt.mascotZoom) {
+                MascotView(mood: mood == .sad ? .sad : .happy, breathing: false)
+            }
+        case .patient:
+            FaceArt(AppAssets.patientNames(caseID: controller.scenario.id, tone: patientTone),
+                    focus: CharacterArt.patientFocus(controller.scenario.id),
+                    zoom: CharacterArt.patientZoom) {
+                PatientView(tone: patientTone)
+            }
+        default:
+            FaceArt(CharacterArt.doctorNames(mood), focus: CharacterArt.doctorFocus) {
+                DoctorView(mood: mood)
+            }
         }
     }
     private var patientTone: PatientView.Tone {
@@ -65,7 +77,9 @@ struct LessonCoachView: View {
                 if !collapsed {
                     HStack(alignment: .top, spacing: 9) {
                         if speaker != .scene {
-                            CharacterBadge(size: 40, ring: Chrome.isPop ? speakerTint.opacity(0.6) : nil,
+                            // FaceArt が自分で顔の位置に寄せるので、ここでは拡大しない。
+                            CharacterBadge(size: 40, zoom: 1,
+                                           ring: Chrome.isPop ? speakerTint.opacity(0.6) : nil,
                                            background: Coach.choice) {
                                 speakerPortrait
                             }
@@ -112,7 +126,8 @@ struct LessonCoachView: View {
         let captions = controller.lessonWatch
         return Group {
             if !captions.isEmpty {
-                HStack(spacing: 6) {
+                // 3 つ並ぶと狭い画面では入りきらない。横に流さず折り返す。
+                FlowLayout(spacing: 6, lineSpacing: 6) {
                     ForEach(captions, id: \.self) { caption in
                         if let readout = Readout.find(caption) {
                             let now = readout.value(engine)
@@ -237,7 +252,7 @@ struct LessonCoachView: View {
                      + (runtime.wrongAnswers == 0 ? "クイズは全問一度で正解でした。" : ""))
                     .font(Chrome.label(12.5, weight: Chrome.isPop ? .bold : .regular))
                     .foregroundStyle(Chrome.good)
-                HStack(spacing: 6) {
+                FlowLayout(spacing: 6, lineSpacing: 6) {
                     if let next = LessonLibrary.next(after: runtime.lesson.id) {
                         primaryButton("次のレッスンへ") { controller.startLesson(next) }
                     }

@@ -2,7 +2,10 @@ import SwiftUI
 import VentilatorCore
 
 /// 実機の筐体。上からステータス帯、画面、モードキー、設定キー、ハードキー、ダイヤル。
-/// 縦スクロールはしない。画面の外側は機器の筐体として扱う。
+///
+/// 横に動かさないと見えない表示は作らない。入りきらないぶんはキーを折り返して縦に伸ばし、
+/// 全体を縦にスクロールさせる。ダイヤルだけは下に貼り付けたまま残す
+/// （Web 版の `.dialrow{position:sticky;bottom:0}` と同じ）。
 struct VentilatorScreen: View {
     @Bindable var controller: SimulationController
     @State private var showingBloodGas: BloodGas?
@@ -11,17 +14,19 @@ struct VentilatorScreen: View {
 
     var body: some View {
         let _ = controller.tickCount        // 5 Hz の更新を購読する
-        VStack(spacing: 0) {
-            statusBar
-            screenArea
-                .padding(.horizontal, 6)
-                .padding(.vertical, 6)
-            LessonCoachView(controller: controller)
-            modeAndScreenTabs
-            parameterKeys
-            hardKeys
-            dialRow
+        ScrollView(.vertical) {
+            VStack(spacing: 0) {
+                statusBar
+                screenArea
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 6)
+                LessonCoachView(controller: controller)
+                modeAndScreenTabs
+                parameterKeys
+                hardKeys
+            }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) { dialRow }
         .background(
             LinearGradient(colors: [Chrome.chassisTop, Chrome.chassis],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -158,7 +163,7 @@ struct VentilatorScreen: View {
     // MARK: - 画面
 
     private var screenArea: some View {
-        HStack(spacing: Chrome.isPop ? 2 : 1) {
+        VStack(spacing: Chrome.isPop ? 2 : 1) {
             ZStack(alignment: .bottomLeading) {
                 switch controller.screen {
                 case .waveforms: scope
@@ -194,7 +199,11 @@ struct VentilatorScreen: View {
                         .padding(.bottom, 0)
                 }
             }
-            valueColumn
+            // 波形の高さは決めておく。決めないとスクロールの中でつぶれる。
+            .containerRelativeFrame(.vertical) { height, _ in
+                min(max(200, height * 0.42), 330)
+            }
+            valueGrid
         }
         .background(Chrome.screenTileLine)
         .clipShape(RoundedRectangle(cornerRadius: Chrome.cornerLarge))
@@ -228,39 +237,42 @@ struct VentilatorScreen: View {
             .spotlight(controller.isSpotted("wave"), corner: Chrome.corner)
     }
 
-    private var valueColumn: some View {
+    /// 計測値。1 枚 108pt 以上あれば「——」と「mL/cmH₂O」が 1 行に収まるので、
+    /// その幅で入るだけ並べて折り返す（Web 版の auto-fill / minmax(108px,1fr) と同じ）。
+    private var valueGrid: some View {
         let engine = controller.engine
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 1),
-                                   GridItem(.flexible(), spacing: 1)], spacing: 1) {
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 1)], spacing: 1) {
             ForEach(Readout.all) { r in
                 ValueTile(caption: r.caption, value: r.value(engine), unit: r.unit,
                           limit: r.limit?(engine), tone: r.tone?(engine))
                     .spotlight(controller.isSpotted("val:" + r.caption), corner: Chrome.corner)
             }
         }
-        .frame(width: 220)
     }
 
     // MARK: - モードと画面の切り替え
 
+    /// モードと画面の切り替え。横に流さず折り返す。モードと画面は別の行にする。
     private var modeAndScreenTabs: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Chrome.isPop ? 5 : 1) {
+        VStack(alignment: .leading, spacing: Chrome.isPop ? 5 : 3) {
+            FlowLayout(spacing: Chrome.isPop ? 5 : 1, lineSpacing: Chrome.isPop ? 5 : 3) {
                 ForEach(VentilationMode.allCases, id: \.self) { mode in
                     tab(mode.rawValue,
                         selected: controller.settings.mode == mode,
                         tint: Chrome.isPop ? Chrome.accent : Chrome.flow) { controller.change(mode: mode) }
                         .spotlight(controller.isSpotted("mode:" + mode.rawValue), corner: hardCorner)
                 }
-                Spacer(minLength: 16)
+            }
+            FlowLayout(spacing: Chrome.isPop ? 5 : 1, lineSpacing: Chrome.isPop ? 5 : 3) {
                 ForEach(SimulationController.Screen.allCases) { screen in
                     tab(screen.label,
                         selected: controller.screen == screen,
                         tint: Chrome.volume) { controller.screen = screen }
                 }
             }
-            .padding(.horizontal, 6)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 6)
     }
 
     private func tab(_ title: String, selected: Bool, tint: Color,
@@ -291,15 +303,15 @@ struct VentilatorScreen: View {
     // MARK: - 設定キー
 
     private var parameterKeys: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Chrome.isPop ? 6 : 4) {
-                ForEach(VentilatorParameter.applicable(to: controller.settings.mode)) { parameter in
-                    parameterKey(parameter)
-                }
-                sedationKey
+        FlowLayout(spacing: Chrome.isPop ? 6 : 4, lineSpacing: Chrome.isPop ? 6 : 4,
+                   alignment: .top) {
+            ForEach(VentilatorParameter.applicable(to: controller.settings.mode)) { parameter in
+                parameterKey(parameter)
             }
-            .padding(.horizontal, 6).padding(.vertical, 4)
+            sedationKey
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 6).padding(.vertical, 4)
     }
 
     private func parameterKey(_ parameter: VentilatorParameter) -> some View {
@@ -380,40 +392,39 @@ struct VentilatorScreen: View {
     // MARK: - ハードキー
 
     private var hardKeys: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
-                DeviceKey(title: "吸気ポーズ",
-                          isOn: holdKey == .inspiratory) { controller.requestHold(.inspiratory) }
-                    .spotlight(controller.isSpotted("hard:kInsp"), corner: hardCorner)
-                DeviceKey(title: "呼気ポーズ",
-                          isOn: holdKey == .expiratory) { controller.requestHold(.expiratory) }
-                    .spotlight(controller.isSpotted("hard:kExp"), corner: hardCorner)
-                DeviceKey(title: "100% O₂") { controller.oxygenFlush() }
-                    .spotlight(controller.isSpotted("hard:kO2"), corner: hardCorner)
-                DeviceKey(title: "気管吸引") { controller.performSuction() }
-                    .spotlight(controller.isSpotted("hard:kSuc"), corner: hardCorner)
-                DeviceKey(title: "波形停止", isOn: controller.waveformsFrozen) {
-                    controller.waveformsFrozen.toggle()
-                }
-                .spotlight(controller.isSpotted("hard:kFrz"), corner: hardCorner)
-                DeviceKey(title: speedLabel, tint: Chrome.sim,
-                          isOn: controller.speed.rawValue > 1) { cycleSpeed() }
-                    .spotlight(controller.isSpotted("hard:kSpd"), corner: hardCorner)
-                DeviceKey(title: controller.pendingBloodGasAt == nil ? "血液ガス" : "採血中…",
-                          tint: Chrome.sim,
-                          isOn: controller.pendingBloodGasAt != nil) { controller.orderBloodGas() }
-                    .spotlight(controller.isSpotted("hard:kAbg"), corner: hardCorner)
-                DeviceKey(title: "離脱", tint: Chrome.sim) {
-                    controller.openedWeaning()
-                    showingWeaning = true
-                }
-                .spotlight(controller.isSpotted("hard:kWean"), corner: hardCorner)
-                DeviceKey(title: "学習コース", tint: Chrome.sim,
-                          isOn: controller.lesson != nil) { showingCourse = true }
-                    .spotlight(controller.isSpotted("hard:kLearn"), corner: hardCorner)
+        FlowLayout(spacing: 5, lineSpacing: 5) {
+            DeviceKey(title: "吸気ポーズ",
+                      isOn: holdKey == .inspiratory) { controller.requestHold(.inspiratory) }
+                .spotlight(controller.isSpotted("hard:kInsp"), corner: hardCorner)
+            DeviceKey(title: "呼気ポーズ",
+                      isOn: holdKey == .expiratory) { controller.requestHold(.expiratory) }
+                .spotlight(controller.isSpotted("hard:kExp"), corner: hardCorner)
+            DeviceKey(title: "100% O₂") { controller.oxygenFlush() }
+                .spotlight(controller.isSpotted("hard:kO2"), corner: hardCorner)
+            DeviceKey(title: "気管吸引") { controller.performSuction() }
+                .spotlight(controller.isSpotted("hard:kSuc"), corner: hardCorner)
+            DeviceKey(title: "波形停止", isOn: controller.waveformsFrozen) {
+                controller.waveformsFrozen.toggle()
             }
-            .padding(.horizontal, 6).padding(.vertical, Chrome.isPop ? 6 : 5)
+            .spotlight(controller.isSpotted("hard:kFrz"), corner: hardCorner)
+            DeviceKey(title: speedLabel, tint: Chrome.sim,
+                      isOn: controller.speed.rawValue > 1) { cycleSpeed() }
+                .spotlight(controller.isSpotted("hard:kSpd"), corner: hardCorner)
+            DeviceKey(title: controller.pendingBloodGasAt == nil ? "血液ガス" : "採血中…",
+                      tint: Chrome.sim,
+                      isOn: controller.pendingBloodGasAt != nil) { controller.orderBloodGas() }
+                .spotlight(controller.isSpotted("hard:kAbg"), corner: hardCorner)
+            DeviceKey(title: "離脱", tint: Chrome.sim) {
+                controller.openedWeaning()
+                showingWeaning = true
+            }
+            .spotlight(controller.isSpotted("hard:kWean"), corner: hardCorner)
+            DeviceKey(title: "学習コース", tint: Chrome.sim,
+                      isOn: controller.lesson != nil) { showingCourse = true }
+            .spotlight(controller.isSpotted("hard:kLearn"), corner: hardCorner)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 6).padding(.vertical, Chrome.isPop ? 6 : 5)
         .background(Chrome.isPop ? Color.clear : Chrome.chassisTop)
     }
 
