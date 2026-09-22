@@ -3,7 +3,7 @@
 <title>人工呼吸器シミュレーター</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap">
 <style>
   /* ============================================================
      テーマは 2 つ。data-theme="pop"（既定）と "device"（実機風）。
@@ -397,6 +397,7 @@
   .menuitem{display:flex;align-items:center;gap:10px}
   .case i{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--accent2)}
   :root[data-theme="device"] .case{background:#0F1318;border-width:1px;border-color:var(--br)}
+  :root[data-theme="device"] .case .face{background-color:#0B1220}
   :root[data-theme="device"] .case i{font-family:var(--num);color:var(--faint);font-weight:400;letter-spacing:.1em}
   .case.lead{background:linear-gradient(135deg,#FFF0F4,#FFF7E6 60%,#EAF6FF);border-color:var(--accent)}
   :root[data-theme="device"] .case.lead{background:#0F1318;border-color:#2C8A64}
@@ -451,6 +452,11 @@
     background:var(--deck);overflow:auto}
   /* display を指定しているので、hidden を効かせる指定が要る。 */
   .title[hidden]{display:none}
+  /* WebGL のタイトルが動いているときは、控えの DOM を隠して絵だけにする。 */
+  .tcanvas{position:absolute;inset:0;display:none}
+  .title.gl{padding:0;overflow:hidden}
+  .title.gl .tcanvas{display:block}
+  .title.gl .tstage{display:none}
   .tstage{width:min(520px,100%);display:flex;flex-direction:column;align-items:center;gap:10px;
     padding:14px 16px 16px;border-radius:26px;background:var(--panel);border:3px solid var(--br);
     box-shadow:0 14px 40px rgba(120,80,140,.18)}
@@ -490,6 +496,53 @@
     .tcast{height:84px}.tsay{display:none}.tstage{gap:7px;padding:10px 12px 12px}
     .tbtn{padding:8px 12px}.tbtn i{display:none}
   }
+
+  /* ============ ゲーム寄せの皮（ポップのときだけ） ============
+   * 実機風テーマは今までどおり平らなまま。ポップでは「厚みのある板」に統一する。
+   * 参考にしたスマホゲームの文法: 太い輪郭線・下側の厚み・帯（リボン）の見出し。 */
+  :root{--gline:#2E2545;--glip:#C3B4D6}
+  :root:not([data-theme="device"]) .mbox{border:4px solid var(--gline);border-radius:26px;overflow:hidden;
+    box-shadow:0 10px 0 rgba(46,37,69,.18),0 26px 60px rgba(80,40,90,.35)}
+  :root:not([data-theme="device"]) .mhead{background:linear-gradient(180deg,#FF7FA4,#F0507F);
+    border-bottom:4px solid var(--gline)}
+  :root:not([data-theme="device"]) .mhead h3{color:#fff;font-size:16px;letter-spacing:.02em;
+    text-shadow:0 2px 0 rgba(46,37,69,.45)}
+  :root:not([data-theme="device"]) .mhead button{background:#fff;border:3px solid var(--gline);color:var(--ink);
+    font-weight:800;box-shadow:0 3px 0 rgba(46,37,69,.35)}
+  :root:not([data-theme="device"]) .mhead button:active{transform:translateY(3px);box-shadow:none}
+  :root:not([data-theme="device"]) .mbody{background:linear-gradient(180deg,#FFF9F3,#FFF1F5)}
+  :root:not([data-theme="device"]) .lesson,
+  :root:not([data-theme="device"]) .case,
+  :root:not([data-theme="device"]) .row,
+  :root:not([data-theme="device"]) .tip,
+  :root:not([data-theme="device"]) .mbtn{border:3px solid var(--gline);box-shadow:0 4px 0 var(--glip)}
+  :root:not([data-theme="device"]) .lesson{border-left:8px solid var(--chap)}
+  :root:not([data-theme="device"]) .lesson:active,
+  :root:not([data-theme="device"]) .case:active,
+  :root:not([data-theme="device"]) .mbtn:active{transform:translateY(4px);box-shadow:none}
+  :root:not([data-theme="device"]) .mbtn{font-weight:800}
+  :root:not([data-theme="device"]) .mbtn.go{background:linear-gradient(180deg,#FFC24D,#FF8A3D);color:#fff;
+    border-color:var(--gline);box-shadow:0 4px 0 #C4560F;text-shadow:0 2px 0 rgba(46,37,69,.4)}
+  :root:not([data-theme="device"]) .mk{border:3px solid var(--gline)}
+  :root:not([data-theme="device"]) .mk.y{box-shadow:0 2px 0 rgba(46,37,69,.3)}
+  /* 章の見出しは色の帯にする */
+  :root:not([data-theme="device"]) .chapline{background:var(--chap);color:#fff;border:3px solid var(--gline);
+    border-radius:16px;padding:8px 13px;box-shadow:0 4px 0 rgba(46,37,69,.22);margin:18px 0 9px}
+  :root:not([data-theme="device"]) .chapline .cdot{background:#fff;border:2px solid var(--gline)}
+  :root:not([data-theme="device"]) .chapline .csub{color:rgba(255,255,255,.92)}
+  :root:not([data-theme="device"]) .chapline .ccount{background:#fff;color:var(--chap);
+    border:2px solid var(--gline)}
+  :root:not([data-theme="device"]) .bigprog .bar{height:16px;border:3px solid var(--gline);background:#fff}
+  /* 症例カードは小さな一枚絵にする */
+  .case .face{width:100%;height:88px;border-radius:12px;background:#EAF0FF no-repeat 50% 62%;
+    background-size:contain}
+  :root:not([data-theme="device"]) .case .face{border:3px solid var(--gline)}
+  .casehead{flex-direction:column;align-items:stretch;gap:7px}
+  /* 学習帯の先生も同じ絵柄にそろえる */
+  .cav img{display:block;width:100%;height:100%;transform:scale(1.1)}
+  :root:not([data-theme="device"]) .cchoices button{border:2.5px solid var(--gline);
+    box-shadow:0 3px 0 var(--glip);font-weight:700}
+  :root:not([data-theme="device"]) .cchoices button:active{transform:translateY(3px);box-shadow:none}
 
   /* ---- 達成の演出 ---- */
   #fx{position:fixed;inset:0;pointer-events:none;z-index:120;overflow:hidden}
@@ -586,6 +639,7 @@
 </div>
 
 <div id="title" class="title" hidden>
+  <div class="tcanvas" id="tCanvas"></div>
   <div class="tstage">
     <div class="tcast">
       <div class="tchar c1" id="tPatient"></div>
@@ -607,7 +661,10 @@
 <div id="fx"></div>
 <div id="modals"></div>
 
+<script src="vendor/pixi.min.js"></script>
 <script src="characters.js"></script>
+<script src="art.js"></script>
+<script src="title.js"></script>
 <script src="engine.js"></script>
 <script src="scenarios.js"></script>
 <script src="lessons.js"></script>

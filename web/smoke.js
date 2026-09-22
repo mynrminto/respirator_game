@@ -22,11 +22,16 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
       errs.push(vp.n + ' console: ' + m.text());
     });
     await p.goto(FILE);
-    await p.waitForTimeout(900);
+    await p.waitForTimeout(1800);            // タイトルの絵とテクスチャができるのを待つ
     // タイトル画面 → コースを選ぶ → 免責に同意
+    console.log(vp.n, 'タイトルは WebGL:', await p.evaluate(() =>
+      document.getElementById('title').classList.contains('gl')));
     await p.screenshot({ path: `${SHOT}/${vp.n}-0-title.png` });
-    await p.getByRole('button', { name: /コースを選ぶ/ }).click();
-    await p.waitForTimeout(300);
+    // ゲーム画面のボタンは canvas の中にあるので、位置を教えてもらって実際に押す。
+    const hit = await p.evaluate(() => window.VentTitle && window.VentTitle.rect('course'));
+    if (hit) await p.mouse.click(hit.cx, hit.cy);
+    else await p.getByRole('button', { name: /コースを選ぶ/ }).click();
+    await p.waitForTimeout(700);
     await p.screenshot({ path: `${SHOT}/${vp.n}-1-disclaimer.png` });
     await p.getByRole('button', { name: '同意して始める' }).click();
     await p.waitForTimeout(400);

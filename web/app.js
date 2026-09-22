@@ -4,6 +4,7 @@
   'use strict';
 
   var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons, CH = window.VentChars;
+  var AR = window.VentArt;
   var $ = function (id) { return document.getElementById(id); };
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
@@ -88,7 +89,7 @@
   function toast(msg) {
     var t = el('div', 'toast');
     var face = el('span', 'tface');
-    face.innerHTML = CH.doctor('happy', { disc: '#FFFFFF' });
+    face.innerHTML = '<img alt="" src="' + AR.face('happy', currentTheme() === 'device') + '">';
     t.appendChild(face);
     t.appendChild(el('span', '', msg));
     document.body.appendChild(t);
@@ -249,63 +250,93 @@
     openDisclaimer(true, function () { setAgreed(); hideTitle(); run(); });
   }
 
-  function buildTitleMenu() {
-    var box = $('tMenu');
-    box.innerHTML = '';
+  /* タイトルの中身。ゲーム画面（title.js）にも DOM の控えにも同じものを渡す。 */
+  function titleData() {
+    var n = LS.allLessons().length;
+    var d = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
     var next = firstUndoneLesson();
-    var done = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
-
-    function item(cls, mark, title, sub, fn) {
-      var b = el('button', 'tbtn' + (cls ? ' ' + cls : ''));
-      b.appendChild(el('span', 'em', mark));
-      var t = el('div');
-      t.appendChild(el('b', '', title));
-      if (sub) t.appendChild(el('i', '', sub));
-      b.appendChild(t);
-      b.onclick = fn;
-      box.appendChild(b);
-      return b;
-    }
-
-    if (done > 0 && next) {
-      item('go', '▶', 'つづきから', next.chapter.title + '　' + next.lesson.title, function () {
-        enter(function () { startLesson(next.lesson.id); });
-      });
-      item('', '☰', 'コースを選ぶ', '6 章 19 レッスンから選ぶ', function () {
-        enter(function () { openCourse(); });
-      });
+    var items = [];
+    if (d > 0 && next) {
+      items.push({ id: 'go', glyph: '▶', title: 'つづきから', primary: true,
+                   sub: next.chapter.title + '　' + next.lesson.title });
     } else {
-      item('go', '▶', 'はじめる', '学習コースを 1 から', function () {
-        enter(function () { startLesson(LS.allLessons()[0].lesson.id); });
-      });
-      item('', '☰', 'コースを選ぶ', '6 章 19 レッスンから選ぶ', function () {
-        enter(function () { openCourse(); });
-      });
+      items.push({ id: 'go', glyph: '▶', title: 'はじめる', primary: true, sub: '学習コースを 1 から' });
     }
-    item('', '✚', '症例で練習', '5 症例を自由に操作する', function () {
+    items.push({ id: 'course', glyph: '☰', title: 'コースを選ぶ', sub: '6 章 ' + n + ' レッスンから選ぶ' });
+    items.push({ id: 'cases', glyph: '✚', title: '症例で練習', sub: SC.SCENARIOS.length + ' 症例を自由に操作する' });
+    items.push({ id: 'about', glyph: '?', title: 'この教材について', sub: '免責事項とモデルの説明' });
+    return {
+      done: d, total: n, items: items, next: next,
+      line: d === 0 ? 'はじめまして。わたしは みどり先生。\nいっしょに呼吸器を動かしてみましょう。'
+          : (d >= n ? '全レッスン修了、おみごとです。\n症例で腕を試してみましょう。'
+                    : 'おかえりなさい。ここまで ' + d + ' / ' + n + ' レッスン。\nつづきからどうぞ。')
+    };
+  }
+
+  function titleSelect(id, data) {
+    if (id === 'go') {
+      enter(function () { startLesson((data.next ? data.next.lesson : LS.allLessons()[0].lesson).id); });
+    } else if (id === 'course') {
+      enter(function () { openCourse(); });
+    } else if (id === 'cases') {
       enter(function () { openCases(); });
-    });
-    item('', '?', 'この教材について', '免責事項とモデルの説明', function () {
+    } else {
       openDisclaimer(false);
-    });
+    }
   }
 
   function showTitle() {
-    buildTitleMenu();
-    var n = LS.allLessons().length;
-    var d = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
-    var pct = Math.round(d / n * 100);
-    $('tProgBar').style.width = pct + '%';
-    $('tPct').textContent = pct + '%';
-    $('tSay').innerHTML = d === 0
-      ? 'はじめまして。わたしは みどり先生。<br>いっしょに呼吸器を動かしてみましょう。'
-      : (d >= n ? '全レッスン修了、おみごとです。<br>症例で腕を試してみましょう。'
-                : 'おかえりなさい。<br>ここまで ' + d + ' / ' + n + ' レッスン。つづきからどうぞ。');
-    $('tDoctor').innerHTML = CH.doctor(d >= n ? 'happy' : 'normal');
+    var data = titleData();
     $('title').hidden = false;
+    /* WebGL が使えるならゲーム画面。だめなら下の DOM がそのまま出る。 */
+    if (window.VentTitle && window.VentTitle.available()) {
+      $('title').classList.add('gl');
+      window.VentTitle.resume();
+      window.VentTitle.show({
+        mount: $('tCanvas'),
+        dark: currentTheme() === 'device',
+        themeLabel: currentTheme() === 'pop' ? 'ポップ' : '実機',
+        done: data.done, total: data.total, line: data.line, items: data.items,
+        onSelect: function (id) { titleSelect(id, data); },
+        onTheme: function () {
+          applyTheme(currentTheme() === 'pop' ? 'device' : 'pop', true);
+          if (!$('title').hidden) showTitle();
+        }
+      }).then(function (ok) {
+        if (!ok) { $('title').classList.remove('gl'); showTitleDom(data); }
+      });
+      return;
+    }
+    showTitleDom(data);
   }
 
-  function hideTitle() { $('title').hidden = true; fitAll(); }
+  /* WebGL が無い環境向けの控え。中身はゲーム画面と同じ。 */
+  function showTitleDom(data) {
+    var box = $('tMenu');
+    box.innerHTML = '';
+    data.items.forEach(function (item) {
+      var b = el('button', 'tbtn' + (item.primary ? ' go' : ''));
+      b.appendChild(el('span', 'em', item.glyph));
+      var t = el('div');
+      t.appendChild(el('b', '', item.title));
+      if (item.sub) t.appendChild(el('i', '', item.sub));
+      b.appendChild(t);
+      b.onclick = function () { titleSelect(item.id, data); };
+      box.appendChild(b);
+    });
+    var pct = Math.round(data.done / data.total * 100);
+    $('tProgBar').style.width = pct + '%';
+    $('tPct').textContent = pct + '%';
+    $('tSay').innerHTML = data.line.replace(/\n/g, '<br>');
+    $('tDoctor').innerHTML = CH.doctor(data.done >= data.total ? 'happy' : 'normal');
+  }
+
+  function hideTitle() {
+    if (window.VentTitle) window.VentTitle.hide();
+    $('title').hidden = true;
+    $('title').classList.remove('gl');
+    fitAll();
+  }
 
   function loadScenario(sc, showSetup, keepLesson) {
     if (!keepLesson) endLesson(false);
@@ -989,7 +1020,8 @@
         var c = el('button', 'case');
         var head = el('div', 'casehead');
         var face = el('div', 'face');
-        face.innerHTML = CH.patient(PATIENT_TONE[sc.id] || 'ok');
+        face.style.backgroundImage = 'url("' + AR.patient(PATIENT_TONE[sc.id] || 'ok',
+          currentTheme() === 'device') + '")';
         var ct = el('div', 'ct');
         ct.appendChild(el('i', '', sc.tag));
         ct.appendChild(el('b', '', sc.title));
@@ -1423,7 +1455,10 @@
       + '|' + rt.answered + '|' + mood;
     if (sig !== L.sig) {
       L.sig = sig;
-      if (L.mood !== mood) { L.mood = mood; $('cAv').innerHTML = CH.doctor(mood, { disc: true }); }
+      if (L.mood !== mood) {
+        L.mood = mood;
+        $('cAv').innerHTML = '<img alt="" src="' + AR.face(mood, currentTheme() === 'device') + '">';
+      }
       $('cTitle').textContent = L.lesson.title;
       $('cChap').textContent = L.chap.tag + '　' + (pr.done + (L.mode === 'done' ? 0 : 1)) + ' / ' + pr.total;
       var dots = $('cDots'); dots.innerHTML = '';
