@@ -133,105 +133,127 @@ surprised with round eyes. Bottom-right: sad, teary eyes, drooping. Even spacing
 
 ### 6. 患者（症例ごとに 6 枚）— 症例を選ぶとその絵が出ます
 
-患者の絵だけは **キャラクターより写実寄り** にします。かわいさよりも「本物の PICU の子ども」に
-見えることを優先し、機材・ライン・表情に症例の情報を入れます。6 枚とも同じ画角・同じ絵柄で。
+生成ツールが「未成年者の描写」で止まることがあります（実際に止まりました）。原因になりやすいのは
+写実的な指定・肌や体つきの描写・薄着の指定なので、患者の絵は **医学教科書の説明図** の書き方にします。
+子どもは必ず **病衣を着て毛布で覆われ、見えるのは顔と手先だけ**。写実（photorealistic）にはしません。
 共通の書き出しを **PATIENT_STYLE** として先頭に貼ってください（STYLE の代わりに使います）。
 
 ```
-PATIENT_STYLE: Semi-realistic digital illustration for a pediatric intensive-care training
-game, medically accurate, soft painterly shading with a subtle clean dark outline, real
-hospital lighting, muted clinical colors with pastel accents, gentle and respectful mood,
-camera from the side of the bed slightly above, the whole bed or incubator fully visible
-with margin, on a solid flat bright green (#00FF00) background, nothing else, no text.
+PATIENT_STYLE: Clean medical textbook illustration for a hospital staff training app,
+stylized (not photorealistic), soft cel shading with clear dark outlines, medically accurate
+equipment, respectful and calm mood. The patient is fully dressed in a light-blue hospital
+gown and covered by a blanket up to the chest; only the face and hands are visible. Camera
+from the side of the bed slightly above, the whole bed or incubator fully visible with
+margin, on a solid flat bright green (#00FF00) background, nothing else, no text.
 ```
 
-#### 6a. `patient_postop.png` — 小児外科術後（8歳 男児、25 kg）
+止まったときの対処:
+1. 同じプロンプトをもう一度（誤判定が多い）。
+2. 年齢の数字を消して「a young child」「a school-age child」「an infant」にする。
+3. それでも止まるなら、下の **代替（人物なし）** を出してください。子どもはこちらで描いて重ねます。
+
+#### 6a. `patient_postop.png` — 小児外科術後（学童）
 サイズ: 1536×1024
 
 ```
-{PATIENT_STYLE} An 8-year-old Japanese boy, slim, lying on his back in a pediatric ICU bed
-with raised side rails, eyes closed, calm, still drowsy after surgery. A cuffed endotracheal
-tube taped at the corner of his mouth, connected to a blue-and-white ventilator circuit
-leading off to the left. Three ECG electrodes with colored leads on his chest, a pulse
-oximeter probe on one finger with a red glow, an IV line taped on the back of his hand,
-a white blanket folded to the waist over a light-blue hospital gown, a small drain tube
-under the blanket. Skin color normal and healthy. A small teddy bear at the head of the bed.
+{PATIENT_STYLE} A school-age Japanese child patient resting in a pediatric ICU bed with
+raised side rails, eyes closed, calm, drowsy after surgery. An endotracheal tube secured
+with tape at the corner of the mouth, connected to a blue-and-white ventilator circuit
+leading off to the left. ECG lead wires coming out from under the gown collar, a pulse
+oximeter clip on one finger with a small red light, an IV line taped on the back of one
+hand. A small teddy bear at the head of the bed.
 ```
 
-#### 6b. `patient_rds.png` — 早産児の RDS（在胎 28 週、1.1 kg、保育器）
+#### 6b. `patient_rds.png` — 早産児の RDS（保育器）
 サイズ: 1536×1024
 
 ```
-{PATIENT_STYLE} A tiny premature newborn (28 weeks, about 1.1 kg) lying inside a modern
-transparent acrylic infant incubator on a white mattress, red-pink translucent skin, very
-thin limbs, wearing only a tiny diaper and a small knitted cap, eyes covered by a soft
-eye shield. A tiny uncuffed endotracheal tube fixed with tape above the upper lip,
-connected through a port in the incubator wall to a thin ventilator circuit leading off to
-the left. Tiny ECG electrode stickers with fine leads on the chest, a pulse-oximeter wrap
-glowing red on one foot, a thin umbilical catheter, a temperature probe on the belly.
-The incubator sits on a light-gray cabinet base with small wheels, indicator lights and a
-control panel with a small display. Slightly labored breathing with visible chest
-retractions.
+{PATIENT_STYLE} A tiny newborn inside a modern transparent acrylic infant incubator, lying
+on a white mattress, wrapped snugly in a soft white blanket with a small knitted cap; only
+the face is visible, eyes closed, peaceful. A small endotracheal tube secured with tape
+above the lip, connected through a port in the incubator wall to a thin ventilator circuit
+leading off to the left. Thin monitoring lead wires coming out from under the blanket, a
+small pulse-oximeter wrap with a red light on one foot peeking from the blanket. The
+incubator sits on a light-gray cabinet base with small wheels, indicator lights and a
+control panel with a small display.
 ```
 
-#### 6c. `patient_bronchiolitis.png` — RSV 細気管支炎（生後 4 か月、6 kg）
+#### 6c. `patient_bronchiolitis.png` — RSV 細気管支炎（乳児）
 サイズ: 1536×1024
 
 ```
-{PATIENT_STYLE} A 4-month-old Japanese infant lying on her back in a hospital crib with
-white rail bars, chubby, flushed feverish cheeks, sweaty forehead, eyes closed, wearing a
-diaper and a light blanket to the waist. An uncuffed endotracheal tube taped at the mouth
-connected to a small ventilator circuit leading off to the left, a nasogastric tube taped
-on the cheek, three ECG electrode stickers with leads on the chest, a pulse-oximeter wrap
-glowing red on one foot, an IV line with a small splint on one arm. Chest slightly
-hyperinflated with visible retractions under the ribs.
+{PATIENT_STYLE} An infant resting on the back in a hospital crib with white rail bars,
+covered by a light blanket up to the chest, wearing a small hospital gown, cheeks a little
+flushed as if feverish, eyes closed. A small endotracheal tube secured with tape at the
+mouth connected to a small ventilator circuit leading off to the left, a thin feeding tube
+taped on the cheek, monitoring lead wires coming out from under the blanket, a
+pulse-oximeter wrap with a red light on one foot, an IV line with a small arm board on
+one arm.
 ```
 
-#### 6d. `patient_ards.png` — 小児 ARDS（3歳 女児、14 kg、重症）
+#### 6d. `patient_ards.png` — 小児 ARDS（幼児、重症）
 サイズ: 1536×1024
 
 ```
-{PATIENT_STYLE} A 3-year-old Japanese girl, lying on her back in a pediatric ICU bed,
-critically ill: pale skin with a faint bluish tint around the lips, feverish flushed
-cheeks, eyes closed, deeply sedated. A cuffed endotracheal tube taped at the corner of the
-mouth connected to a ventilator circuit leading off to the left, a nasogastric tube, three
-ECG electrodes with leads, a pulse-oximeter probe on one finger glowing red, a central
-venous line dressing on the neck, an arterial line on the wrist, two IV pumps' tubing
-coming in from the right. Light-blue hospital gown, blanket to the waist. Calm but
-serious atmosphere.
+{PATIENT_STYLE} A young child patient in a pediatric ICU bed, seriously ill but
+peaceful: face pale with a faint bluish tint at the lips, eyes closed, sedated. An
+endotracheal tube secured with tape at the corner of the mouth connected to a ventilator
+circuit leading off to the left, a thin feeding tube on the cheek, monitoring lead wires
+from under the gown collar, a pulse oximeter clip with a red light on one finger, a
+dressing with a central line on the side of the neck, an arterial line on the wrist,
+tubing from two infusion pumps coming in from the right.
 ```
 
-#### 6e. `patient_asthma.png` — 喘息重積発作（11歳 男児、35 kg）
+#### 6e. `patient_asthma.png` — 喘息重積発作（学童）
 サイズ: 1536×1024
 
 ```
-{PATIENT_STYLE} An 11-year-old Japanese boy, the largest patient, lying in a pediatric ICU
-bed with the head of the bed raised about 30 degrees, eyes closed but with a strained,
-uncomfortable expression, slightly sweaty, lips a little dusky. A cuffed endotracheal tube
-taped at the corner of the mouth connected to a ventilator circuit leading off to the
-left, a nebulizer chamber inline in the circuit, three ECG electrodes with leads, a pulse
-oximeter on one finger glowing red, an IV line on the forearm, a blood-pressure cuff on the
-upper arm. Chest visibly over-inflated. Light-blue hospital gown, blanket to the waist.
+{PATIENT_STYLE} A school-age Japanese child patient, the largest of the patients, in a
+pediatric ICU bed with the head of the bed raised about 30 degrees, eyes closed with a
+strained, uncomfortable expression, lips slightly dusky. An endotracheal tube secured
+with tape at the corner of the mouth connected to a ventilator circuit leading off to the
+left with a small inline nebulizer chamber, monitoring lead wires from under the gown
+collar, a pulse oximeter clip with a red light on one finger, an IV line on the forearm,
+a blood-pressure cuff on the upper arm over the gown sleeve.
 ```
 
-#### 6f. `patient_gbs.png` — ギラン・バレー症候群（7歳 女児、22 kg、意識清明）
+#### 6f. `patient_gbs.png` — ギラン・バレー症候群（学童、意識清明）
 サイズ: 1536×1024
 
 ```
-{PATIENT_STYLE} A 7-year-old Japanese girl, lying in a pediatric ICU bed with the head
-slightly raised, AWAKE and alert, eyes open looking toward the viewer, a calm gentle
-expression, healthy skin color, long dark hair tied to one side. A cuffed endotracheal
-tube taped at the corner of the mouth connected to a ventilator circuit leading off to the
-left, three ECG electrodes with leads, a pulse oximeter on one finger glowing red, an IV
-line on the arm. Her arms lie limp on the blanket. A picture book and a small teddy bear
-beside her on the bed. Light-blue hospital gown, blanket to the waist.
+{PATIENT_STYLE} A school-age Japanese child patient in a pediatric ICU bed with the head
+slightly raised, awake and alert with a calm gentle expression, eyes open, long dark hair
+tied to one side. An endotracheal tube secured with tape at the corner of the mouth
+connected to a ventilator circuit leading off to the left, monitoring lead wires from
+under the gown collar, a pulse oximeter clip with a red light on one finger, an IV line on
+the arm. The arms lie relaxed on the blanket. A picture book and a small teddy bear beside
+the child on the bed.
+```
+
+#### 代替（人物なし）: `bed_child.png` / `bed_crib.png` / `bed_incubator.png`
+サイズ: 各 1536×1024。人物の生成が止まるときはこちらを。子どもはこちらで描いて重ねます。
+
+```
+{PATIENT_STYLE} An EMPTY pediatric ICU bed with raised side rails, white pillow and a
+light-blue blanket turned down, a ventilator circuit on a support arm leading off to the
+left, ECG lead wires and a pulse-oximeter cable resting on the blanket, an IV pole with a
+pump beside the bed. No person.
+```
+```
+{PATIENT_STYLE} An EMPTY hospital infant crib with white rail bars, small mattress and a
+light blanket, a small ventilator circuit on a support arm leading off to the left,
+monitoring cables on the mattress, a small IV pump on a pole beside it. No person.
+```
+```
+{PATIENT_STYLE} An EMPTY modern transparent acrylic infant incubator on a light-gray
+cabinet base with wheels, indicator lights and a control panel, a thin ventilator circuit
+entering through a port from the left, monitoring cables inside. No person.
 ```
 
 注記:
 - 症例 ID と同じファイル名にしてください（`patient_rds.png` など）。届いた症例から順に差し替わります。
 - 顔色の差分（SpO₂ が下がったときの青白さ）は 6 枚ともこちらで加工します。
-- 6 枚がそろう前の代わりとして、年齢層の 3 枚（`patient_neonate` / `patient_infant` / `patient_child`）を
-  出してもらってもかまいません。無くても動きます。
+- 年齢層の 3 枚（`patient_neonate` / `patient_infant` / `patient_child`）でもかまいません。無くても動きます。
 
 ---
 
