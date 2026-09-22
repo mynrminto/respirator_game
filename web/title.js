@@ -206,6 +206,9 @@
     /* 背景 */
     layers.room = sprite(t.room);
     layers.bg.addChild(layers.room);
+    /* メニュー列の下敷き。背景が機材で込み入っているので、文字の後ろだけ少し落ち着かせる。 */
+    layers.shade = new P.Graphics();
+    layers.bg.addChild(layers.shade);
 
     /* 登場人物 */
     layers.patient = sprite(t.patient);
@@ -443,8 +446,15 @@
       .fill({ color: opts.dark ? 0x111A31 : 0xFFFFFF })
       .stroke({ color: 0x2E2545, width: 5, join: 'round' });
 
+    /* メニュー列の下敷き（ロゴの上から足もとまで） */
+    layers.shade.clear();
+    layers.shade.roundRect(colCx - col / 2 - 26, (layers.logoArt ? layers.logoArt.y : layers.ribbon.y) - logoH / 2 - 22,
+        col + 52, footY - ((layers.logoArt ? layers.logoArt.y : layers.ribbon.y) - logoH / 2) + 62, 34)
+      .fill({ color: opts.dark ? 0x0B1020 : 0xFFF8EE, alpha: opts.dark ? 0.62 : 0.72 });
+
     /* 足もと：進捗とテーマ */
     var chipW = 74, chipH = 26;
+
     var barW = col - chipW - 64;
     fitNine(layers.barTrack, barW, 22);
     layers.barTrack.x = colCx - col / 2; layers.barTrack.y = footY - 11;

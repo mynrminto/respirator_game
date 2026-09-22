@@ -1,7 +1,9 @@
 # VentaSim 画像の仕様書（小児科版・生成画像を差し込むためのリスト）
 
 このゲームは **小児科の人工呼吸器シミュレーター** です。患者は新生児〜学童、舞台は NICU / PICU、
-みどり先生は小児科医です。作業環境に画像生成の手段がないため、ここに書いた画像を Yuichi さんの手元で
+みどり先生は小児科医です。舞台は **集中治療室そのもの**（頭側の医療ガスパネル、多項目モニター、
+積み上げた輸液・シリンジポンプ、人工呼吸器、保育器や開放型保育器）で、子ども部屋ではありません。
+小児らしさは色味と小物（くまのぬいぐるみ 1 つ、ネームカード）にとどめます。作業環境に画像生成の手段がないため、ここに書いた画像を Yuichi さんの手元で
 生成して、**このスレッドにそのまま添付**してください。ファイル名は下の一覧のとおりにお願いします。
 届いた順に組み込みます。全部そろわなくても、あるものから順に差し替わります。
 
@@ -19,10 +21,11 @@
 ## STYLE（すべてのプロンプトの先頭に貼る）
 
 ```
-Cute Japanese mobile game illustration for a pediatric hospital game, kawaii style, clean thick
-dark-navy outlines, soft cel shading with glossy highlights, pastel nursery-hospital palette
-(mint green, peach, cream, baby pink, baby blue, lavender, soft yellow), small star and cloud
-motifs, polished 2D vector-like finish, high quality, no text, no watermark.
+Cute Japanese mobile game illustration for a pediatric intensive-care hospital game, kawaii
+style with realistic medical equipment, clean thick dark-navy outlines, soft cel shading with
+glossy highlights, pastel clinical palette (mint green, cream, soft blue, lavender, a little
+peach and pink as accents), polished 2D vector-like finish, high quality, no text, no
+watermark.
 ```
 
 ## キャラクターの設定（キャラの絵にはこれも貼る）
@@ -45,29 +48,43 @@ glossy, sometimes holding a small yellow star.
 
 ## A. 背景（横長）
 
-### 1. `bg_title_day.png` 必須 — タイトルの背景（朝の NICU / PICU）
+**画角の基準**: Yuichi さんが貼ってくれた ICU の写真（`web/ref/icu-bay-reference.png`）と同じ画角にします。
+目の高さのやや上から、ベッドの足側の斜めから見た広角。ベッドスペースが真ん中、
+**左右の手前に呼吸器やモニターのカートが張り出し、機材が画面を埋める**。奥の壁に窓とカーテン、
+床は広く見える。「きれいに片づいた部屋」ではなく「機材で囲まれたベッド」が見えることが要点です。
+
+### 1. `bg_title_day.png` 必須 — タイトルの背景（朝の PICU / NICU のベッドサイド）
 サイズ: 1536×1024（16:9 前後）
 
 ```
-{STYLE} Wide illustration of a bright, cozy pediatric intensive care room (PICU / NICU) in
-the morning. A large window in the center shows a soft blue sky with fluffy clouds and a
-gentle sunrise. Cream walls decorated with pastel star and cloud wall stickers, a hanging
-baby mobile with stars and a moon, light lavender floor, baby-pink curtains on both sides,
-an IV pole on the left, a small patient monitor on a stand on the right, a teddy bear and
-two balloons (pink and light blue) near the wall. The center and right foreground are empty
-open floor (characters will be placed there later). No people, no text, warm and welcoming.
+{STYLE} Wide-angle illustration of a real pediatric intensive care unit bay (PICU / NICU)
+in the morning, camera slightly above eye level at the foot of the bed space, looking
+diagonally across the room. The bed space is in the middle distance: an empty pediatric ICU
+bed with white sheets (or a transparent incubator on a stand) surrounded by equipment. In the
+LEFT foreground a modern mechanical ventilator on a wheeled cart, touchscreen showing
+colorful waveforms, a blue-and-white breathing circuit on a support arm, next to a patient
+monitor on a rolling stand showing ECG, SpO2 and respiratory traces in green, cyan and
+yellow. In the RIGHT middle distance IV poles stacked with several syringe pumps and infusion
+pumps with small glowing screens, and a large dialysis / ECMO-like machine with tubing.
+On the back wall two windows with soft morning light, a long medical headwall with
+color-coded gas outlets and electrical sockets, beige privacy curtains on rails, a bulletin
+board with a few charts. Cables and tubing everywhere, neatly bundled, a warm wood-toned
+vinyl floor that stays open in the CENTER foreground (characters will be placed there
+later). One small teddy bear on the bed is the only decoration. No people, no text,
+busy, high-tech, calm.
 ```
-注記: 中央〜右の手前を空けてもらうのは、そこに立ち絵を置くためです。
+注記: 中央〜右の手前を空けてもらうのは、そこに立ち絵を置くためです。**子ども部屋にしない**のが要点です。
 
-### 2. `bg_title_night.png` あれば — 実機風テーマ用の夜の NICU
+### 2. `bg_title_night.png` あれば — 実機風テーマ用の夜の PICU / NICU
 サイズ: 1536×1024
 
 ```
-{STYLE} The same pediatric intensive care room as before, but at night. Deep navy sky
-through the window with a crescent moon and stars, dim warm night-light glow, a projector
-casting soft star shapes on the ceiling, monitors glowing teal. Same layout: IV pole on the
-left, monitor on the right, teddy bear and balloons, empty open floor in the center and
-right foreground. No people, no text.
+{STYLE} The same pediatric intensive care bay from the same camera angle, but at night. Dim
+indoor lighting, the ceiling lights off; the ventilator touchscreen, the monitor and the
+syringe pumps glow teal, blue and green and light the equipment around them, a warm night
+lamp near the bed, deep navy sky through the back windows. Same layout: ventilator and
+monitor in the left foreground, pumps and dialysis machine on the right, bed in the middle
+distance, empty floor in the center foreground. No people, no text.
 ```
 注記: 無ければ昼の絵を暗く加工して使います。
 
@@ -75,11 +92,12 @@ right foreground. No people, no text.
 サイズ: 1536×1024
 
 ```
-{STYLE} Wide, soft-focus illustration of a pediatric ICU room interior seen from the foot of
-a small bed, slightly blurred as if it were a background for a UI panel in front of it.
-Pastel star stickers on the wall, a mobile hanging from the ceiling. Muted, low-contrast
-colors so that bright UI placed on top stays readable. No people, no text, nothing in the
-center.
+{STYLE} Wide-angle, soft-focus illustration of the same pediatric intensive care bay from
+the same camera angle, slightly blurred as if it were a background for a UI panel in front
+of it: ventilator cart and monitor stand on the left, pumps and dialysis machine on the
+right, bed in the middle distance, headwall, curtains and windows behind. Muted,
+low-contrast colors so that bright UI placed on top stays readable. No people, no text,
+nothing in the center foreground.
 ```
 注記: 無ければ 1 をぼかして使います。
 
@@ -122,8 +140,10 @@ surprised with round eyes. Bottom-right: sad, teary eyes, drooping. Even spacing
 with white rounded rail bars behind, eyes closed, chubby rosy cheeks, one small tuft of
 dark hair, a tiny breathing tube at the mouth connected to a soft light-blue hose leading
 off to the left, a small pink blanket with white stars, a small teddy bear at the foot of
-the crib, seen from the side at a slight angle. Whole crib fully visible with margin, on a
-solid flat bright green (#00FF00) background, nothing else.
+the crib, three small ECG electrode stickers with thin colored leads on the chest, a red-glowing
+pulse-oximeter probe wrapped on one foot, a thin IV line taped to one hand, seen from the side
+at a slight angle. Whole crib fully visible with margin, on a solid flat bright green (#00FF00)
+background, nothing else.
 ```
 
 #### 6b. `patient_neonate.png` 必須 — 保育器の新生児
@@ -133,8 +153,9 @@ solid flat bright green (#00FF00) background, nothing else.
 {STYLE} A tiny newborn baby sleeping inside a hospital incubator: a transparent rounded
 acrylic dome on a light-gray cabinet base with two small wheels and a few small colored
 indicator lights, round hand ports on the dome, the baby lying on a white mattress with a
-small pink blanket, a tiny breathing tube at the mouth with a thin light-blue hose leading
-off to the left, seen from the side. Whole incubator fully visible with margin, on a solid
+small pink blanket, three tiny ECG electrode stickers with thin colored leads on the chest, a
+red-glowing pulse-oximeter probe on one foot, an umbilical line, a tiny breathing tube at the
+mouth with a thin light-blue hose leading off to the left through a port, seen from the side. Whole incubator fully visible with margin, on a solid
 flat bright green (#00FF00) background, nothing else.
 ```
 
@@ -145,8 +166,9 @@ flat bright green (#00FF00) background, nothing else.
 {STYLE} A calm Japanese child (about 8 years old) lying in a small hospital bed, eyes
 closed, peaceful expression, short dark hair, a breathing tube from the mouth connected to a
 soft light-blue hose leading off to the left, white pillow, pink blanket with white stars, a
-teddy bear tucked beside the child, bed with a simple white frame, seen from the side at a
-slight angle from the foot of the bed. Whole bed fully visible with margin, on a solid flat
+teddy bear tucked beside the child, ECG electrode leads on the chest, a pulse-oximeter probe
+clipped on one finger, an IV line on the arm, bed with a simple white frame and side rails,
+seen from the side at a slight angle from the foot of the bed. Whole bed fully visible with margin, on a solid flat
 bright green (#00FF00) background, nothing else.
 ```
 注記: 顔色を変える差分（症例の重さと SpO₂ で血色が変わる）は 3 枚ともこちらで加工します。
