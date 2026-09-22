@@ -1,12 +1,13 @@
 /* VentSim — 症例データ。コードを触らずに症例を足せるよう、パラメータだけで病態を表す。
  * すべて小児（新生児〜思春期）。設定の基準は予測体重ではなく実体重（weightKg）。
- * ageMonths から年齢相応の呼吸数・心拍・血圧・圧の上限が決まる（engine.js の ageNorms）。 */
+ * ageMonths から年齢相応の呼吸数・心拍・血圧・圧の上限が決まる（engine.js の ageNorms）。
+ * tone は患者の絵の顔色（ok / mid / bad）。年齢層は ageMonths から自動で決まるので持たない。 */
 (function (root) {
   'use strict';
 
   var SCENARIOS = [
     {
-      id: 'postop',
+      id: 'postop', tone: 'ok',
       title: '小児外科術後の呼吸管理',
       tag: '入門',
       oneLine: '肺はほぼ正常。体重あたりの初期設定と離脱の流れを一通り通す症例。',
@@ -31,7 +32,7 @@
         flow: 18, ti: 0.7, pinsp: 12, ps: 8, rise: 0.12, trigFlow: 1.0, pause: 0 }
     },
     {
-      id: 'rds',
+      id: 'rds', tone: 'mid',
       title: '早産児の呼吸窮迫症候群（RDS）',
       tag: '新生児',
       oneLine: 'サーファクタント投与後の硬い肺。mL 単位の換気量と短い吸気時間を扱う。',
@@ -56,7 +57,7 @@
         vt: 6, flow: 2, ps: 6, rise: 0.06, trigFlow: 0.4, pause: 0 }
     },
     {
-      id: 'bronchiolitis',
+      id: 'bronchiolitis', tone: 'mid',
       title: 'RSV 細気管支炎',
       tag: 'auto-PEEP',
       oneLine: '気道が細く痰が多い。呼吸数を上げると息が吐けなくなる乳児の典型。',
@@ -81,7 +82,7 @@
         flow: 6, ti: 0.5, pinsp: 14, ps: 8, rise: 0.08, trigFlow: 0.6, pause: 0 }
     },
     {
-      id: 'ards',
+      id: 'ards', tone: 'bad',
       title: '小児 ARDS（インフルエンザ肺炎）',
       tag: '酸素化',
       oneLine: '硬い肺と大きなシャント。小児の肺保護換気と PEEP の調整を学ぶ。',
@@ -107,7 +108,7 @@
         flow: 12, ti: 0.55, pinsp: 16, ps: 10, rise: 0.10, trigFlow: 0.8, pause: 0 }
     },
     {
-      id: 'asthma',
+      id: 'asthma', tone: 'bad',
       title: '喘息重積発作',
       tag: '上級',
       oneLine: '極端に高い気道抵抗。息を吐かせることを最優先にする学童の症例。',
@@ -133,7 +134,7 @@
         flow: 30, ti: 0.8, pinsp: 18, ps: 10, rise: 0.15, trigFlow: 1.5, pause: 0 }
     },
     {
-      id: 'gbs',
+      id: 'gbs', tone: 'ok',
       title: 'ギラン・バレー症候群',
       tag: '離脱',
       oneLine: '肺は正常だが呼吸筋が弱い。離脱の可否を筋力で判断する。',
