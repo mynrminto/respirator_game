@@ -8,7 +8,7 @@
   - 緑背景（#00FF00 付近）を透明に切り抜く
   - 2×2 のシート（doctor_sheet / mascot_sheet / icons_sheet）を 4 枚に分ける
   - ボタン・枠・リボンは余白を落として 9 スライスの内側幅を測る
-  - 患者の顔色差分（ok / mid / bad）を作る
+  - 患者（新生児・乳児・学童）の顔色差分（ok / mid / bad）を作る
   - assets/manifest.json に一覧を書く
 を行う。無いファイルは飛ばすので、そろった分だけ何度でも実行できる。
 """
@@ -25,8 +25,8 @@ SHEETS = {
     'icons_sheet': ['icon_go', 'icon_course', 'icon_cases', 'icon_about'],
 }
 # 単体で来てもよいもの（シートの代わり）
-SINGLES = ['doctor_normal', 'doctor_happy', 'doctor_think', 'doctor_alert',
-           'patient_bed', 'ui_button', 'ui_button_primary', 'ui_panel', 'ui_ribbon',
+PATIENTS = ['patient_neonate', 'patient_infant', 'patient_child', 'patient_bed']
+SINGLES = ['doctor_normal', 'doctor_happy', 'doctor_think', 'doctor_alert'] + PATIENTS + ['ui_button', 'ui_button_primary', 'ui_panel', 'ui_ribbon',
            'logo', 'hud_patient_frame', 'fx_confetti']
 BACKGROUNDS = ['bg_title_day', 'bg_title_night', 'bg_play']
 NINE = ['ui_button', 'ui_button_primary', 'ui_panel', 'ui_ribbon', 'hud_patient_frame']
@@ -181,9 +181,9 @@ def main():
         img = shrink(autocrop(cutout(load(p))))
         extra = nine_insets(img) if name in NINE else None
         put(name, img, extra)
-        if name == 'patient_bed':
-            put('patient_bed_mid', tone_variant(img, 'mid'))
-            put('patient_bed_bad', tone_variant(img, 'bad'))
+        if name in PATIENTS:
+            put(name + '_mid', tone_variant(img, 'mid'))
+            put(name + '_bad', tone_variant(img, 'bad'))
 
     with open(manifest_path, 'w') as f:
         json.dump(manifest, f, indent=1, ensure_ascii=False, sort_keys=True)

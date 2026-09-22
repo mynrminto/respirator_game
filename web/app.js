@@ -250,6 +250,28 @@
     return e.spo2 < e.nm.spo2[0] ? 'bad' : (e.spo2 < e.nm.spo2[0] + 3 ? 'mid' : 'ok');
   }
 
+  /* 症例の重さ（顔色の下限）。症例に tone があればそれ、無ければ id の表。 */
+  function patientBaseTone(sc) {
+    return sc.tone || PATIENT_TONE[sc.id] || 'ok';
+  }
+
+  /* 年齢層。症例に patient.kind があればそれ、無ければ年齢から決める。
+   *   生後 1 か月未満 → neonate、2 歳未満 → infant、それ以上 → child */
+  function patientKind(sc) {
+    var pt = sc.patient || {};
+    if (pt.kind) return pt.kind;
+    var m = pt.ageMonths != null ? pt.ageMonths
+          : (pt.ageDays != null ? pt.ageDays / 30
+          : (pt.age != null ? pt.age * 12 : 24));
+    return m < 1 ? 'neonate' : (m < 24 ? 'infant' : 'child');
+  }
+
+  /* 患者の絵。生成画像があればそれ（patient_<kind>[_mid|_bad]、無ければ patient_bed）、無ければコード描画。 */
+  function patientArt(sc, tone, dark) {
+    var kind = patientKind(sc), suf = tone === 'ok' ? '' : '_' + tone;
+    return AS.url('patient_' + kind + suf) || AS.url('patient_bed' + suf) || AR.patient(tone, dark, kind);
+  }
+
   function paintRails(force) {
     if (!$('railL') || !S.eng) return;
     var dark = currentTheme() === 'device';
@@ -257,12 +279,11 @@
 
     /* 患者。症例そのものの重さより良い顔色にはしない。 */
     var rank = { ok: 0, mid: 1, bad: 2 };
-    var tone = patientTone(S.eng), base = PATIENT_TONE[S.scen.id] || 'ok';
+    var tone = patientTone(S.eng), base = patientBaseTone(S.scen);
     if (rank[base] > rank[tone]) tone = base;
-    if (force || tone !== RAIL.tone) {
+    if (force || tone !== RAIL.tone || S.scen.id !== RAIL.caseId) {
       RAIL.tone = tone;
-      var pu = AS.url('patient_bed' + (tone === 'ok' ? '' : '_' + tone)) || AR.patient(tone, dark);
-      $('portPatient').innerHTML = '<img alt="" src="' + pu + '">';
+      $('portPatient').innerHTML = '<img alt="" src="' + patientArt(S.scen, tone, dark) + '">';
     }
     if (force || S.scen.id !== RAIL.caseId) { RAIL.caseId = S.scen.id; $('railCase').textContent = S.scen.title; }
 
@@ -345,7 +366,7 @@
     items.push({ id: 'about', glyph: '?', title: 'この教材について', sub: '免責事項とモデルの説明' });
     return {
       done: d, total: n, items: items, next: next,
-      line: d === 0 ? 'はじめまして。わたしは みどり先生。\nいっしょに呼吸器を動かしてみましょう。'
+      line: d === 0 ? 'はじめまして。小児科の みどり先生です。\nいっしょに こどもたちの呼吸を守りましょう。'
           : (d >= n ? '全レッスン修了、おみごとです。\n症例で腕を試してみましょう。'
                     : 'おかえりなさい。ここまで ' + d + ' / ' + n + ' レッスン。\nつづきからどうぞ。')
     };
@@ -1107,8 +1128,7 @@
         var c = el('button', 'case');
         var head = el('div', 'casehead');
         var face = el('div', 'face');
-        face.style.backgroundImage = 'url("' + AR.patient(PATIENT_TONE[sc.id] || 'ok',
-          currentTheme() === 'device') + '")';
+        face.style.backgroundImage = 'url("' + patientArt(sc, patientBaseTone(sc), currentTheme() === 'device') + '")';
         var ct = el('div', 'ct');
         ct.appendChild(el('i', '', sc.tag));
         ct.appendChild(el('b', '', sc.title));

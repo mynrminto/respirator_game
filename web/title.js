@@ -115,7 +115,7 @@
         pick('mascot_happy', 360, 360, A.mascot(dark, false)),
         hasAsset('mascot_happy') ? pick(hasAsset('mascot_excited') ? 'mascot_excited' : 'mascot_happy')
                                  : texture(A.mascot(dark, true), 360, 360),
-        pick('patient_bed', 520, 360, A.patient('ok', dark)),
+        pick(hasAsset('patient_infant') ? 'patient_infant' : 'patient_bed', 520, 360, A.patient('ok', dark, 'infant')),
         pick('ui_ribbon', 720, 200, A.ribbon(dark)),
         texture(A.bubble(dark), 200, 140),
         pick('ui_button_primary', 160, 120, A.plate('go', dark)),
@@ -206,6 +206,9 @@
     /* 背景 */
     layers.room = sprite(t.room);
     layers.bg.addChild(layers.room);
+    /* メニュー列の下敷き。背景が機材で込み入っているので、文字の後ろだけ少し落ち着かせる。 */
+    layers.shade = new P.Graphics();
+    layers.bg.addChild(layers.shade);
 
     /* 登場人物 */
     layers.patient = sprite(t.patient);
@@ -237,7 +240,7 @@
     layers.logoArt = t.logo ? sprite(t.logo) : null;
     if (layers.logoArt) { layers.logoArt.anchor.set(0.5); layers.logo.visible = false; layers.ribbon.visible = false; }
     if (layers.logoArt) layers.ui.addChild(layers.logoArt);
-    layers.sub = text('人工呼吸器シミュレーター', 15, opts.dark ? 0xCFE0FF : 0x5A4A70, '800');
+    layers.sub = text('こどもの人工呼吸器シミュレーター', 15, opts.dark ? 0xCFE0FF : 0x5A4A70, '800');
     layers.sub.anchor.set(0.5);
     layers.ui.addChild(layers.ribbon, layers.logo, layers.sub);
 
@@ -443,8 +446,15 @@
       .fill({ color: opts.dark ? 0x111A31 : 0xFFFFFF })
       .stroke({ color: 0x2E2545, width: 5, join: 'round' });
 
+    /* メニュー列の下敷き（ロゴの上から足もとまで） */
+    layers.shade.clear();
+    layers.shade.roundRect(colCx - col / 2 - 26, (layers.logoArt ? layers.logoArt.y : layers.ribbon.y) - logoH / 2 - 22,
+        col + 52, footY - ((layers.logoArt ? layers.logoArt.y : layers.ribbon.y) - logoH / 2) + 62, 34)
+      .fill({ color: opts.dark ? 0x0B1020 : 0xFFF8EE, alpha: opts.dark ? 0.62 : 0.72 });
+
     /* 足もと：進捗とテーマ */
     var chipW = 74, chipH = 26;
+
     var barW = col - chipW - 64;
     fitNine(layers.barTrack, barW, 22);
     layers.barTrack.x = colCx - col / 2; layers.barTrack.y = footY - 11;
