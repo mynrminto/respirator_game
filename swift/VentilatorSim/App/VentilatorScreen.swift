@@ -165,6 +165,7 @@ struct VentilatorScreen: View {
                 case .loops: LoopView(current: controller.currentLoop,
                                       previous: controller.previousLoop)
                 case .trend: TrendView(samples: controller.trend)
+                case .lung3D: LungSceneView(controller: controller)
                 }
                 if controller.waveformsFrozen && controller.screen == .waveforms {
                     Text("波形停止中")

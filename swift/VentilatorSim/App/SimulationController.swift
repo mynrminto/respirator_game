@@ -151,13 +151,14 @@ final class SimulationController {
     // MARK: - 機器としての状態
 
     enum Screen: String, CaseIterable, Identifiable {
-        case waveforms, loops, trend
+        case waveforms, loops, trend, lung3D
         var id: String { rawValue }
         var label: String {
             switch self {
             case .waveforms: return "波形"
             case .loops: return "ループ"
             case .trend: return "トレンド"
+            case .lung3D: return "肺 3D"
             }
         }
     }
