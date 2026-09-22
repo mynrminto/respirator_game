@@ -588,6 +588,11 @@
   html.assets:not([data-theme="device"]) .mbtn.go{
     border-image:var(--img-btn-go) var(--nine-btn-go) fill / 22px stretch}
   html.assets:not([data-theme="device"]) .lesson{border-left-width:22px}
+  /* 学習帯の結果ボタン。白い板に白文字にならないよう、進むボタンは橙の板、他は濃い文字にする */
+  html.assets:not([data-theme="device"]) .cchoices .cbtn{color:var(--ink);font-weight:800}
+  html.assets:not([data-theme="device"]) .cchoices .cbtn.go{
+    border-image:var(--img-btn-go) var(--nine-btn-go) fill / 22px stretch;color:#fff;
+    text-shadow:0 2px 0 rgba(46,37,69,.45)}
   html.assets:not([data-theme="device"]) .mbox{
     border:36px solid transparent;border-width:var(--panelw,36px);
     border-image:var(--img-panel) var(--nine-panel) fill / var(--panelw,36px) stretch;
