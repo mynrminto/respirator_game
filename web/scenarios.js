@@ -1,123 +1,173 @@
-/* VentSim — 症例データ。コードを触らずに症例を足せるよう、パラメータだけで病態を表す。 */
+/* VentSim — 症例データ。コードを触らずに症例を足せるよう、パラメータだけで病態を表す。
+ * すべて小児（新生児〜思春期）。設定の基準は予測体重ではなく実体重（weightKg）。
+ * ageMonths から年齢相応の呼吸数・心拍・血圧・圧の上限が決まる（engine.js の ageNorms）。 */
 (function (root) {
   'use strict';
 
   var SCENARIOS = [
     {
       id: 'postop',
-      title: '開腹術後の呼吸不全',
+      title: '小児外科術後の呼吸管理',
       tag: '入門',
-      oneLine: '肺はほぼ正常。初期設定と離脱の流れを一通り通す症例。',
-      history: '68歳男性、身長 170 cm。S状結腸切除後。手術室から挿管のまま ICU 入室。'
-        + '麻酔から覚めきっておらず、自発呼吸はほとんどない。胸部X線は無気肺が軽度あるのみ。',
-      findings: ['体温 36.8℃', '心拍 88 /分', '血圧 118/64 mmHg', '胸部聴診：左右差なし'],
-      teaching: ['予測体重から一回換気量を決める', 'FiO2 を早く下げる', 'SBT から抜管までの流れ'],
+      oneLine: '肺はほぼ正常。体重あたりの初期設定と離脱の流れを一通り通す症例。',
+      history: '8歳 男児、体重 25 kg、身長 126 cm。穿孔性虫垂炎による腹膜炎で緊急開腹術。'
+        + '手術室から挿管のまま PICU に入室した。麻酔から覚めきっておらず、自発呼吸はほとんどない。'
+        + '胸部X線は両下肺にわずかな無気肺があるのみ。',
+      findings: ['体温 37.2℃', '心拍 100 /分', '血圧 96/58 mmHg（平均 68）', '胸部聴診：左右差なし',
+        '気管チューブ：カフ付き 5.5 mm、口角 17 cm'],
+      teaching: ['体重あたり（mL/kg）で一回換気量を決める', '小児の正常呼吸数に合わせる',
+        'FiO2 を早く下げる', 'SBT から抜管までの流れ'],
       patient: {
-        name: '68歳 男性', sex: 'M', heightCm: 170, age: 68,
-        compliance: 0.050, Rinsp: 7, Rexp: 9,
-        shunt0: 0.10, shuntMin: 0.05, recruitP: 8, recruitK: 2.5, vdAlvFrac: 0.03,
-        vco2: 200, hb: 11.5, hco3: 24, hco3Base: 24, paco2: 42, pao2: 90,
-        co: 5.0, hr: 88, map: 80, temp: 36.8,
-        sedation: 0.85, driveGain: 1.0, maxPmus: 24, co2Setpoint: 40,
+        name: '8歳 男児', sex: 'M', heightCm: 126, age: 8, ageMonths: 96, weightKg: 25,
+        ageLabel: '8歳', vdCircuit: 12,
+        compliance: 0.0200, Rinsp: 14, Rexp: 17,
+        shunt0: 0.12, shuntMin: 0.06, recruitP: 8, recruitK: 2.5, vdAlvFrac: 0.04,
+        vco2: 105, hb: 11.0, hco3: 24, hco3Base: 24, paco2: 42, pao2: 92,
+        co: 3.3, hr: 100, map: 68, temp: 37.2,
+        sedation: 0.85, driveGain: 1.0, maxPmus: 22, co2Setpoint: 40,
         goals: { ph: [7.32, 7.46], paco2: [33, 48], pao2: [70, 120] }
       },
-      suggested: { mode: 'VC-AC', vt: 430, rr: 14, peep: 5, fio2: 0.4 }
+      suggested: { mode: 'VC-AC', vt: 180, rr: 20, peep: 5, fio2: 0.4,
+        flow: 18, ti: 0.7, pinsp: 12, ps: 8, rise: 0.12, trigFlow: 1.0, pause: 0 }
+    },
+    {
+      id: 'rds',
+      title: '早産児の呼吸窮迫症候群（RDS）',
+      tag: '新生児',
+      oneLine: 'サーファクタント投与後の硬い肺。mL 単位の換気量と短い吸気時間を扱う。',
+      history: '在胎 28週2日、日齢 1、体重 1,100 g。出生直後から呻吟と陥没呼吸。'
+        + '気管挿管しサーファクタントを 1 回投与した。胸部X線はすりガラス様陰影と air bronchogram。'
+        + '動脈管は開存しているが治療は要していない。',
+      findings: ['体温 36.9℃（保育器内）', '心拍 150 /分', '平均血圧 32 mmHg', 'Hb 16.0 g/dL',
+        '気管チューブ：カフなし 2.5 mm、口角 7 cm'],
+      teaching: ['一回換気量は 4〜6 mL/kg（＝ 4〜7 mL）', '吸気時間 0.3 秒前後と速い呼吸数',
+        'SpO2 目標は 90〜95%（上げすぎない）', '許容できる高 CO2 血症'],
+      patient: {
+        name: '在胎28週 日齢1', sex: 'M', heightCm: 37, age: 0, ageMonths: 0, weightKg: 1.1,
+        ageLabel: '在胎28週 日齢1', vdCircuit: 1.0,
+        compliance: 0.00055, Rinsp: 70, Rexp: 95,
+        shunt0: 0.50, shuntMin: 0.18, recruitP: 9, recruitK: 2.0, vdAlvFrac: 0.06,
+        vco2: 6.0, hb: 16.0, hco3: 20, hco3Base: 20, paco2: 52, pao2: 55,
+        co: 0.22, hr: 150, map: 32, temp: 36.9,
+        sedation: 0.80, driveGain: 1.0, maxPmus: 10, co2Setpoint: 45,
+        goals: { ph: [7.22, 7.42], paco2: [45, 60], pao2: [45, 75] }
+      },
+      suggested: { mode: 'PC-AC', pinsp: 10, peep: 6, rr: 55, fio2: 0.35, ti: 0.30,
+        vt: 6, flow: 2, ps: 6, rise: 0.06, trigFlow: 0.4, pause: 0 }
+    },
+    {
+      id: 'bronchiolitis',
+      title: 'RSV 細気管支炎',
+      tag: 'auto-PEEP',
+      oneLine: '気道が細く痰が多い。呼吸数を上げると息が吐けなくなる乳児の典型。',
+      history: '生後 4か月、体重 6.0 kg。3日前から鼻汁と咳、前日から哺乳不良。'
+        + '高流量鼻カニュラでも陥没呼吸と無呼吸発作があり気管挿管。RSV 抗原陽性。'
+        + '胸部X線は過膨張と右中葉の無気肺。',
+      findings: ['体温 38.2℃', '心拍 165 /分', '平均血圧 48 mmHg', '呼気延長と wheeze、痰が多い',
+        '気管チューブ：カフなし 3.5 mm、口角 10 cm'],
+      teaching: ['時定数と呼気時間（乳児でも同じ考え方）', '呼気ポーズで総 PEEP を測る',
+        '頻呼吸が auto-PEEP を作る', '痰づまりで気道内圧が上がる'],
+      patient: {
+        name: '生後4か月', sex: 'F', heightCm: 62, age: 0, ageMonths: 4, weightKg: 6.0,
+        ageLabel: '生後4か月', vdCircuit: 5,
+        compliance: 0.0039, Rinsp: 80, Rexp: 170,
+        shunt0: 0.34, shuntMin: 0.16, recruitP: 9, recruitK: 2.5, vdAlvFrac: 0.14,
+        vco2: 36, hb: 10.5, hco3: 26, hco3Base: 24, paco2: 62, pao2: 62,
+        co: 1.1, hr: 158, map: 48, temp: 38.2,
+        sedation: 0.85, driveGain: 1.5, maxPmus: 14, co2Setpoint: 42,
+        goals: { ph: [7.20, 7.42], paco2: [45, 75], pao2: [50, 90] }
+      },
+      suggested: { mode: 'VC-AC', vt: 45, rr: 25, peep: 6, fio2: 0.5,
+        flow: 6, ti: 0.5, pinsp: 14, ps: 8, rise: 0.08, trigFlow: 0.6, pause: 0 }
     },
     {
       id: 'ards',
-      title: '重症肺炎による ARDS',
+      title: '小児 ARDS（インフルエンザ肺炎）',
       tag: '酸素化',
-      oneLine: '硬い肺と大きなシャント。肺保護換気と PEEP の調整を学ぶ。',
-      history: '54歳女性、身長 158 cm。市中肺炎で 3 日前から発熱。'
-        + 'リザーバーマスク 15 L/分でも SpO2 88%、呼吸数 34 /分で挿管。胸部X線は両側びまん性浸潤影。',
-      findings: ['体温 38.6℃', '心拍 112 /分', '血圧 104/58 mmHg', 'P/F 比は挿管前 80 台'],
-      teaching: ['6 mL/kg 予測体重の一回換気量', 'プラトー圧 30 以下・ドライビング圧 15 以下',
-        'PEEP を上げると酸素化は改善するが血圧は下がる', 'permissive hypercapnia'],
+      oneLine: '硬い肺と大きなシャント。小児の肺保護換気と PEEP の調整を学ぶ。',
+      history: '3歳 女児、体重 14 kg、身長 95 cm。インフルエンザ A 型のあと発熱が続き、'
+        + 'リザーバーマスク 10 L/分でも SpO2 86%、呼吸数 52 /分で気管挿管。'
+        + '胸部X線は両側びまん性浸潤影。心エコーで心機能は保たれている。',
+      findings: ['体温 38.8℃', '心拍 150 /分', '血圧 84/44 mmHg（平均 55）', '挿管前の P/F 比は 80 台',
+        '気管チューブ：カフ付き 4.5 mm、口角 13 cm'],
+      teaching: ['小児 ARDS でも 5〜6 mL/kg の一回換気量', 'プラトー圧 28 以下・ドライビング圧 14 以下',
+        'PEEP を上げると酸素化は改善するが血圧は下がる', '小児での permissive hypercapnia'],
       patient: {
-        name: '54歳 女性', sex: 'F', heightCm: 158, age: 54,
-        compliance: 0.028, Rinsp: 9, Rexp: 11,
-        shunt0: 0.36, shuntMin: 0.10, recruitP: 12, recruitK: 3.0, vdAlvFrac: 0.14,
-        vco2: 200, hb: 10.5, hco3: 22, hco3Base: 22, paco2: 55, pao2: 58,
-        co: 5.6, hr: 112, map: 74, temp: 38.6,
-        sedation: 0.9, driveGain: 1.7, maxPmus: 30, co2Setpoint: 40,
-        goals: { ph: [7.25, 7.45], pao2: [55, 95] }
+        name: '3歳 女児', sex: 'F', heightCm: 95, age: 3, ageMonths: 36, weightKg: 14,
+        ageLabel: '3歳', vdCircuit: 6,
+        compliance: 0.0062, Rinsp: 28, Rexp: 34,
+        norms: { dpMax: 14 },        // 小児 ARDS ではドライビング圧を 14 以下に抑える
+        shunt0: 0.38, shuntMin: 0.12, recruitP: 12, recruitK: 3.0, vdAlvFrac: 0.10,
+        vco2: 60, hb: 10.0, hco3: 22, hco3Base: 22, paco2: 58, pao2: 55,
+        co: 2.1, hr: 150, map: 63, temp: 38.8,
+        sedation: 0.92, driveGain: 1.7, maxPmus: 20, co2Setpoint: 40,
+        goals: { ph: [7.20, 7.45], paco2: [40, 70], pao2: [55, 95] }
       },
-      suggested: { mode: 'VC-AC', vt: 300, rr: 24, peep: 12, fio2: 0.8 }
-    },
-    {
-      id: 'copd',
-      title: 'COPD 急性増悪',
-      tag: 'auto-PEEP',
-      oneLine: '気道抵抗が高く呼気に時間がかかる。呼吸数を上げると息が吐けなくなる。',
-      history: '72歳男性、身長 165 cm。COPD で在宅酸素療法中。感冒を契機に増悪し、'
-        + 'NPPV でも改善せず挿管。普段から PaCO2 は 55〜60 mmHg で経過している。',
-      findings: ['体温 37.2℃', '心拍 104 /分', '血圧 132/70 mmHg', '呼気延長と wheeze'],
-      teaching: ['時定数と呼気時間', '呼気ポーズで総 PEEP を測る',
-        '慢性の高 CO2 を正常化しない', '頻呼吸が auto-PEEP を作る'],
-      patient: {
-        name: '72歳 男性', sex: 'M', heightCm: 165, age: 72,
-        compliance: 0.072, Rinsp: 18, Rexp: 28,
-        shunt0: 0.16, shuntMin: 0.10, recruitP: 8, recruitK: 2.5, vdAlvFrac: 0.18,
-        vco2: 210, hb: 15.8, hco3: 34, hco3Base: 24, paco2: 68, pao2: 62,
-        co: 5.2, hr: 104, map: 88, temp: 37.2,
-        sedation: 0.85, driveGain: 1.1, maxPmus: 20, co2Setpoint: 55,
-        goals: { ph: [7.30, 7.46], pao2: [55, 85] }
-      },
-      suggested: { mode: 'VC-AC', vt: 450, rr: 12, peep: 5, fio2: 0.4 }
+      suggested: { mode: 'VC-AC', vt: 85, rr: 30, peep: 10, fio2: 0.8,
+        flow: 12, ti: 0.55, pinsp: 16, ps: 10, rise: 0.10, trigFlow: 0.8, pause: 0 }
     },
     {
       id: 'asthma',
-      title: '重症喘息発作',
+      title: '喘息重積発作',
       tag: '上級',
-      oneLine: '極端に高い気道抵抗。息を吐かせることを最優先にする。',
-      history: '29歳女性、身長 160 cm。喘息発作で救急搬入。会話不能、'
-        + 'SpO2 89%、意識が落ちてきたため気管挿管。silent chest。',
-      findings: ['体温 36.9℃', '心拍 128 /分', '血圧 96/54 mmHg', '呼気がほとんど聞こえない'],
+      oneLine: '極端に高い気道抵抗。息を吐かせることを最優先にする学童の症例。',
+      history: '11歳 男児、体重 35 kg、身長 142 cm。喘息で吸入ステロイドを自己中断していた。'
+        + '発作で救急搬入、会話不能。吸入と全身ステロイドでも改善せず、'
+        + '意識が落ちてきたため気管挿管。silent chest。',
+      findings: ['体温 36.8℃', '心拍 150 /分（吸入β2刺激薬の影響もある）',
+        '血圧 92/50 mmHg（平均 62）', '呼気がほとんど聞こえない',
+        '気管チューブ：カフ付き 6.5 mm、口角 20 cm'],
       teaching: ['低い呼吸数と長い呼気時間', 'auto-PEEP による血圧低下',
-        '最高気道内圧よりプラトー圧を見る'],
+        '最高気道内圧よりプラトー圧を見る', '小児でも pH 7.20 までは許容する'],
       patient: {
-        name: '29歳 女性', sex: 'F', heightCm: 160, age: 29,
-        compliance: 0.055, Rinsp: 26, Rexp: 46,
-        shunt0: 0.14, shuntMin: 0.08, recruitP: 8, recruitK: 2.5, vdAlvFrac: 0.18,
-        vco2: 235, hb: 13.2, hco3: 21, hco3Base: 21, paco2: 70, pao2: 66,
-        co: 4.6, hr: 128, map: 68, temp: 36.9, volumeDepleted: true,
+        name: '11歳 男児', sex: 'M', heightCm: 142, age: 11, ageMonths: 132, weightKg: 35,
+        ageLabel: '11歳', vdCircuit: 12,
+        compliance: 0.0245, Rinsp: 50, Rexp: 85,
+        shunt0: 0.16, shuntMin: 0.10, recruitP: 8, recruitK: 2.5, vdAlvFrac: 0.14,
+        vco2: 140, hb: 13.5, hco3: 24, hco3Base: 22, paco2: 72, pao2: 66,
+        co: 4.2, hr: 150, map: 78, temp: 36.8, volumeDepleted: true,
         sedation: 0.95, driveGain: 1.5, maxPmus: 26, co2Setpoint: 40,
-        goals: { ph: [7.20, 7.45], pao2: [60, 110] }
+        goals: { ph: [7.20, 7.45], paco2: [40, 80], pao2: [60, 110] }
       },
-      suggested: { mode: 'VC-AC', vt: 400, rr: 12, peep: 5, fio2: 0.6 }
+      suggested: { mode: 'VC-AC', vt: 250, rr: 12, peep: 5, fio2: 0.6,
+        flow: 30, ti: 0.8, pinsp: 18, ps: 10, rise: 0.15, trigFlow: 1.5, pause: 0 }
     },
     {
       id: 'gbs',
       title: 'ギラン・バレー症候群',
       tag: '離脱',
       oneLine: '肺は正常だが呼吸筋が弱い。離脱の可否を筋力で判断する。',
-      history: '45歳男性、身長 172 cm。下肢から上行する筋力低下。'
-        + '肺活量が低下し CO2 が溜まってきたため挿管。肺そのものに病変はない。',
-      findings: ['体温 36.6℃', '心拍 82 /分', '血圧 126/72 mmHg', '四肢筋力 MMT 2'],
-      teaching: ['肺が正常でも離脱できないことがある', 'SBT 中の rapid shallow breathing',
-        'RSBI の読み方'],
+      history: '7歳 女児、体重 22 kg、身長 120 cm。感冒の 2週間後から歩けなくなり、'
+        + '下肢から上行する筋力低下。肺活量が低下し CO2 が溜まってきたため気管挿管。'
+        + '肺そのものに病変はなく、胸部X線は正常。免疫グロブリン大量療法を開始している。',
+      findings: ['体温 36.7℃', '心拍 95 /分', '血圧 100/58 mmHg（平均 68）', '四肢筋力 MMT 2',
+        '気管チューブ：カフ付き 5.5 mm、口角 16 cm'],
+      teaching: ['肺が正常でも離脱できないことがある', 'SBT 中の浅くて速い呼吸',
+        '小児では f/VT を体重あたりで見る'],
       patient: {
-        name: '45歳 男性', sex: 'M', heightCm: 172, age: 45,
-        compliance: 0.052, Rinsp: 7, Rexp: 9,
+        name: '7歳 女児', sex: 'F', heightCm: 120, age: 7, ageMonths: 84, weightKg: 22,
+        ageLabel: '7歳', vdCircuit: 10,
+        compliance: 0.0210, Rinsp: 13, Rexp: 16,
         shunt0: 0.10, shuntMin: 0.05, recruitP: 8, recruitK: 2.5, vdAlvFrac: 0.05,
-        vco2: 200, hb: 13.0, hco3: 26, hco3Base: 24, paco2: 52, pao2: 78,
-        co: 5.0, hr: 82, map: 86, temp: 36.6,
-        sedation: 0.25, driveGain: 1.2, maxPmus: 9, co2Setpoint: 40,
+        vco2: 95, hb: 12.0, hco3: 26, hco3Base: 24, paco2: 50, pao2: 82,
+        co: 2.9, hr: 95, map: 68, temp: 36.7,
+        sedation: 0.20, driveGain: 1.2, maxPmus: 8, co2Setpoint: 40,
         goals: { ph: [7.32, 7.46], paco2: [33, 48], pao2: [70, 120] }
       },
-      suggested: { mode: 'VC-AC', vt: 450, rr: 14, peep: 5, fio2: 0.4 }
+      suggested: { mode: 'VC-AC', vt: 160, rr: 16, peep: 5, fio2: 0.4,
+        flow: 16, ti: 0.7, pinsp: 12, ps: 8, rise: 0.12, trigFlow: 1.0, pause: 0 }
     }
   ];
 
-  /* 離脱の前提条件 */
+  /* 離脱の前提条件。小児では平均血圧の下限が年齢で変わるので、症例の基準値から取る。 */
   function weaningReadiness(eng) {
-    var s = eng.s, m = eng.m;
+    var s = eng.s, m = eng.m, nm = eng.nm;
     return [
       { label: 'FiO2 0.4 以下', ok: s.fio2 <= 0.41, val: Math.round(s.fio2 * 100) + '%' },
-      { label: 'PEEP 8 以下', ok: s.peep <= 8, val: s.peep + ' cmH2O' },
-      { label: 'PaO2/FiO2 150 以上', ok: (eng.pao2 / s.fio2) >= 150, val: Math.round(eng.pao2 / s.fio2) },
+      { label: 'PEEP 7 以下', ok: s.peep <= 7, val: s.peep + ' cmH2O' },
+      { label: 'PaO2/FiO2 200 以上', ok: (eng.pao2 / s.fio2) >= 200, val: Math.round(eng.pao2 / s.fio2) },
       { label: 'pH 7.30 以上', ok: eng.ph >= 7.30, val: eng.ph.toFixed(2) },
-      { label: '循環が安定（MAP 65 以上）', ok: eng.map >= 65, val: Math.round(eng.map) + ' mmHg' },
+      { label: '循環が安定（平均血圧 ' + nm.mapMin + ' 以上）', ok: eng.map >= nm.mapMin, val: Math.round(eng.map) + ' mmHg' },
       { label: '覚醒している（鎮静 浅い）', ok: eng.sedation <= 0.4, val: eng.sedation <= 0.4 ? '覚醒' : '鎮静下' },
       { label: '自発呼吸がある', ok: m.rrSpont >= 4 || eng.pmusAmp > 2, val: m.rrSpont >= 4 ? 'あり' : '乏しい' }
     ];

@@ -34,9 +34,57 @@
     return (lo + hi) / 2;
   }
 
-  function predictedBodyWeight(sex, heightCm) {
-    var base = sex === 'F' ? 45.5 : 50;
+  /* 小児では身長からの予測体重を使わない。実体重（早産児なら出生体重ではなく現体重）が
+   * すべての設定の基準になる。weightKg があればそれを、無ければ成人式に落ちる。 */
+  function predictedBodyWeight(p, heightCm) {
+    if (p && typeof p === 'object') {
+      if (p.weightKg) return p.weightKg;
+      return predictedBodyWeight(p.sex, p.heightCm);
+    }
+    var base = p === 'F' ? 45.5 : 50;
     return Math.max(25, base + 0.91 * (heightCm - 152.4));
+  }
+
+  /* ---------- 年齢別の基準値 ----------
+   * 症例ごとに毎回書かなくて済むよう、月齢と体重から既定値を作る。
+   * 症例側の patient.norms に同じキーを書けば上書きされる。
+   * rr/hr は正常域、mapMin は許容できる平均血圧の下限（新生児は在胎週数がおおよその目安）。 */
+  function ageNorms(ageMonths) {
+    var a = ageMonths;
+    if (a < 1)   return { label: '新生児',   rr: [40, 60], hr: [120, 160], mapMin: 30, spo2: [90, 95],
+                          platMax: 24, dpMax: 12, vtPerKg: [4, 6],  vdCircuit: 1.0, apnea: 10,
+                          rrMax: 80, tiMin: 0.20, trigLock: 0.10,
+                          abg: { ph: [7.25, 7.40], paco2: [40, 55], pao2: [45, 75], hco3: [18, 24] } };
+    if (a < 12)  return { label: '乳児',     rr: [30, 50], hr: [110, 160], mapMin: 45, spo2: [92, 97],
+                          platMax: 26, dpMax: 13, vtPerKg: [5, 7],  vdCircuit: 5,   apnea: 15,
+                          rrMax: 70, tiMin: 0.30, trigLock: 0.12,
+                          abg: { ph: [7.33, 7.45], paco2: [33, 45], pao2: [70, 100], hco3: [19, 24] } };
+    if (a < 36)  return { label: '幼児',     rr: [24, 40], hr: [100, 140], mapMin: 50, spo2: [92, 97],
+                          platMax: 28, dpMax: 14, vtPerKg: [5, 7],  vdCircuit: 8,   apnea: 15,
+                          rrMax: 60, tiMin: 0.35, trigLock: 0.15,
+                          abg: { ph: [7.34, 7.45], paco2: [33, 45], pao2: [80, 100], hco3: [20, 25] } };
+    if (a < 72)  return { label: '未就学児', rr: [20, 30], hr: [90, 130],  mapMin: 55, spo2: [92, 97],
+                          platMax: 28, dpMax: 15, vtPerKg: [6, 8],  vdCircuit: 10,  apnea: 18,
+                          rrMax: 55, tiMin: 0.40, trigLock: 0.18,
+                          abg: { ph: [7.35, 7.45], paco2: [34, 45], pao2: [80, 100], hco3: [21, 26] } };
+    if (a < 144) return { label: '学童',     rr: [18, 26], hr: [75, 115],  mapMin: 60, spo2: [94, 98],
+                          platMax: 30, dpMax: 15, vtPerKg: [6, 8],  vdCircuit: 12,  apnea: 20,
+                          rrMax: 45, tiMin: 0.45, trigLock: 0.20,
+                          abg: { ph: [7.35, 7.45], paco2: [35, 45], pao2: [80, 100], hco3: [22, 26] } };
+    return           { label: '思春期',      rr: [14, 22], hr: [60, 100],  mapMin: 65, spo2: [94, 98],
+                          platMax: 30, dpMax: 15, vtPerKg: [6, 8],  vdCircuit: 15,  apnea: 20,
+                          rrMax: 40, tiMin: 0.50, trigLock: 0.25,
+                          abg: { ph: [7.35, 7.45], paco2: [35, 45], pao2: [80, 100], hco3: [22, 26] } };
+  }
+
+  /* 症例の patient から、エンジンと画面が使う基準値一式を作る。 */
+  function normsFor(p) {
+    var n = ageNorms(p.ageMonths != null ? p.ageMonths : 12 * (p.age || 12));
+    var o = {};
+    for (var k in n) if (Object.prototype.hasOwnProperty.call(n, k)) o[k] = n[k];
+    var ov = p.norms || {};
+    for (var k2 in ov) if (Object.prototype.hasOwnProperty.call(ov, k2)) o[k2] = ov[k2];
+    return o;
   }
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
@@ -47,6 +95,40 @@
   }
 
   /* ---------- 既定の人工呼吸器設定 ---------- */
+  /* つまみの可動域。小児は体重で 2 桁変わるので、症例ごとに作る。 */
+  function limitsFor(pbw, nm) {
+    var fine = pbw < 6, small = pbw < 20;
+    var vtStep = fine ? 0.5 : (small ? 5 : 10);
+    var vtMax = Math.max(vtStep * 4, Math.ceil(pbw * 15 / vtStep) * vtStep);
+    var vtMin = Math.max(vtStep, Math.floor(pbw * 2 / vtStep) * vtStep);
+    var flowMax = Math.max(4, Math.ceil(pbw * 1.6));
+    var flowStep = flowMax <= 12 ? 0.5 : (flowMax <= 40 ? 1 : 5);
+    return {
+      vt:    { min: vtMin, max: vtMax, step: vtStep, dec: fine ? 1 : 0 },
+      rr:    { min: 5, max: nm.rrMax, step: 1 },
+      ti:    { min: nm.tiMin, max: fine ? 1.0 : (small ? 1.8 : 2.5), step: 0.05, dec: 2 },
+      flow:  { min: flowStep, max: flowMax, step: flowStep, dec: flowStep < 1 ? 1 : 0 },
+      pause: { min: 0, max: fine ? 0.4 : 0.8, step: fine ? 0.05 : 0.1, dec: 2 },
+      trig:  { min: 0.2, max: fine ? 3 : 8, step: fine ? 0.1 : 0.5, dec: 1 },
+      pinsp: { min: 4, max: fine ? 30 : 40, step: 1 },
+      ps:    { min: 0, max: fine ? 20 : 25, step: 1 }
+    };
+  }
+
+  /* 体重に合わせたアラーム初期値。実機と同じで、設定値の周りに枠を作る。 */
+  function alarmsFor(pbw, nm, vt, rr) {
+    var mv = vt / 1000 * rr;
+    return {
+      pMax: Math.round(nm.platMax + 8),
+      vtLow: Math.max(1, Math.round(vt * 0.55)),
+      vtHigh: Math.round(pbw * 10),
+      mvLow: Math.max(0.05, Math.round(mv * 0.6 * 100) / 100),
+      mvHigh: Math.round(mv * 1.8 * 100) / 100,
+      rrHigh: Math.round(Math.min(nm.rrMax, rr * 1.5 + 8)),
+      apnea: nm.apnea
+    };
+  }
+
   function defaultSettings() {
     return {
       mode: 'VC-AC',      // VC-AC | PC-AC | SIMV-VC | PSV | CPAP
@@ -76,7 +158,9 @@
 
   Engine.prototype.reset = function () {
     var p = this.p, s = this.s;
-    p.pbw = predictedBodyWeight(p.sex, p.heightCm);
+    p.pbw = predictedBodyWeight(p);
+    this.nm = normsFor(p);
+    this.limits = limitsFor(p.pbw, this.nm);
     this.t = 0;
     this.clock = 0;                 // 経過（シミュレーション内秒）
     this.C = p.compliance;          // L/cmH2O
@@ -105,6 +189,8 @@
     this.pmusAmp = 0;
     this.effortActive = false;
     this.fatigue = 0;
+    this.vtGain = 1;                // 努力の補正係数（実測 Vt を見て動く）
+    this._lastSpontVte = 0;         // L
     this.sedation = p.sedation != null ? p.sedation : 0.9;
 
     // 血液ガス・循環
@@ -151,7 +237,12 @@
     var p = this.p;
     var vco2 = p.vco2 * (1 + 0.13 * (this.temp - 37));      // 発熱で代謝亢進
     var setpoint = p.co2Setpoint != null ? p.co2Setpoint : 40;
-    var ve0 = 0.1 * p.pbw * (vco2 / 200);                    // 安静時分時換気量 L/min
+    /* 安静時分時換気量は「必要な肺胞換気量 ÷ (1 − 死腔率)」から出す。
+     * 成人の 0.1 L/kg/分という係数では、体重 1 kg の早産児で 2 桁ずれる。 */
+    var vdFrac = clamp((2.0 * p.pbw + (p.vdCircuit != null ? p.vdCircuit : this.nm.vdCircuit))
+      / Math.max(1, p.pbw * 7), 0.15, 0.7);
+    var va0 = 0.863 * vco2 / setpoint;                       // L/min
+    var ve0 = va0 / (1 - vdFrac);
     var drive = 1 + 0.11 * (this.paco2 - setpoint);
     if (this.pao2 < 60) drive += (60 - this.pao2) * 0.022;   // 低酸素刺激
     var ph = 6.1 + Math.log10(Math.max(2, this.hco3) / (0.03 * Math.max(10, this.paco2)));
@@ -163,21 +254,36 @@
     var veDemand = ve0 * drive * awake;
     this.veDemand = veDemand;
 
-    if (awake < 0.06 || veDemand < 0.5) {                    // 深鎮静・筋弛緩 → 無呼吸
+    if (awake < 0.06 || veDemand < 0.08 * ve0) {             // 深鎮静・筋弛緩 → 無呼吸
       this.pmusAmp = 0;
       this.neuralTtot = 99;
       return;
     }
     // 疲労と病態で呼吸数が増え、一回換気量が落ちる
-    var rrN = clamp(10 + 1.9 * (veDemand - ve0) + 26 * this.fatigue, 8, 48);
+    var nm = this.nm;
+    var rr0 = (nm.rr[0] + nm.rr[1]) / 2;                     // 年齢相応の安静時呼吸数
+    var demandRatio = veDemand / Math.max(1e-6, ve0);
+    var rrN = clamp(rr0 * (0.55 + 0.45 * demandRatio) + rr0 * this.fatigue,
+      nm.rr[0] * 0.7, nm.rrMax);
     this.neuralTtot = 60 / rrN;
-    this.neuralTi = clamp(0.62 * this.neuralTtot, 0.45, 1.3);
+    this.neuralTi = clamp(0.62 * this.neuralTtot, nm.tiMin, 1.3);
 
     var vtTarget = (veDemand / rrN);                         // L
-    var ampNeeded = (vtTarget / this.C) * 0.62;              // 粗い逆算（抵抗分を含む）
-    var maxP = (p.maxPmus != null ? p.maxPmus : 25) * awake * (1 - 0.55 * this.fatigue);
+    /* 実際に出た一回換気量を見て、努力の大きさを少しずつ合わせ込む。
+     * 呼吸中枢が「足りなければもっと強く吸う」ことに相当する。 */
+    if (this._lastSpontVte > 0 && vtTarget > 0) {
+      var err = clamp(vtTarget / this._lastSpontVte, 0.25, 4);
+      this.vtGain = clamp(this.vtGain * (1 + 0.08 * (err - 1)), 0.5, 4);
+    }
+    var ampNeeded = (vtTarget / this.C) * 0.62 * this.vtGain;
+    /* 呼吸筋の余力。鎮静は「出せる力」を減らすが、疲労の分母にはしない。
+     * 分母に鎮静を入れると、深く鎮静した患者ほど全力で呼吸していることになってしまう。 */
+    var capacity = (p.maxPmus != null ? p.maxPmus : 25) * (1 - 0.55 * this.fatigue);
+    var maxP = capacity * awake;
     this.pmusAmp = clamp(ampNeeded, 0, maxP);
-    this.muscleLoad = maxP > 0 ? (this.pmusAmp / maxP) * (rrN / 16) : 0;
+    this.muscleLoad = capacity > 0
+      ? (this.pmusAmp / capacity) * clamp(rrN / rr0, 0, 2.2)
+      : 0;
   };
 
   Engine.prototype._updateFatigue = function (dt) {
@@ -241,11 +347,14 @@
           var frac = clamp(this.vtInsp / (s.vt / 1000), 0, 1);
           q = qset * (1 - 0.5 * frac);
         }
+        var target0 = s.vt / 1000;
+        var dV = q * dt;
+        if (this.vtInsp + dV > target0) dV = Math.max(0, target0 - this.vtInsp);  // 行き過ぎない
         this.flow = q;
-        this.V += q * dt;
-        this.vtInsp += q * dt;
+        this.V += dV;
+        this.vtInsp += dV;
         this.paw = this.V / this.C + p.Rinsp * q - this.pmus;
-        if (this.vtInsp >= s.vt / 1000) {
+        if (this.vtInsp >= target0 - 1e-9) {
           if (s.pause > 0) { this.phase = 'pause'; this.phaseT = 0; }
           else { this._endInsp(); }
         } else if (this.paw > s.alarms.pMax + 10) {   // 圧リミット
@@ -269,7 +378,8 @@
           if (this.phaseT >= s.ti) { if (s.pause > 0) { this.phase = 'pause'; this.phaseT = 0; } else this._endInsp(); }
         } else {
           var cycleOff = this.peakFlowThisBreath * s.eSens;
-          if ((this.phaseT > 0.25 && this.flow <= cycleOff) || this.phaseT > 2.8) this._endInsp();
+          var tiMinPS = this.nm.tiMin * 0.8, tiMaxPS = this.nm.tiMin * 7;
+          if ((this.phaseT > tiMinPS && this.flow <= cycleOff) || this.phaseT > tiMaxPS) this._endInsp();
         }
       }
       if (this.paw > this.pipThis) this.pipThis = this.paw;
@@ -292,14 +402,14 @@
 
       /* トリガ判定 */
       var trigQ = s.trigFlow / 60;
-      var canTrigger = this.phaseT > 0.25;
+      var canTrigger = this.phaseT > this.nm.trigLock;
       if (canTrigger && this.flow > trigQ) {
         if (spontMode) this._startBreath('spont', 'patient');
         else if (simv) {
           var inWindow = this.sinceMand >= mandInterval - 0.6;
           this._startBreath(inWindow ? 'mand' : 'spont', 'patient');
         } else this._startBreath('mand', 'patient');   // A/C：全部強制換気
-      } else if (!spontMode && this.sinceMand >= mandInterval && this.phaseT > 0.3) {
+      } else if (!spontMode && this.sinceMand >= mandInterval && this.phaseT > this.nm.trigLock * 1.2) {
         this._startBreath('mand', 'timer');
       } else if (spontMode && this.sinceBreath > s.alarms.apnea) {
         this._raise('無呼吸：バックアップ換気');
@@ -345,6 +455,7 @@
     this.phase = 'exp'; this.phaseT = 0;
     var vte = this.m.vti;                      // リークなしを仮定
     this.m.vte = vte;
+    if (this._lastBreathSpont) this._lastSpontVte = vte / 1000;
     this.breaths.push({ t: this.clock, vte: vte, spont: this._lastBreathSpont, trig: this._lastBreathTrig });
     if (this.breaths.length > 200) this.breaths.shift();
     this._recomputeRates();
@@ -357,14 +468,15 @@
 
   Engine.prototype._recomputeMechanics = function () {
     var vt = (this.vEI - this.vEE);
-    if (this.m.pplat != null && vt > 0.05) {
+    if (this.m.pplat != null && vt > 0.0005) {
       var dp = this.m.pplat - this.m.peepTot;
       this.m.dp = dp;
       this.m.cstat = dp > 0.5 ? (vt * 1000) / dp : null;
       var peak = this.m.pip;
       var qEnd = this.s.flow / 60;
       if (this.s.mode === 'VC-AC' || this.s.mode === 'SIMV-VC') {
-        this.m.raw = qEnd > 0.05 ? (peak - this.m.pplat) / qEnd : null;
+        var raw = qEnd > 0.004 ? (peak - this.m.pplat) / qEnd : null;
+        this.m.raw = (raw != null && raw >= 0) ? raw : null;
       }
     }
   };
@@ -381,11 +493,17 @@
     this.m.rrTotal = n * 60 / span;
     this.m.rrSpont = ns * 60 / span;
     this.m.mv = vteSum / 1000 * 60 / span;
-    if (ns >= 2) {
-      var vtL = (vtSpontSum / ns) / 1000;
-      this.m.rsbi = vtL > 0.02 ? Math.min(250, (ns * 60 / span) / vtL) : 250;
-    } else if (this.m.rrSpont > 0 && this.m.vte > 0) {
-      this.m.rsbi = Math.min(250, this.m.rrTotal / (this.m.vte / 1000));
+    /* 成人の RSBI（f/VT[L] < 105）は小児では常に桁外れになる。
+     * 小児では f ÷ (一回換気量 mL/kg) で見て、8 未満を目安にする。 */
+    var vtMean = null;
+    if (ns >= 2) vtMean = vtSpontSum / ns;
+    else if (this.m.rrSpont > 0 && this.m.vte > 0) vtMean = this.m.vte;
+    if (vtMean != null && vtMean > 0.2) {
+      var fSpont = Math.max(this.m.rrSpont, 1);
+      this.m.rsbi = Math.min(3000, fSpont / (vtMean / 1000));
+      this.m.rsbiKg = Math.min(60, fSpont / (vtMean / this.p.pbw));
+    } else if (this.m.rrSpont > 0) {
+      this.m.rsbi = 3000; this.m.rsbiKg = 60;
     }
     var ti = this._lastTi || this.s.ti;
     var ttot = this.m._ttot > 0.3 ? this.m._ttot : 60 / Math.max(1, this.s.rr);
@@ -424,16 +542,18 @@
     var vo2 = vco2 / RQ;
 
     // 死腔と肺胞換気量
-    var vdAnat = 2.0 * p.pbw / 1000;                        // L
-    var vdCircuit = 0.030;                                   // 回路＋Yピース
-    var vtL = Math.max(0.05, this.m.vte / 1000);
+    var nm = this.nm;
+    var vdAnat = 2.0 * p.pbw / 1000;                        // L（2 mL/kg は小児も同じ）
+    var vdCircuit = (p.vdCircuit != null ? p.vdCircuit : nm.vdCircuit) / 1000;  // 回路＋フローセンサ
+    var vtL = Math.max(0.0002, this.m.vte / 1000);
     var vdAlv = (p.vdAlvFrac || 0) * vtL;
     var vd = vdAnat + vdCircuit + vdAlv;
-    var va = Math.max(0.15, (vtL - vd)) * Math.max(1, this.m.rrTotal);
+    /* 死腔を引いた残りが肺胞換気量。体重で 2 桁変わるので床も体重比にする。 */
+    var va = Math.max(0.04 * vtL, vtL - vd) * Math.max(1, this.m.rrTotal);
 
     // 過膨張は死腔を増やす
     var plat = this.m.pplat != null ? this.m.pplat : (this.V / this.C);
-    if (plat > 28) va *= clamp(1 - (plat - 28) * 0.02, 0.6, 1);
+    if (plat > nm.platMax - 2) va *= clamp(1 - (plat - (nm.platMax - 2)) * 0.02, 0.6, 1);
 
     var paco2ss = clamp(0.863 * vco2 / va, 8, 160);
     var tau = paco2ss > this.paco2 ? 190 : 130;
@@ -443,19 +563,20 @@
     var peepTot = this.m.peepTot || s.peep;
     var recr = 1 / (1 + Math.exp((peepTot - (p.recruitP || 12)) / (p.recruitK || 3.0)));
     var shunt = (p.shuntMin || 0.05) + ((p.shunt0 || 0.1) - (p.shuntMin || 0.05)) * recr;
-    if (plat > 30) shunt += (plat - 30) * 0.006;             // 過膨張で悪化
+    if (plat > nm.platMax) shunt += (plat - nm.platMax) * 0.006;   // 過膨張で悪化
     if (p.prone) shunt *= 0.75;
     this.shunt = clamp(shunt, 0.02, 0.65);
 
     // 循環：平均気道内圧で静脈還流が落ちる
     var coTarget = (p.co || 5.0) * clamp(1 - 0.014 * Math.max(0, this.m.pmean - 5), 0.60, 1);
     if (p.volumeDepleted) coTarget *= 0.85;
-    this.co = approach(this.co, Math.max(1.8, coTarget), d, 25);
+    this.co = approach(this.co, Math.max(0.35 * (p.co || 5.0), coTarget), d, 25);
 
     // 酸素化
     var pao2Alv = s.fio2 * (PB - PH2O) - this.paco2 / RQ;
     var ccO2 = o2Content(Math.max(20, pao2Alv), p.hb);
-    var caO2 = ccO2 - this.shunt * vo2 / ((1 - this.shunt) * 10 * Math.max(1.5, this.co));
+    var coFloor = 0.25 * (p.co || 5.0);
+    var caO2 = ccO2 - this.shunt * vo2 / ((1 - this.shunt) * 10 * Math.max(coFloor, this.co));
     caO2 = Math.max(2, caO2);
     var pao2Target = po2FromContent(caO2, p.hb);
     this.pao2 = approach(this.pao2, pao2Target, d, 42);
@@ -471,13 +592,17 @@
     this.etco2 = approach(this.etco2, this.paco2 - 3 - (p.vdAlvFrac || 0) * 25, d, 8);
 
     // 心拍・血圧
+    var hrScale = nm.hr[1] / 100;
     var hrTarget = (p.hr || 85)
-      + clamp((90 - this.spo2) * 1.8, 0, 35)
-      + clamp((this.paco2 - 40) * 0.5, -8, 22)
-      + clamp((7.35 - this.ph) * 60, 0, 25)
-      + 22 * (this.muscleLoad > 0.6 ? this.muscleLoad - 0.6 : 0) * 2;
-    this.hr = approach(this.hr, clamp(hrTarget, 45, 165), d, 12);
-    var mapTarget = clamp((p.map || 80) * (this.co / (p.co || 5)) * (this.ph < 7.2 ? 0.88 : 1), 35, 130);
+      + clamp((nm.spo2[0] - this.spo2) * 1.8 * hrScale, 0, 35 * hrScale)
+      + clamp((this.paco2 - 40) * 0.5 * hrScale, -8 * hrScale, 22 * hrScale)
+      + clamp((7.35 - this.ph) * 60 * hrScale, 0, 25 * hrScale)
+      + 22 * hrScale * (this.muscleLoad > 0.6 ? this.muscleLoad - 0.6 : 0) * 2;
+    /* 新生児・乳児は重い低酸素で頻脈ではなく徐脈になる。 */
+    if (nm.label === '新生児' && this.spo2 < 78) hrTarget -= (78 - this.spo2) * 3.2;
+    this.hr = approach(this.hr, clamp(hrTarget, nm.hr[0] * 0.75, nm.hr[1] * 1.45), d, 12);
+    var mapTarget = clamp((p.map || 80) * (this.co / (p.co || 5)) * (this.ph < 7.2 ? 0.88 : 1),
+      nm.mapMin * 0.5, nm.mapMin * 2.2);
     this.map = approach(this.map, mapTarget, d, 15);
 
     this._recomputeDrive();
@@ -497,12 +622,13 @@
     this.timeInTarget.total += d;
     if (ok) this.timeInTarget.ok += d;
 
+    var nm = this.nm;
     var plat = this.m.pplat != null ? this.m.pplat : this.V / this.C;
-    if (plat > 30) this.harm.highPlat += d;
-    if (this.m.vte / this.p.pbw > 8.5) this.harm.highVt += d;
+    if (plat > nm.platMax) this.harm.highPlat += d;
+    if (this.m.vte / this.p.pbw > nm.vtPerKg[1] + 1.5) this.harm.highVt += d;
     if (this.m.autoPeep > 3) this.harm.autoPeep += d;
-    if (this.spo2 < 88) this.harm.hypoxia += d;
-    if (this.map < 60) this.harm.hypotension += d;
+    if (this.spo2 < nm.spo2[0] - 3) this.harm.hypoxia += d;
+    if (this.map < nm.mapMin) this.harm.hypotension += d;
     if (this.s.fio2 > 0.6) this.harm.highFio2 += d;
   };
 
@@ -521,9 +647,9 @@
     if (m.mv < s.alarms.mvLow && this.clock > 30) a.push({ k: 'mv', msg: '分時換気量 低下', sev: 2 });
     if (m.mv > s.alarms.mvHigh) a.push({ k: 'mvh', msg: '分時換気量 過大', sev: 1 });
     if (m.rrTotal > s.alarms.rrHigh) a.push({ k: 'rr', msg: '頻呼吸', sev: 1 });
-    if (this.spo2 < 90) a.push({ k: 'spo2', msg: 'SpO2 低下', sev: 2 });
+    if (this.spo2 < this.nm.spo2[0]) a.push({ k: 'spo2', msg: 'SpO2 低下', sev: 2 });
     if (m.autoPeep > 5) a.push({ k: 'ap', msg: 'auto-PEEP', sev: 1 });
-    if (this.map < 60) a.push({ k: 'map', msg: '血圧低下', sev: 2 });
+    if (this.map < this.nm.mapMin) a.push({ k: 'map', msg: '血圧低下', sev: 2 });
     this.alarms = a;
   };
 
@@ -538,7 +664,8 @@
       hco3: j(this.hco3, 1),
       be: j(this.be, 1),
       sao2: j(satFromPO2(this.pao2) * 100, 1),
-      lactate: j(clamp(1.0 + (this.map < 60 ? (60 - this.map) * 0.06 : 0) + (this.spo2 < 85 ? 1.5 : 0), 0.4, 9), 1),
+      lactate: j(clamp(1.0 + (this.map < this.nm.mapMin ? (this.nm.mapMin - this.map) * 0.06 : 0)
+        + (this.spo2 < this.nm.spo2[0] - 6 ? 1.5 : 0), 0.4, 9), 1),
       fio2: this.s.fio2,
       peep: this.s.peep,
       pf: j(this.pao2 / this.s.fio2, 0)
@@ -560,6 +687,10 @@
     Engine: Engine,
     defaultSettings: defaultSettings,
     predictedBodyWeight: predictedBodyWeight,
+    ageNorms: ageNorms,
+    normsFor: normsFor,
+    limitsFor: limitsFor,
+    alarmsFor: alarmsFor,
     satFromPO2: satFromPO2,
     po2FromSat: po2FromSat,
     o2Content: o2Content,

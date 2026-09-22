@@ -172,6 +172,19 @@
              set: function (s, v) { S.eng.sedation = v / 100; } }
   };
 
+  /* つまみの可動域は体重で 2 桁変わる（早産児の Vt は 5 mL、学童は 250 mL）。
+   * 症例を読み込むたびに engine.limits で P の数値だけ差し替える。 */
+  function applyLimits(e) {
+    var L = e.limits;
+    function put(id, l) {
+      if (!l || !P[id]) return;
+      P[id].min = l.min; P[id].max = l.max; P[id].step = l.step;
+      if (l.dec != null) P[id].dec = l.dec;
+    }
+    put('vt', L.vt); put('rr', L.rr); put('ti', L.ti); put('flow', L.flow);
+    put('pause', L.pause); put('trig', L.trig); put('pinsp', L.pinsp); put('ps', L.ps);
+  }
+
   var KEYS_BY_MODE = {
     'VC-AC':   ['vt', 'rr', 'peep', 'fio2', 'flow', 'pause', 'trig', 'sed'],
     'PC-AC':   ['pinsp', 'rr', 'peep', 'fio2', 'ti', 'rise', 'trig', 'sed'],
@@ -185,21 +198,22 @@
 
   var VALS = [
     { k: 'PIP', u: 'cmH₂O', get: function (e) { return r0(e.m.pip); }, lim: function (e) { return '≤' + e.s.alarms.pMax; }, tone: function (e) { return e.m.pip > e.s.alarms.pMax ? 'hi' : (e.m.pip > e.s.alarms.pMax - 5 ? 'mid' : ''); } },
-    { k: 'Pplat', u: 'cmH₂O', get: function (e) { return e.m.pplat == null ? '––' : r0(e.m.pplat); }, lim: function () { return '≤30'; }, tone: function (e) { return e.m.pplat > 30 ? 'hi' : ''; } },
+    { k: 'Pplat', u: 'cmH₂O', get: function (e) { return e.m.pplat == null ? '––' : r0(e.m.pplat); }, lim: function (e) { return '≤' + e.nm.platMax; }, tone: function (e) { return e.m.pplat > e.nm.platMax ? 'hi' : ''; } },
     { k: 'PEEP tot', u: 'cmH₂O', get: function (e) { return r1(e.m.peepTot); } },
-    { k: 'ΔP', u: 'cmH₂O', get: function (e) { return e.m.dp == null ? '––' : r0(e.m.dp); }, lim: function () { return '≤15'; }, tone: function (e) { return e.m.dp > 15 ? 'hi' : ''; } },
-    { k: 'Vte', u: 'mL', get: function (e) { return r0(e.m.vte); }, lim: function (e) { return r1(e.m.vte / e.p.pbw) + ' mL/kg'; }, tone: function (e) { return e.m.vte / e.p.pbw > 8.5 ? 'hi' : ''; } },
-    { k: 'MV', u: 'L/min', get: function (e) { return r1(e.m.mv); } },
+    { k: 'ΔP', u: 'cmH₂O', get: function (e) { return e.m.dp == null ? '––' : r0(e.m.dp); }, lim: function (e) { return '≤' + e.nm.dpMax; }, tone: function (e) { return e.m.dp > e.nm.dpMax ? 'hi' : ''; } },
+    { k: 'Vte', u: 'mL', get: function (e) { return e.p.pbw < 6 ? r1(e.m.vte) : r0(e.m.vte); }, lim: function (e) { return r1(e.m.vte / e.p.pbw) + ' mL/kg'; }, tone: function (e) { return e.m.vte / e.p.pbw > e.nm.vtPerKg[1] + 1.5 ? 'hi' : ''; } },
+    { k: 'MV', u: 'L/min', get: function (e) { return e.p.pbw < 10 ? e.m.mv.toFixed(2) : r1(e.m.mv); }, lim: function (e) { return r0(e.m.mv * 1000 / e.p.pbw) + ' mL/kg/分'; } },
     { k: 'RR tot', u: '/min', get: function (e) { return r0(e.m.rrTotal); }, lim: function (e) { return '自発 ' + r0(e.m.rrSpont); }, tone: function (e) { return e.m.rrTotal > e.s.alarms.rrHigh ? 'hi' : ''; } },
     { k: 'I:E', u: '', get: function (e) { return e.m.ie; } },
     { k: 'Cstat', u: 'mL/cmH₂O', get: function (e) { return e.m.cstat == null ? '––' : r0(e.m.cstat); } },
     { k: 'Raw', u: 'cmH₂O/L/s', get: function (e) { return e.m.raw == null ? '––' : r0(e.m.raw); } },
     { k: 'auto-PEEP', u: 'cmH₂O', get: function (e) { return r1(e.m.autoPeep); }, tone: function (e) { return e.m.autoPeep > 5 ? 'hi' : (e.m.autoPeep > 2 ? 'mid' : ''); } },
-    { k: 'RSBI', u: '', get: function (e) { return e.m.rsbi == null ? '––' : r0(e.m.rsbi); }, lim: function () { return '<105'; }, tone: function (e) { return e.m.rsbi > 105 ? 'mid' : ''; } },
-    { k: 'SpO₂', u: '%', get: function (e) { return r0(e.spo2); }, tone: function (e) { return e.spo2 < 90 ? 'hi' : (e.spo2 < 94 ? 'mid' : 'ok'); } },
+    /* 小児では f/VT を体重あたりで見る。成人の RSBI（<105）は体重が軽いほど大きく出て使えない。 */
+    { k: 'f/VT', u: '/分/(mL/kg)', get: function (e) { return e.m.rsbiKg == null ? '––' : r1(e.m.rsbiKg); }, lim: function () { return '<8'; }, tone: function (e) { return e.m.rsbiKg > 8 ? 'mid' : ''; } },
+    { k: 'SpO₂', u: '%', get: function (e) { return r0(e.spo2); }, lim: function (e) { return e.nm.spo2[0] + '–' + e.nm.spo2[1] + '%'; }, tone: function (e) { return e.spo2 < e.nm.spo2[0] ? 'hi' : (e.spo2 > e.nm.spo2[1] + 2 ? 'mid' : 'ok'); } },
     { k: 'etCO₂', u: 'mmHg', get: function (e) { return r0(e.etco2); } },
-    { k: 'HR', u: '/min', get: function (e) { return r0(e.hr); }, tone: function (e) { return e.hr > 130 ? 'mid' : ''; } },
-    { k: 'ABP mean', u: 'mmHg', get: function (e) { return r0(e.map); }, tone: function (e) { return e.map < 60 ? 'hi' : (e.map < 65 ? 'mid' : ''); } }
+    { k: 'HR', u: '/min', get: function (e) { return r0(e.hr); }, lim: function (e) { return e.nm.hr[0] + '–' + e.nm.hr[1]; }, tone: function (e) { return e.hr > e.nm.hr[1] * 1.15 ? 'mid' : ''; } },
+    { k: 'ABP mean', u: 'mmHg', get: function (e) { return r0(e.map); }, lim: function (e) { return '≥' + e.nm.mapMin; }, tone: function (e) { return e.map < e.nm.mapMin ? 'hi' : (e.map < e.nm.mapMin + 5 ? 'mid' : ''); } }
   ];
 
   /* ===================== 舞台（機器のまわり） =====================
@@ -233,7 +247,7 @@
   }
 
   function patientTone(e) {
-    return e.spo2 < 90 ? 'bad' : (e.spo2 < 94 ? 'mid' : 'ok');
+    return e.spo2 < e.nm.spo2[0] ? 'bad' : (e.spo2 < e.nm.spo2[0] + 3 ? 'mid' : 'ok');
   }
 
   function paintRails(force) {
@@ -407,7 +421,10 @@
     S.scen = sc;
     var st = E.defaultSettings(), sg = sc.suggested;
     for (var k in sg) if (Object.prototype.hasOwnProperty.call(sg, k)) st[k] = sg[k];
+    var nm0 = E.normsFor(sc.patient);
+    st.alarms = E.alarmsFor(E.predictedBodyWeight(sc.patient), nm0, st.vt, st.rr);
     S.eng = new E.Engine(sc.patient, st);
+    applyLimits(S.eng);
     S.abgs = []; S.abgPending = null; S.trend = []; S.sbt = null; S.sbtSaved = null; S.extubated = null;
     S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1;
     S.loopCur = []; S.loopLast = null; S.banner = null; trendAcc = 4;
@@ -681,7 +698,8 @@
   function startSBT() {
     var e = S.eng;
     S.sbtSaved = JSON.parse(JSON.stringify(e.s));
-    e.s.mode = 'PSV'; e.s.ps = 5; e.s.peep = 5;
+    e.s.mode = 'PSV'; e.s.ps = e.p.pbw < 10 ? 8 : (e.p.pbw < 25 ? 6 : 5);
+    e.s.peep = Math.min(e.s.peep, 5);
     e.s.fio2 = Math.min(e.s.fio2, 0.4);
     e.sedation = Math.min(e.sedation, 0.15);
     S.sbt = { t0: e.clock, dur: 1800, badSince: -1, failMsg: null, done: null };
@@ -702,10 +720,11 @@
     var b = S.sbt;
     if (!b || b.done) return;
     var e = S.eng, bad = null;
-    if (e.m.rrTotal > 35) bad = '呼吸回数が 35/分を超えました';
-    else if (e.spo2 < 90) bad = 'SpO₂ が 90% を下回りました';
-    else if (e.m.rsbi != null && e.m.rsbi > 105) bad = 'RSBI が 105 を超えました（浅く速い呼吸）';
-    else if (e.hr > 140) bad = '頻脈（140/分超）';
+    var nm = e.nm, rrCap = Math.round(nm.rr[1] * 1.5), hrCap = Math.round(nm.hr[1] * 1.25);
+    if (e.m.rrTotal > rrCap) bad = '呼吸回数が ' + rrCap + '/分を超えました';
+    else if (e.spo2 < nm.spo2[0]) bad = 'SpO₂ が ' + nm.spo2[0] + '% を下回りました';
+    else if (e.m.rsbiKg != null && e.m.rsbiKg > 8) bad = 'f/VT が 8 を超えました（浅く速い呼吸）';
+    else if (e.hr > hrCap) bad = '頻脈（' + hrCap + '/分超）';
     else if (e.map < 65) bad = '血圧低下（平均 65 mmHg 未満）';
     else if (e.ph < 7.30) bad = 'アシドーシスが進みました';
     if (bad) {
@@ -834,7 +853,9 @@
   function laneRanges() {
     var e = S.eng;
     var pHi = Math.max(40, Math.ceil((e.m.pip + 6) / 10) * 10);
-    var vHi = Math.max(400, Math.ceil((Math.max(e.m.vte, e.s.vt) * 1.5) / 100) * 100);
+    var vRef = Math.max(e.m.vte, e.s.vt, e.p.pbw * 6) * 1.5;
+    var vStep = e.p.pbw < 6 ? 2 : (e.p.pbw < 20 ? 20 : 100);
+    var vHi = Math.max(vStep * 2, Math.ceil(vRef / vStep) * vStep);
     return [{ lo: -5, hi: pHi }, { lo: -80, hi: 80 }, { lo: 0, hi: vHi }];
   }
 
@@ -957,7 +978,7 @@
         if (p[yi] > ymax) ymax = p[yi];
       });
     });
-    vmax = Math.max(100, vmax * 1.08);
+    vmax = Math.max(S.eng.p.pbw * 4, vmax * 1.08);
     if (yi === 1) { ymin = Math.min(-2, ymin); ymax = Math.max(20, ymax * 1.08); }
     else { var m = Math.max(Math.abs(ymin), Math.abs(ymax), 10) * 1.1; ymin = -m; ymax = m; }
     var px = function (v) { return L + v / vmax * Rw; };
@@ -1001,7 +1022,7 @@
     var series = [
       { key: 'pip', k2: 'plat', label: 'PIP / Pplat  cmH₂O', c: PAL.paw, c2: PAL.paw2 },
       { key: 'vte', label: 'Vte  mL', c: PAL.vol },
-      { key: 'spo2', label: 'SpO₂  %', c: PAL.spo2, lo: 80, hi: 100 }
+      { key: 'spo2', label: 'SpO₂  %', c: PAL.spo2, lo: 75, hi: 100 }
     ];
     var t0 = d[0].t, t1 = d[d.length - 1].t, span = Math.max(60, t1 - t0);
     var lh = h / 3, padL = 40;
@@ -1076,7 +1097,7 @@
   }
 
   /* 症例の重さ。カードの患者の顔色に使う。 */
-  var PATIENT_TONE = { postop: 'ok', ards: 'bad', copd: 'mid', asthma: 'bad', gbs: 'ok' };
+  var PATIENT_TONE = { postop: 'ok', rds: 'mid', bronchiolitis: 'mid', ards: 'bad', asthma: 'bad', gbs: 'ok' };
 
   function openCases() {
     modal('症例を選ぶ', function (b, close) {
@@ -1111,9 +1132,15 @@
         var r = el('div', 'row'); r.appendChild(el('span', '', f)); g.appendChild(r);
       });
       b.appendChild(g);
+      var nm = e.nm, vk = nm.vtPerKg;
+      var rd = function (v) { return pbw < 6 ? v.toFixed(1) : String(Math.round(v)); };
       var box = el('div', 'tip');
-      box.innerHTML = '予測体重 <b>' + pbw.toFixed(1) + ' kg</b>　'
-        + '肺保護（6 mL/kg）なら <b>' + Math.round(pbw * 6) + ' mL</b>、8 mL/kg なら ' + Math.round(pbw * 8) + ' mL。<br>'
+      box.innerHTML = '体重 <b>' + (pbw < 10 ? pbw.toFixed(1) : String(Math.round(pbw))) + ' kg</b>'
+        + '（' + (sc.patient.ageLabel || nm.label) + '）　'
+        + '一回換気量 ' + vk[0] + '〜' + vk[1] + ' mL/kg なら <b>'
+        + rd(pbw * vk[0]) + '〜' + rd(pbw * vk[1]) + ' mL</b>。<br>'
+        + 'この年齢の呼吸数は ' + nm.rr[0] + '〜' + nm.rr[1] + ' /分、'
+        + 'プラトー圧は ' + nm.platMax + ' cmH₂O 以下、SpO₂ 目標は ' + nm.spo2[0] + '〜' + nm.spo2[1] + '%。<br>'
         + '学習の狙い：' + sc.teaching.join(' ／ ');
       b.appendChild(box);
       var note = el('p', 'note', '下段のキーで項目を選び、ダイヤルを回して「確定」で反映します。');
@@ -1132,16 +1159,17 @@
   }
 
   function openABG(g) {
-    var e = S.eng, go = e.p.goals || {};
+    var e = S.eng, go = e.p.goals || {}, ab = e.nm.abg;
     function rng(v, r) { return !r ? '' : ((v < r[0] || v > r[1]) ? 'bad' : 'goodv'); }
-    modal('血液ガス分析', function (b, close) {
+    function txt(r, u) { return r[0] + '–' + r[1] + (u ? ' ' + u : ''); }
+    modal('血液ガス分析（' + (e.p.ageLabel || e.nm.label) + '）', function (b, close) {
       var t = el('table', 'abg');
-      [['pH', g.ph.toFixed(2), '7.35–7.45', rng(g.ph, go.ph || [7.35, 7.45])],
-       ['PaCO₂', g.paco2.toFixed(1), '35–45 mmHg', rng(g.paco2, go.paco2 || [35, 45])],
-       ['PaO₂', String(Math.round(g.pao2)), '80–100 mmHg', rng(g.pao2, go.pao2 || [60, 100])],
-       ['HCO₃⁻', g.hco3.toFixed(1), '22–26 mEq/L', ''],
+      [['pH', g.ph.toFixed(2), txt(ab.ph), rng(g.ph, go.ph || ab.ph)],
+       ['PaCO₂', g.paco2.toFixed(1), txt(ab.paco2, 'mmHg'), rng(g.paco2, go.paco2 || ab.paco2)],
+       ['PaO₂', String(Math.round(g.pao2)), txt(ab.pao2, 'mmHg'), rng(g.pao2, go.pao2 || ab.pao2)],
+       ['HCO₃⁻', g.hco3.toFixed(1), txt(ab.hco3, 'mEq/L'), ''],
        ['BE', g.be.toFixed(1), '−2〜+2', ''],
-       ['SaO₂', g.sao2.toFixed(1) + ' %', '', ''],
+       ['SaO₂', g.sao2.toFixed(1) + ' %', e.nm.spo2[0] + '–' + e.nm.spo2[1] + ' %', ''],
        ['乳酸', g.lactate.toFixed(1), '< 2.0 mmol/L', g.lactate > 2 ? 'bad' : ''],
        ['P/F 比', String(Math.round(g.pf)), 'FiO₂ ' + Math.round(g.fio2 * 100) + '% ／ PEEP ' + g.peep, g.pf < 200 ? 'bad' : '']
       ].forEach(function (r) {
@@ -1160,14 +1188,14 @@
   }
 
   function interpret(g, e) {
-    var msgs = [];
-    if (g.ph < 7.35 && g.paco2 > 45) msgs.push('呼吸性アシドーシス。換気量が足りていません。分時換気量（Vt または RR）を上げることを検討します。ただし auto-PEEP と Pplat に注意。');
-    else if (g.ph > 7.45 && g.paco2 < 35) msgs.push('呼吸性アルカローシス。過換気です。RR か Vt を下げます。');
-    else if (g.ph < 7.35 && g.hco3 < 22) msgs.push('代謝性アシドーシス。原因（循環不全・腎不全など）の検索が要ります。呼吸での代償を妨げない設定に。');
+    var msgs = [], ab = e.nm.abg, pm = e.nm.platMax;
+    if (g.ph < ab.ph[0] && g.paco2 > ab.paco2[1]) msgs.push('呼吸性アシドーシス。換気量が足りていません。分時換気量（Vt または RR）を上げることを検討します。ただし auto-PEEP と Pplat に注意。');
+    else if (g.ph > ab.ph[1] && g.paco2 < ab.paco2[0]) msgs.push('呼吸性アルカローシス。過換気です。RR か Vt を下げます。');
+    else if (g.ph < ab.ph[0] && g.hco3 < ab.hco3[0]) msgs.push('代謝性アシドーシス。原因（循環不全・敗血症・腎不全など）の検索が要ります。呼吸での代償を妨げない設定に。');
     else msgs.push('酸塩基は概ね目標域です。');
     if (g.pf < 150) msgs.push('P/F 比 ' + Math.round(g.pf) + '。酸素化が悪く、PEEP を上げてリクルートメントを図る場面です。');
-    else if (g.fio2 > 0.5 && g.pao2 > 90) msgs.push('PaO₂ に余裕があります。FiO₂ を下げて酸素毒性を避けます。');
-    if (e.m.pplat != null && e.m.pplat > 30) msgs.push('Pplat ' + Math.round(e.m.pplat) + ' cmH₂O。30 を超えています。Vt を減らすか PEEP を見直してください。');
+    else if (g.fio2 > 0.5 && g.pao2 > ab.pao2[1]) msgs.push('PaO₂ に余裕があります。FiO₂ を下げて酸素毒性（未熟児網膜症や気管支肺異形成の一因）を避けます。');
+    if (e.m.pplat != null && e.m.pplat > pm) msgs.push('Pplat ' + Math.round(e.m.pplat) + ' cmH₂O。この年齢の目安 ' + pm + ' を超えています。Vt を減らすか PEEP を見直してください。');
     if (e.m.autoPeep > 3) msgs.push('auto-PEEP ' + e.m.autoPeep.toFixed(1) + ' cmH₂O。呼気時間が不足しています。RR を下げるか吸気時間を短くします。');
     var d = el('div', 'tip' + (g.ph < 7.30 || g.pf < 150 ? ' bad' : ''));
     d.innerHTML = msgs.join('<br>');
@@ -1222,7 +1250,7 @@
       if (b2.done === 'pass') {
         b.appendChild(el('p', '', '30 分の自発呼吸トライアルを、呼吸回数・酸素化・循環を保ったまま完遂しました。抜管を検討できます。'));
         var t = el('div', 'tip');
-        t.textContent = 'RSBI ' + (S.eng.m.rsbi == null ? '––' : Math.round(S.eng.m.rsbi))
+        t.textContent = 'f/VT ' + (S.eng.m.rsbiKg == null ? '––' : S.eng.m.rsbiKg.toFixed(1))
           + '、呼吸回数 ' + Math.round(S.eng.m.rrTotal) + ' /分。';
         b.appendChild(t);
         var r = el('div', 'mrow');
@@ -1333,7 +1361,7 @@
     var t0 = t[0].t, t1 = t[t.length - 1].t, span = Math.max(60, t1 - t0);
     var padL = 40, padR = 66, padT = 12, padB = 18;
     [{ k: 'pip', c: PAL.paw, lab: 'PIP', lo: 0, hi: 45 },
-     { k: 'vte', c: PAL.vol, lab: 'Vte', lo: 0, hi: 700 },
+     { k: 'vte', c: PAL.vol, lab: 'Vte', lo: 0, hi: Math.max(10, S.eng.p.pbw * 12) },
      { k: 'spo2', c: PAL.spo2, lab: 'SpO₂', lo: 75, hi: 100 }
     ].forEach(function (s, i) {
       x.strokeStyle = s.c; x.lineWidth = PAL.glow ? 2 : 1.4; x.beginPath();

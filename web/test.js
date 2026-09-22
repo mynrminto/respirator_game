@@ -1,4 +1,5 @@
-/* エンジンの数値検証。解析解と突き合わせられるものから固める。 */
+/* エンジンの数値検証。解析解と突き合わせられるものから固める。
+ * 症例はすべて小児なので、体重 1.1 kg から 35 kg までで同じ式が成り立つことを見る。 */
 const VE = require('./engine.js');
 const { SCENARIOS } = require('./scenarios.js');
 
@@ -13,7 +14,9 @@ function scen(id) { return JSON.parse(JSON.stringify(SCENARIOS.find(s => s.id ==
 function mk(id, over) {
   const sc = scen(id);
   const st = VE.defaultSettings();
-  Object.assign(st, over || {});
+  Object.assign(st, sc.suggested, over || {});
+  const nm = VE.normsFor(sc.patient);
+  st.alarms = VE.alarmsFor(VE.predictedBodyWeight(sc.patient), nm, st.vt, st.rr);
   return new VE.Engine(sc.patient, st);
 }
 function run(e, seconds, dt) {
@@ -21,13 +24,18 @@ function run(e, seconds, dt) {
   const n = Math.round(seconds / dt);
   for (let i = 0; i < n; i++) e.step(dt, false);
 }
+/** 呼気ポーズを次の呼気末で実行し、総 PEEP を測り終えるまで進める。 */
+function expPause(e) {
+  while (e.phase !== 'insp') e.step(0.002, false);
+  e.requestHold('exp');
+  run(e, 14, 0.005);
+}
 
 console.log('\n1. 受動呼気の時定数 τ = R × C');
 {
-  const e = mk('postop', { mode: 'VC-AC', vt: 500, rr: 10, peep: 5, flow: 60, flowPattern: 'square' });
+  const e = mk('postop', { mode: 'VC-AC', vt: 180, rr: 10, peep: 5, flow: 24, flowPattern: 'square' });
   e.sedation = 1.0; e.pmusAmp = 0; e._recomputeDrive();
   run(e, 20);
-  // 吸気末まで進める
   while (e.phase !== 'insp') e.step(0.002, false);
   while (e.phase === 'insp') e.step(0.002, false);
   const vStart = e.V, veq = e.C * e.s.peep;
@@ -37,81 +45,100 @@ console.log('\n1. 受動呼気の時定数 τ = R × C');
   const frac = (e.V - veq) / (vStart - veq);
   ok('τ 経過で残容量が 36.8% になる', near(frac, 0.368, 0.02),
     `τ=${tau.toFixed(3)}s frac=${frac.toFixed(3)}`);
+
+  // 早産児（C が 40 分の 1）でも同じ式が成り立つこと
+  const n = mk('rds', { mode: 'PC-AC', pinsp: 10, ti: 0.30, rr: 40, peep: 6 });
+  n.sedation = 1.0; n.pmusAmp = 0; n._recomputeDrive();
+  run(n, 20);
+  while (n.phase !== 'insp') n.step(0.001, false);
+  while (n.phase === 'insp') n.step(0.001, false);
+  const vS2 = n.V, veq2 = n.C * n.s.peep, tau2 = n.p.Rexp * n.C;
+  let t2 = 0;
+  while (t2 < tau2) { n.step(0.0005, false); t2 += 0.0005; }
+  const frac2 = (n.V - veq2) / (vS2 - veq2);
+  ok('早産児（τ 0.05 秒）でも同じ', near(frac2, 0.368, 0.03),
+    `τ=${tau2.toFixed(3)}s frac=${frac2.toFixed(3)}`);
 }
 
 console.log('\n2. プラトー圧から静肺コンプライアンスが戻る');
 {
-  const e = mk('ards', { mode: 'VC-AC', vt: 300, rr: 20, peep: 10, flow: 45, pause: 0.4 });
+  const e = mk('ards', { mode: 'VC-AC', vt: 85, rr: 26, peep: 10, flow: 12, pause: 0.4 });
   e.sedation = 1.0; e._recomputeDrive();
-  run(e, 40);
+  run(e, 60);
   const cMeas = e.m.cstat / 1000;            // L/cmH2O
   ok('Cstat ≒ 実際のコンプライアンス', near(cMeas, e.C, e.C * 0.06),
-    `実測 ${(e.m.cstat).toFixed(1)} mL/cmH2O / 真値 ${(e.C * 1000).toFixed(1)}`);
+    `実測 ${(e.m.cstat).toFixed(2)} mL/cmH2O / 真値 ${(e.C * 1000).toFixed(2)}`);
   ok('ドライビング圧 = Vt / C', near(e.m.dp, (e.m.vti / 1000) / e.C, 1.0),
     `ΔP=${e.m.dp.toFixed(1)} cmH2O`);
   ok('プラトー圧 < 最高気道内圧', e.m.pplat < e.m.pip,
     `Pplat=${e.m.pplat.toFixed(1)} PIP=${e.m.pip.toFixed(1)}`);
+
+  // 体重 1.1 kg でも Cstat が出ること（成人向けの 50 mL の下限が残っていると null になる）
+  const n = mk('rds', { mode: 'VC-AC', vt: 5.5, rr: 45, peep: 6, flow: 1.5, pause: 0.15 });
+  n.sedation = 1.0; n._recomputeDrive();
+  run(n, 60);
+  ok('早産児でも Cstat が計算される', n.m.cstat != null && near(n.m.cstat / 1000, n.C, n.C * 0.10),
+    `Cstat=${(n.m.cstat || 0).toFixed(2)} / 真値 ${(n.C * 1000).toFixed(2)} mL/cmH2O`);
 }
 
 console.log('\n3. 気道抵抗が PIP − Pplat に出る');
 {
-  const e = mk('copd', { mode: 'VC-AC', vt: 450, rr: 10, peep: 5, flow: 60, flowPattern: 'square', pause: 0.4 });
+  const e = mk('bronchiolitis', { mode: 'VC-AC', vt: 45, rr: 20, peep: 6, flow: 6, flowPattern: 'square', pause: 0.3 });
   e.sedation = 1.0; e._recomputeDrive();
   run(e, 60);
-  ok('Raw ≒ 真の吸気抵抗', near(e.m.raw, e.p.Rinsp, 2.5),
-    `実測 ${e.m.raw.toFixed(1)} / 真値 ${e.p.Rinsp}`);
+  ok('Raw ≒ 真の吸気抵抗', near(e.m.raw, e.p.Rinsp, e.p.Rinsp * 0.12),
+    `実測 ${e.m.raw.toFixed(0)} / 真値 ${e.p.Rinsp}`);
+  ok('細いチューブでは Raw が成人の桁を超える', e.m.raw > 40, `Raw=${e.m.raw.toFixed(0)} cmH2O/L/s`);
 }
 
-console.log('\n4. 呼気時間が足りないと auto-PEEP が出る');
+console.log('\n4. 呼気時間が足りないと auto-PEEP が出る（細気管支炎の乳児）');
 {
-  const slow = mk('copd', { mode: 'VC-AC', vt: 450, rr: 10, peep: 5, flow: 60 });
-  slow.sedation = 1.0; slow._recomputeDrive(); run(slow, 120);
-  const fast = mk('copd', { mode: 'VC-AC', vt: 450, rr: 26, peep: 5, flow: 60 });
-  fast.sedation = 1.0; fast._recomputeDrive(); run(fast, 120);
-  ok('RR 10 では auto-PEEP がほぼない', slow.m.autoPeep < 1.5, `${slow.m.autoPeep.toFixed(1)} cmH2O`);
-  ok('RR 26 で auto-PEEP が出る', fast.m.autoPeep > 4, `${fast.m.autoPeep.toFixed(1)} cmH2O`);
-  ok('auto-PEEP で実測一回換気量が落ちない(量規定)', fast.m.vte > 400, `${fast.m.vte.toFixed(0)} mL`);
-  // 呼気ポーズで総 PEEP が測れる
-  while (fast.phase !== 'exp') fast.step(0.002, false);
-  fast.requestHold('exp');
-  run(fast, 3);
-  ok('呼気ポーズが総 PEEP を返す', fast.m.peepTot > fast.s.peep + 3,
+  const slow = mk('bronchiolitis', { mode: 'VC-AC', vt: 45, rr: 20, peep: 6, flow: 6 });
+  slow.sedation = 1.0; slow._recomputeDrive(); run(slow, 180);
+  const fast = mk('bronchiolitis', { mode: 'VC-AC', vt: 45, rr: 45, peep: 6, flow: 6 });
+  fast.sedation = 1.0; fast._recomputeDrive(); run(fast, 180);
+  ok('RR 20 では auto-PEEP がほぼない', slow.m.autoPeep < 1.5, `${slow.m.autoPeep.toFixed(1)} cmH2O`);
+  ok('RR 45 で auto-PEEP が出る', fast.m.autoPeep > 3, `${fast.m.autoPeep.toFixed(1)} cmH2O`);
+  ok('auto-PEEP で実測一回換気量が落ちない(量規定)', fast.m.vte > 40, `${fast.m.vte.toFixed(0)} mL`);
+  expPause(fast);
+  ok('呼気ポーズが総 PEEP を返す', fast.m.peepTot > fast.s.peep + 2,
     `総PEEP=${fast.m.peepTot.toFixed(1)} cmH2O`);
 }
 
 console.log('\n5. 分時肺胞換気量と PaCO2');
 {
-  const e = mk('postop', { mode: 'VC-AC', vt: 450, rr: 12, peep: 5, fio2: 0.4, flow: 50 });
+  const e = mk('postop', { mode: 'VC-AC', vt: 150, rr: 18, peep: 5, fio2: 0.4, flow: 20 });
   e.sedation = 1.0; e._recomputeDrive();
   run(e, 60 * 45, 0.01);
-  const vdAnat = 2.0 * e.p.pbw / 1000, vd = vdAnat + 0.030 + e.p.vdAlvFrac * (e.m.vte / 1000);
+  const vdAnat = 2.0 * e.p.pbw / 1000;
+  const vd = vdAnat + e.p.vdCircuit / 1000 + e.p.vdAlvFrac * (e.m.vte / 1000);
   const va = (e.m.vte / 1000 - vd) * e.m.rrTotal;
   const expect = 0.863 * e.p.vco2 * (1 + 0.13 * (e.temp - 37)) / va;
   ok('PaCO2 が 0.863·VCO2/VA に収束', near(e.paco2, expect, 2.0),
     `PaCO2=${e.paco2.toFixed(1)} 理論値=${expect.toFixed(1)}`);
 
   const before = e.paco2;
-  e.s.rr = 20; run(e, 60 * 30, 0.01);
-  ok('呼吸数を上げると PaCO2 が下がる', e.paco2 < before - 6,
+  e.s.rr = 26; run(e, 60 * 30, 0.01);
+  ok('呼吸数を上げると PaCO2 が下がる', e.paco2 < before - 5,
     `${before.toFixed(1)} → ${e.paco2.toFixed(1)} mmHg`);
 }
 
-console.log('\n6. ARDS で PEEP を上げると酸素化が改善する');
+console.log('\n6. 小児 ARDS で PEEP を上げると酸素化が改善する');
 {
-  const lo = mk('ards', { mode: 'VC-AC', vt: 300, rr: 24, peep: 5, fio2: 0.6, flow: 45 });
+  const lo = mk('ards', { mode: 'VC-AC', vt: 85, rr: 28, peep: 5, fio2: 0.6, flow: 12 });
   lo.sedation = 1.0; lo._recomputeDrive(); run(lo, 60 * 20, 0.01);
-  const hi = mk('ards', { mode: 'VC-AC', vt: 300, rr: 24, peep: 14, fio2: 0.6, flow: 45 });
+  const hi = mk('ards', { mode: 'VC-AC', vt: 85, rr: 28, peep: 14, fio2: 0.6, flow: 12 });
   hi.sedation = 1.0; hi._recomputeDrive(); run(hi, 60 * 20, 0.01);
   ok('PEEP 14 の方が PaO2 が高い', hi.pao2 > lo.pao2 + 15,
     `PEEP5: ${lo.pao2.toFixed(0)} → PEEP14: ${hi.pao2.toFixed(0)} mmHg`);
   ok('PEEP 14 の方が心拍出量が低い', hi.co < lo.co,
     `CO ${lo.co.toFixed(2)} → ${hi.co.toFixed(2)} L/min`);
-  ok('ARDS の P/F 比が低い', lo.pao2 / lo.s.fio2 < 200, `P/F=${(lo.pao2 / lo.s.fio2).toFixed(0)}`);
+  ok('小児 ARDS の P/F 比が低い', lo.pao2 / lo.s.fio2 < 200, `P/F=${(lo.pao2 / lo.s.fio2).toFixed(0)}`);
 }
 
 console.log('\n7. FiO2 と PaO2');
 {
-  const e = mk('postop', { mode: 'VC-AC', vt: 450, rr: 16, peep: 5, fio2: 0.21, flow: 50 });
+  const e = mk('postop', { mode: 'VC-AC', vt: 180, rr: 20, peep: 5, fio2: 0.21, flow: 24 });
   e.sedation = 1.0; e._recomputeDrive(); run(e, 60 * 20, 0.01);
   const room = e.pao2;
   e.s.fio2 = 1.0; run(e, 60 * 12, 0.01);
@@ -122,61 +149,65 @@ console.log('\n7. FiO2 と PaO2');
 
 console.log('\n8. 自発呼吸とトリガ（PSV）');
 {
-  const e = mk('gbs', { mode: 'PSV', ps: 12, peep: 5, fio2: 0.4, trigFlow: 2 });
+  const e = mk('gbs', { mode: 'PSV', ps: 12, peep: 5, fio2: 0.4, trigFlow: 1.0 });
   e.sedation = 0.1; e._recomputeDrive();
   run(e, 180, 0.005);
   const spont = e.breaths.filter(b => b.spont).length;
   ok('患者トリガで自発呼吸が立つ', spont > 5, `直近60秒で ${e.m.rrSpont.toFixed(0)} 回/分`);
-  ok('PSV で一回換気量が得られる', e.m.vte > 150, `Vte=${e.m.vte.toFixed(0)} mL`);
-  ok('RSBI が計算される', e.m.rsbi != null && e.m.rsbi > 0, `RSBI=${(e.m.rsbi || 0).toFixed(0)}`);
+  ok('PSV で一回換気量が得られる', e.m.vte > 60, `Vte=${e.m.vte.toFixed(0)} mL`);
+  ok('f/VT（体重あたり）が計算される', e.m.rsbiKg != null && e.m.rsbiKg > 0,
+    `f/VT=${(e.m.rsbiKg || 0).toFixed(1)}`);
 }
 
-console.log('\n9. 筋力の弱い患者は SBT で rapid shallow breathing になる');
+console.log('\n9. 筋力の弱い児は SBT で浅く速い呼吸になる');
 {
   const sup = mk('gbs', { mode: 'PSV', ps: 14, peep: 5, fio2: 0.4 });
   sup.sedation = 0.1; sup._recomputeDrive(); run(sup, 60 * 10, 0.01);
   const sbt = mk('gbs', { mode: 'CPAP', ps: 0, peep: 5, fio2: 0.4 });
   sbt.sedation = 0.1; sbt._recomputeDrive(); run(sbt, 60 * 25, 0.01);
-  ok('サポートを切ると RSBI が上がる', sbt.m.rsbi > sup.m.rsbi + 60,
-    `PS14: ${sup.m.rsbi.toFixed(0)} → CPAP: ${sbt.m.rsbi.toFixed(0)}`);
+  ok('サポートを切ると f/VT が上がる', sbt.m.rsbiKg > sup.m.rsbiKg + 3,
+    `PS14: ${sup.m.rsbiKg.toFixed(1)} → CPAP: ${sbt.m.rsbiKg.toFixed(1)}`);
   ok('SBT 中に呼吸筋疲労が蓄積する', sbt.fatigue > 0.2, `fatigue=${sbt.fatigue.toFixed(2)}`);
   ok('一回換気量が落ちて呼吸数が上がる', sbt.m.rrTotal > sup.m.rrTotal,
     `RR ${sup.m.rrTotal.toFixed(0)} → ${sbt.m.rrTotal.toFixed(0)} /分`);
 }
 
-console.log('\n10. 肺が正常な患者は SBT を通る');
+console.log('\n10. 肺が正常な児は SBT を通る');
 {
   const e = mk('postop', { mode: 'CPAP', ps: 0, peep: 5, fio2: 0.4 });
   e.sedation = 0.1; e._recomputeDrive(); run(e, 60 * 30, 0.01);
-  ok('RSBI < 105', e.m.rsbi < 105, `RSBI=${e.m.rsbi.toFixed(0)}`);
+  ok('f/VT < 8', e.m.rsbiKg < 8, `f/VT=${e.m.rsbiKg.toFixed(1)}`);
   ok('PaCO2 が保たれる', e.paco2 < 55, `PaCO2=${e.paco2.toFixed(0)} mmHg`);
   ok('疲労が溜まらない', e.fatigue < 0.35, `fatigue=${e.fatigue.toFixed(2)}`);
 }
 
-console.log('\n11. COPD の慢性代償と pH');
+console.log('\n11. 細気管支炎の許容的高炭酸ガス血症');
 {
-  const e = mk('copd', { mode: 'VC-AC', vt: 450, rr: 12, peep: 5, fio2: 0.35, flow: 55 });
-  e.sedation = 1.0; e._recomputeDrive(); run(e, 60 * 20, 0.01);
-  ok('高 CO2 でも pH は代償されている', e.ph > 7.28, `pH=${e.ph.toFixed(2)} PaCO2=${e.paco2.toFixed(0)}`);
+  const e = mk('bronchiolitis', { mode: 'VC-AC', vt: 45, rr: 25, peep: 6, fio2: 0.5, flow: 6 });
+  e.sedation = 1.0; e._recomputeDrive(); run(e, 60 * 25, 0.01);
+  ok('高 CO2 でも pH は 7.20 以上に保たれる', e.ph >= 7.20 && e.paco2 > 55,
+    `pH=${e.ph.toFixed(2)} PaCO2=${e.paco2.toFixed(0)}`);
   const ph0 = e.ph;
-  e.s.rr = 24; run(e, 60 * 10, 0.01);
-  ok('急に換気を増やすとアルカローシスに振れる', e.ph > ph0 + 0.05,
+  e.s.rr = 35; run(e, 60 * 15, 0.01);
+  ok('換気を増やすと pH が上がる', e.ph > ph0 + 0.05,
     `pH ${ph0.toFixed(2)} → ${e.ph.toFixed(2)}`);
+  expPause(e);
+  ok('そのかわり auto-PEEP が増える', e.m.autoPeep > 1.5, `auto-PEEP=${e.m.autoPeep.toFixed(1)} cmH2O`);
 }
 
 console.log('\n12. PCV は肺が硬いと一回換気量が落ちる');
 {
-  const a = mk('postop', { mode: 'PC-AC', pinsp: 15, ti: 1.0, rr: 14, peep: 5 });
+  const a = mk('postop', { mode: 'PC-AC', pinsp: 12, ti: 0.7, rr: 20, peep: 5 });
   a.sedation = 1.0; a._recomputeDrive(); run(a, 60);
-  const b = mk('ards', { mode: 'PC-AC', pinsp: 15, ti: 1.0, rr: 14, peep: 5 });
+  const b = mk('ards', { mode: 'PC-AC', pinsp: 12, ti: 0.7, rr: 20, peep: 5 });
   b.sedation = 1.0; b._recomputeDrive(); run(b, 60);
   ok('同じ吸気圧でも硬い肺では Vt が小さい', b.m.vte < a.m.vte * 0.75,
-    `正常 ${a.m.vte.toFixed(0)} mL / ARDS ${b.m.vte.toFixed(0)} mL`);
+    `術後 ${a.m.vte.toFixed(0)} mL / 小児ARDS ${b.m.vte.toFixed(0)} mL`);
 }
 
 console.log('\n13. 血液ガス採取の整合性');
 {
-  const e = mk('ards', { mode: 'VC-AC', vt: 300, rr: 22, peep: 12, fio2: 0.7, flow: 45 });
+  const e = mk('ards', { mode: 'VC-AC', vt: 85, rr: 30, peep: 12, fio2: 0.7, flow: 12 });
   e.sedation = 1.0; e._recomputeDrive(); run(e, 60 * 15, 0.01);
   const g = e.sampleABG();
   const phCalc = 6.1 + Math.log10(g.hco3 / (0.03 * g.paco2));
@@ -185,28 +216,87 @@ console.log('\n13. 血液ガス採取の整合性');
   ok('P/F 比が返る', g.pf > 0, `P/F=${g.pf}`);
 }
 
-console.log('\n14. 予測体重');
+console.log('\n14. 体重と年齢別の基準値');
 {
-  ok('男性 170cm ≒ 66.0 kg', near(VE.predictedBodyWeight('M', 170), 66.0, 0.3));
-  ok('女性 158cm ≒ 50.6 kg', near(VE.predictedBodyWeight('F', 158), 50.6, 0.3));
+  ok('小児は実体重をそのまま使う', VE.predictedBodyWeight(scen('ards').patient) === 14);
+  ok('早産児 1.1 kg', VE.predictedBodyWeight(scen('rds').patient) === 1.1);
+  ok('成人式も残っている（男性 170cm ≒ 66.0 kg）', near(VE.predictedBodyWeight('M', 170), 66.0, 0.3));
+
+  const nn = VE.ageNorms(0), inf = VE.ageNorms(4), sch = VE.ageNorms(96);
+  ok('新生児の呼吸数の基準が 40〜60', nn.rr[0] === 40 && nn.rr[1] === 60);
+  ok('年齢が上がると呼吸数の基準が下がる', inf.rr[1] > sch.rr[1], `乳児 ${inf.rr[1]} / 学童 ${sch.rr[1]}`);
+  ok('新生児の平均血圧の下限は 30 前後', nn.mapMin <= 35 && nn.mapMin >= 28, `${nn.mapMin} mmHg`);
+  ok('新生児のプラトー圧の上限は学童より低い', nn.platMax < sch.platMax,
+    `${nn.platMax} / ${sch.platMax} cmH2O`);
+  ok('新生児の SpO2 目標は上限が 95%', nn.spo2[1] === 95, `${nn.spo2[0]}–${nn.spo2[1]}%`);
+
+  // すべての症例で、推奨初期設定がダイヤルの可動域に収まっていること
+  let outOfRange = [];
+  for (const sc of SCENARIOS) {
+    const pbw = VE.predictedBodyWeight(sc.patient);
+    const L = VE.limitsFor(pbw, VE.normsFor(sc.patient));
+    const g = sc.suggested;
+    const chk = (k, v) => { if (v != null && L[k] && (v < L[k].min || v > L[k].max)) outOfRange.push(`${sc.id}:${k}=${v}`); };
+    chk('vt', g.vt); chk('rr', g.rr); chk('ti', g.ti); chk('flow', g.flow);
+    chk('pinsp', g.pinsp); chk('ps', g.ps); chk('trig', g.trigFlow);
+  }
+  ok('推奨初期設定がすべてダイヤルの範囲内', outOfRange.length === 0, outOfRange.join(' '));
+
+  // アラーム初期値が設定値の周りに正しく枠を作ること
+  let badAlarm = [];
+  for (const sc of SCENARIOS) {
+    const pbw = VE.predictedBodyWeight(sc.patient), g = sc.suggested;
+    const a = VE.alarmsFor(pbw, VE.normsFor(sc.patient), g.vt, g.rr);
+    if (!(a.vtLow < g.vt && g.vt < a.vtHigh)) badAlarm.push(sc.id + ':vt');
+    const mv = g.vt / 1000 * g.rr;
+    if (!(a.mvLow < mv && mv < a.mvHigh)) badAlarm.push(sc.id + ':mv');
+    if (!(a.pMax > 20 && a.pMax < 45)) badAlarm.push(sc.id + ':pMax');
+  }
+  ok('アラーム初期値が設定値を挟んでいる', badAlarm.length === 0, badAlarm.join(' '));
 }
 
-console.log('\n15. 60倍速でも結果が変わらない');
+console.log('\n15. 症例が意図した状態で始まる');
 {
-  const a = mk('postop', { mode: 'VC-AC', vt: 450, rr: 14, peep: 5, fio2: 0.4, flow: 50 });
+  const want = {
+    postop:        { vtkg: [6.5, 7.5], ph: [7.33, 7.46] },
+    rds:           { vtkg: [4.0, 6.0], ph: [7.20, 7.42] },
+    bronchiolitis: { vtkg: [6.5, 8.0], ph: [7.18, 7.42] },
+    ards:          { vtkg: [5.5, 6.5], ph: [7.18, 7.45] },
+    asthma:        { vtkg: [6.5, 7.8], ph: [7.10, 7.30] },
+    gbs:           { vtkg: [6.5, 7.6], ph: [7.32, 7.48] }
+  };
+  for (const sc of SCENARIOS) {
+    const e = mk(sc.id);
+    run(e, 60 * 15, 0.01);
+    const w = want[sc.id], vk = e.m.vte / e.p.pbw;
+    ok(`${sc.id}：推奨設定の Vt が ${w.vtkg[0]}〜${w.vtkg[1]} mL/kg`,
+      vk >= w.vtkg[0] && vk <= w.vtkg[1], `${vk.toFixed(1)} mL/kg（${e.m.vte.toFixed(1)} mL）`);
+    ok(`${sc.id}：pH が想定の範囲`, e.ph >= w.ph[0] && e.ph <= w.ph[1],
+      `pH=${e.ph.toFixed(2)} PaCO2=${e.paco2.toFixed(0)} PaO2=${e.pao2.toFixed(0)} SpO2=${e.spo2.toFixed(0)}%`);
+    ok(`${sc.id}：呼吸数が年齢相応の範囲を大きく外れない`,
+      e.m.rrTotal >= e.nm.rr[0] * 0.5 && e.m.rrTotal <= e.nm.rrMax,
+      `RR=${e.m.rrTotal.toFixed(0)}（基準 ${e.nm.rr[0]}〜${e.nm.rr[1]}）`);
+    ok(`${sc.id}：心拍と平均血圧が生理的な範囲`,
+      e.hr > e.nm.hr[0] * 0.6 && e.hr < e.nm.hr[1] * 1.5 && e.map > 20 && e.map < 110,
+      `HR=${e.hr.toFixed(0)} MAP=${e.map.toFixed(0)}`);
+  }
+}
+
+console.log('\n16. 60倍速でも結果が変わらない');
+{
+  const a = mk('postop', { mode: 'VC-AC', vt: 180, rr: 20, peep: 5, fio2: 0.4, flow: 24 });
   a.sedation = 1.0; a._recomputeDrive(); run(a, 60 * 10, 0.005);
-  const b = mk('postop', { mode: 'VC-AC', vt: 450, rr: 14, peep: 5, fio2: 0.4, flow: 50 });
+  const b = mk('postop', { mode: 'VC-AC', vt: 180, rr: 20, peep: 5, fio2: 0.4, flow: 24 });
   b.sedation = 1.0; b._recomputeDrive(); run(b, 60 * 10, 0.012);
   ok('dt 5ms と 12ms で PaCO2 が一致', near(a.paco2, b.paco2, 1.0),
     `${a.paco2.toFixed(1)} / ${b.paco2.toFixed(1)} mmHg`);
-  ok('dt 5ms と 12ms で Vte が一致', near(a.m.vte, b.m.vte, 15),
+  ok('dt 5ms と 12ms で Vte が一致', near(a.m.vte, b.m.vte, 8),
     `${a.m.vte.toFixed(0)} / ${b.m.vte.toFixed(0)} mL`);
 }
 
-console.log('\n16. ポーズ操作のタイミング');
+console.log('\n17. ポーズ操作のタイミング');
 {
-  // 呼気の途中で吸気ポーズを押しても、実行されるのは次の吸気末でなければならない。
-  const e = mk('postop', { mode: 'VC-AC', vt: 450, rr: 12, peep: 5, fio2: 0.4, flow: 50 });
+  const e = mk('postop', { mode: 'VC-AC', vt: 180, rr: 18, peep: 5, fio2: 0.4, flow: 24 });
   e.sedation = 1.0; e._recomputeDrive();
   run(e, 20, 0.005);
   while (e.phase !== 'exp' || e.phaseT < 1.0) e.step(0.005, false);  // 呼気の半ばで押す
@@ -217,11 +307,10 @@ console.log('\n16. ポーズ操作のタイミング');
   ok('Pplat が PEEP より十分高い', pplat > peepTot + 4,
     `Pplat=${pplat.toFixed(1)} PEEP tot=${peepTot.toFixed(1)} cmH2O`);
   ok('Pplat から出した Cstat が実際のコンプライアンスに一致',
-    near(e.m.cstat, e.p.compliance * 1000, 6),
-    `Cstat=${e.m.cstat.toFixed(0)} 実値=${(e.p.compliance * 1000).toFixed(0)} mL/cmH2O`);
+    near(e.m.cstat, e.p.compliance * 1000, 2),
+    `Cstat=${e.m.cstat.toFixed(1)} 実値=${(e.p.compliance * 1000).toFixed(1)} mL/cmH2O`);
 
-  // 呼気ポーズは呼気末で実行され、total PEEP を測る。
-  const c = mk('copd', { mode: 'VC-AC', vt: 450, rr: 20, peep: 5, fio2: 0.4, flow: 45 });
+  const c = mk('bronchiolitis', { mode: 'VC-AC', vt: 45, rr: 40, peep: 6, fio2: 0.5, flow: 6 });
   c.sedation = 1.0; c._recomputeDrive();
   run(c, 60, 0.005);
   while (c.phase !== 'insp') c.step(0.005, false);   // 吸気の最中に押す
@@ -230,10 +319,10 @@ console.log('\n16. ポーズ操作のタイミング');
   run(c, 14, 0.005);
   ok('呼気ポーズで auto-PEEP が検出される', c.m.autoPeep > 0.5,
     `auto-PEEP=${c.m.autoPeep.toFixed(1)} cmH2O`);
-  ok('ポーズ後も換気が続く', (run(c, 30, 0.005), c.m.vte > 300), `Vte=${c.m.vte.toFixed(0)} mL`);
+  ok('ポーズ後も換気が続く', (run(c, 30, 0.005), c.m.vte > 35), `Vte=${c.m.vte.toFixed(0)} mL`);
 }
 
-console.log('\n10. 学習コースの構造');
+console.log('\n18. 学習コースの構造');
 {
   const LS = require('./lessons.js');
   const flat = LS.allLessons();
@@ -268,18 +357,31 @@ console.log('\n10. 学習コースの構造');
   ok('解説と要点がそろっている', badTask.length === 0, badTask.join(' / '));
   ok('クイズの正解番号と選択肢が妥当', badQuiz.length === 0, badQuiz.join(','));
 
+  // レッスンの初期設定が、その症例のダイヤルの可動域に収まっていること
+  let outside = [];
+  for (const { lesson } of flat) {
+    const sc = SCENARIOS.find(s => s.id === lesson.scenario);
+    const L = VE.limitsFor(VE.predictedBodyWeight(sc.patient), VE.normsFor(sc.patient));
+    const st = lesson.settings || {};
+    const chk = (k, v) => { if (v != null && L[k] && (v < L[k].min || v > L[k].max)) outside.push(`${lesson.id}:${k}=${v}`); };
+    chk('vt', st.vt); chk('rr', st.rr); chk('ti', st.ti); chk('flow', st.flow);
+    chk('pinsp', st.pinsp); chk('ps', st.ps); chk('trig', st.trigFlow); chk('pause', st.pause);
+  }
+  ok('レッスンの初期設定がすべてダイヤルの範囲内', outside.length === 0, outside.join(' '));
+
   // 目標として出す数値が、その症例で本当に到達できる範囲にあるか
-  for (const id of ['2-1', '4-4']) {
+  for (const id of ['2-1', '3-1', '4-4']) {
     const l = LS.lessonById(id);
     const sc = SCENARIOS.find(s => s.id === l.scenario);
-    const pbw = VE.predictedBodyWeight(sc.patient.sex, sc.patient.heightCm);
+    const pbw = VE.predictedBodyWeight(sc.patient);
+    const L = VE.limitsFor(pbw, VE.normsFor(sc.patient));
     const target = pbw * 6;
-    ok(`${id} の 6 mL/kg 目標がダイヤルの範囲内`, target >= 200 && target <= 800,
-      `目標 ${target.toFixed(0)} mL（PBW ${pbw.toFixed(1)} kg）`);
+    ok(`${id} の 6 mL/kg 目標がダイヤルの範囲内`, target >= L.vt.min && target <= L.vt.max,
+      `目標 ${target.toFixed(1)} mL（体重 ${pbw} kg、範囲 ${L.vt.min}〜${L.vt.max}）`);
   }
 }
 
-console.log('\n11. レッスンの進行');
+console.log('\n19. レッスンの進行');
 {
   const LS = require('./lessons.js');
   const lesson = LS.lessonById('1-2');
@@ -292,13 +394,11 @@ console.log('\n11. レッスンの進行');
   ok('関係ないイベントでは進まない', rt.fire('hold:exp', ctx()) === null && rt.index === 0);
   ok('正しいイベントで進む', rt.fire('hold:insp', ctx()) !== null && rt.index === 1);
 
-  // 2 番目は測定待ち。押したポーズが終わるまで進まない。
   e.requestHold('insp');
   ok('測定前は進まない', rt.poll(ctx(), 0.5) === null);
   run(e, 14, 0.005);
   ok('Pplat が出たら進む', rt.poll(ctx(), 0.5) !== null && rt.index === 2);
 
-  // クイズは正解しないと進まない。
   ok('3 番目はクイズ', !!rt.task().quiz);
   const wrong = (rt.task().quiz.answer + 1) % rt.task().quiz.choices.length;
   ok('誤答では進まない', rt.answer(wrong, ctx()).ok === false && rt.index === 2);
@@ -313,9 +413,9 @@ console.log('\n11. レッスンの進行');
   e2.sedation = 1.0; e2._recomputeDrive();
   const rt2 = new LS.Runtime(l22);
   const ctx2 = () => ({ e: e2, s: e2.s, m: e2.m, pbw: e2.p.pbw, abgs: [], lastAbg: null, sbt: null });
-  e2.s.rr = 18;
+  e2.s.rr = 24;
   run(e2, 90, 0.005);
-  ok('条件を満たしても hold 前は進まない', rt2.poll(ctx2(), 5) === null, `MV=${e2.m.mv.toFixed(1)}`);
+  ok('条件を満たしても hold 前は進まない', rt2.poll(ctx2(), 5) === null, `MV=${e2.m.mv.toFixed(2)}`);
   ok('満たし続ければ進む', rt2.poll(ctx2(), 30) !== null && rt2.index === 1);
 
   // onStart の副作用（病態を起こす）が効くこと。
@@ -338,57 +438,59 @@ console.log('\n11. レッスンの進行');
     `PIP=${e3.m.pip.toFixed(0)} 上限=${e3.s.alarms.pMax}`);
 }
 
-console.log('\n12. レッスンの目標が到達可能か');
+console.log('\n20. レッスンの目標が到達可能か');
 {
   const LS = require('./lessons.js');
-  // 5-2：COPD に auto-PEEP がはっきり出て、呼吸回数を下げれば消えること
+  // 5-2：細気管支炎に auto-PEEP がはっきり出て、呼吸回数を下げれば消えること
   const l = LS.lessonById('5-2');
-  const bad = mk('copd', Object.assign({}, l.settings));
+  const bad = mk('bronchiolitis', Object.assign({}, l.settings));
   bad.sedation = 1.0; bad._recomputeDrive();
-  run(bad, 90, 0.005);
-  while (bad.phase !== 'insp') bad.step(0.005, false);
-  bad.requestHold('exp');
-  run(bad, 14, 0.005);
+  run(bad, 120, 0.005);
+  expPause(bad);
   ok('初期設定で auto-PEEP がはっきり出る', bad.m.autoPeep > 3,
     `auto-PEEP=${bad.m.autoPeep.toFixed(1)} cmH2O`);
 
-  const good = mk('copd', Object.assign({}, l.settings, { rr: 10 }));
+  const good = mk('bronchiolitis', Object.assign({}, l.settings, { rr: 22 }));
   good.sedation = 1.0; good._recomputeDrive();
-  run(good, 120, 0.005);
-  while (good.phase !== 'insp') good.step(0.005, false);
-  good.requestHold('exp');
-  run(good, 14, 0.005);
+  run(good, 180, 0.005);
+  expPause(good);
   ok('呼吸回数を下げると 3 cmH2O 未満まで減る', good.m.autoPeep < 3,
     `auto-PEEP=${good.m.autoPeep.toFixed(1)} cmH2O`);
 
-  // 4-3：ARDS で PEEP を上げれば P/F が改善すること
+  // 4-3：小児 ARDS で PEEP を上げれば P/F が改善すること
   const l43 = LS.lessonById('4-3');
   const low = mk('ards', Object.assign({}, l43.settings));
   low.sedation = 1.0; low._recomputeDrive();
-  run(low, 600, 0.01);
+  run(low, 900, 0.01);
   const pfLow = low.pao2 / low.s.fio2;
   const high = mk('ards', Object.assign({}, l43.settings, { peep: 14 }));
   high.sedation = 1.0; high._recomputeDrive();
-  run(high, 600, 0.01);
+  run(high, 900, 0.01);
   const pfHigh = high.pao2 / high.s.fio2;
   ok('PEEP を上げると P/F が 20 以上改善する', pfHigh > pfLow + 20,
     `P/F ${pfLow.toFixed(0)} → ${pfHigh.toFixed(0)}`);
-  // PEEP 14 まで開いたあとなら、FiO2 60% でも SpO2 90% 以上を保てること
+  // 課題どおり FiO2 60% まで下げても SpO2 92% 以上を保てること
   high.s.fio2 = 0.6;
   run(high, 300, 0.01);
-  ok('PEEP 14 なら FiO2 60% でも SpO2 90% 以上', high.spo2 >= 90,
+  ok('PEEP 14 なら FiO2 60% でも SpO2 92% 以上', high.spo2 >= 92,
     `SpO2=${high.spo2.toFixed(0)}% PaO2=${high.pao2.toFixed(0)}`);
 
-  // 4-4：肺保護の枠（Vt 6 mL/kg・Pplat ≤30・ΔP ≤15）が ARDS で成立すること
+  // 4-4：肺保護の枠（Vt 6 mL/kg・年齢相応の Pplat と ΔP）が小児 ARDS で成立すること
   const l44 = LS.lessonById('4-4');
   const sc = SCENARIOS.find(s => s.id === 'ards');
-  const pbw = VE.predictedBodyWeight(sc.patient.sex, sc.patient.heightCm);
-  const prot = mk('ards', Object.assign({}, l44.settings, { vt: Math.round(pbw * 6 / 10) * 10, pause: 0.3 }));
+  const pbw = VE.predictedBodyWeight(sc.patient);
+  const prot = mk('ards', Object.assign({}, l44.settings, { vt: Math.round(pbw * 6 / 5) * 5, pause: 0.3 }));
   prot.sedation = 1.0; prot._recomputeDrive();
-  run(prot, 120, 0.005);
-  ok('6 mL/kg なら Pplat 30 以下・ΔP 15 以下に収まる',
-    prot.m.pplat <= 30 && prot.m.dp <= 15,
-    `Pplat=${prot.m.pplat.toFixed(0)} ΔP=${prot.m.dp.toFixed(0)}`);
+  run(prot, 180, 0.005);
+  ok('6 mL/kg なら年齢相応の Pplat・ΔP に収まる',
+    prot.m.pplat <= prot.nm.platMax && prot.m.dp <= prot.nm.dpMax,
+    `Pplat=${prot.m.pplat.toFixed(0)}（上限 ${prot.nm.platMax}） ΔP=${prot.m.dp.toFixed(0)}（上限 ${prot.nm.dpMax}）`);
+  // 課題どおり Vt を触らず RR だけで pH 7.25 以上に持っていけること
+  const fixRR = mk('ards', Object.assign({}, l44.settings, { vt: Math.round(pbw * 6 / 5) * 5, rr: 40 }));
+  fixRR.sedation = 1.0; fixRR._recomputeDrive();
+  run(fixRR, 60 * 30, 0.01);
+  ok('RR だけで pH 7.25 以上に届く', fixRR.ph >= 7.25,
+    `pH=${fixRR.ph.toFixed(2)} PaCO2=${fixRR.paco2.toFixed(0)} RR=${fixRR.m.rrTotal.toFixed(0)}`);
 
   // 4-2：低換気の初期設定から、換気量を増やせば PaCO2 が目標域に入ること
   const l42 = LS.lessonById('4-2');
@@ -396,11 +498,29 @@ console.log('\n12. レッスンの目標が到達可能か');
   hypo.sedation = 1.0; hypo._recomputeDrive();
   run(hypo, 900, 0.01);
   ok('低換気の初期設定で高 CO2 になる', hypo.paco2 > 50, `PaCO2=${hypo.paco2.toFixed(0)} mmHg`);
-  hypo.s.vt = 480; hypo.s.rr = 14;
+  hypo.s.vt = 180; hypo.s.rr = 20;
   run(hypo, 900, 0.01);
-  ok('MV を 6.5 以上にすると PaCO2 が目標域に入る',
-    hypo.paco2 >= 33 && hypo.paco2 <= 48 && hypo.m.mv >= 6.5,
-    `PaCO2=${hypo.paco2.toFixed(0)} MV=${hypo.m.mv.toFixed(1)}`);
+  ok('MV を 3.2 以上にすると PaCO2 が目標域に入る',
+    hypo.paco2 >= 33 && hypo.paco2 <= 48 && hypo.m.mv >= 3.2,
+    `PaCO2=${hypo.paco2.toFixed(0)} MV=${hypo.m.mv.toFixed(2)}`);
+
+  // 2-2：MV 3.0〜4.2 L/分 の目標が届くこと
+  const l22b = LS.lessonById('2-2');
+  const mvE = mk('postop', Object.assign({}, l22b.settings, { rr: 24 }));
+  mvE.sedation = 1.0; mvE._recomputeDrive();
+  run(mvE, 120, 0.005);
+  ok('2-2 の MV 目標（3.0〜4.2）に届く', mvE.m.mv >= 3.0 && mvE.m.mv <= 4.2,
+    `MV=${mvE.m.mv.toFixed(2)} L/分`);
+
+  // 6-1：離脱条件をすべて満たせること
+  const l61 = LS.lessonById('6-1');
+  const w = mk('postop', Object.assign({}, l61.settings, { peep: 5, fio2: 0.4 }));
+  w.sedation = 0.2; w._recomputeDrive();
+  run(w, 60 * 20, 0.01);
+  ok('6-1 の離脱条件をすべて満たせる',
+    w.s.fio2 <= 0.41 && w.s.peep <= 7 && (w.pao2 / w.s.fio2) >= 200 && w.ph >= 7.30
+      && w.map >= w.nm.mapMin && w.sedation <= 0.4 && (w.m.rrSpont >= 4 || w.pmusAmp > 2),
+    `P/F=${(w.pao2 / w.s.fio2).toFixed(0)} pH=${w.ph.toFixed(2)} MAP=${w.map.toFixed(0)}（下限 ${w.nm.mapMin}）`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
