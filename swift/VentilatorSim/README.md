@@ -28,6 +28,8 @@ App/                        SwiftUI の画面。Xcode の App ターゲットに
   KnobView.swift            ロータリーダイヤル（回して「確定」で反映）
   ParameterStepper.swift    モードごとの設定項目の定義と、初期設定画面用のステッパ
   Sheets.swift              血液ガスと離脱のシート
+  LungSceneView.swift       肺の物理モデルを 3D で見る画面（SceneKit）。web/lung3d.js の Swift 版
+  AppAssets.swift           Bundle.main/assets/ から Web 版と同じ PNG を読む。無ければコード描画に落ちる
 ```
 
 ## モデル
