@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 import VentilatorCore
 
 /// 見た目は 2 通り。pop（既定）は明るくポップな筐体、device は従来の実機風。
@@ -18,16 +19,21 @@ final class ThemeStore {
 
     private static let key = "ventsim.theme.v1"
 
-    var kind: ThemeKind {
-        didSet { UserDefaults.standard.set(kind.rawValue, forKey: Self.key) }
-    }
+    /// 保存は set(_:) でまとめて行う。@Observable は var を計算プロパティに書き換えるので、
+    /// didSet を併用せず、書き込み口を 1 つにしておく。
+    private(set) var kind: ThemeKind
 
     private init() {
         let raw = UserDefaults.standard.string(forKey: Self.key) ?? ThemeKind.pop.rawValue
         kind = ThemeKind(rawValue: raw) ?? .pop
     }
 
-    func toggle() { kind = (kind == .pop ? .device : .pop) }
+    func set(_ next: ThemeKind) {
+        kind = next
+        UserDefaults.standard.set(next.rawValue, forKey: Self.key)
+    }
+
+    func toggle() { set(kind == .pop ? .device : .pop) }
 }
 
 /// 1 つのテーマがもつ色と寸法。Web 版の CSS カスタムプロパティと同じ並びにしてある。

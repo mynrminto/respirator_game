@@ -25,6 +25,19 @@ private func advance(_ engine: VentilatorEngine, seconds: Double, dt: Double = 0
     for _ in 0..<steps { engine.step(dt: dt) }
 }
 
+/// 物語の場面（talk）を読み飛ばして、次の「やること」に立たせる。
+/// 2026-09-22 にレッスンが物語形式になり、どのレッスンも会話から始まるようになったので、
+/// 課題の番号を直接書いていたテストはここを通してから本題に入る。
+@discardableResult
+private func skipTalk(_ runtime: LessonRuntime, _ ctx: () -> LessonContext) -> Int {
+    var skipped = 0
+    while let task = runtime.task, task.isTalk, skipped < 40 {
+        runtime.tap(ctx())
+        skipped += 1
+    }
+    return skipped
+}
+
 private func context(_ engine: VentilatorEngine, memory: LessonMemory,
                      gases: [BloodGas] = [], sbt: SBTState = SBTState(),
                      extubated: Bool = false) -> LessonContext {
@@ -127,32 +140,38 @@ struct LessonRuntimeTests {
         let runtime = LessonRuntime(lesson: lesson)
         let ctx = { context(engine, memory: runtime.memory) }
 
-        // 1 番目：吸気ポーズのキー
-        #expect(runtime.fire(.expiratoryHold, ctx()) == nil)
-        #expect(runtime.index == 0)
+        // 1 番目の「やること」：吸気ポーズのキー
+        skipTalk(runtime, ctx)
+        let atKey = runtime.index
+        #expect(runtime.fire(.expiratoryHold, ctx()) == nil)   // 違うキーでは進まない
+        #expect(runtime.index == atKey)
         #expect(runtime.fire(.inspiratoryHold, ctx()) != nil)
-        #expect(runtime.index == 1)
+        #expect(runtime.index > atKey)
 
         // 2 番目：測定が終わるまで進まない
+        skipTalk(runtime, ctx)
+        let atHold = runtime.index
         engine.requestHold(.inspiratory)
         #expect(runtime.poll(ctx(), seconds: 0.5) == nil)
         advance(engine, seconds: 14)
         #expect(runtime.poll(ctx(), seconds: 0.5) != nil)
-        #expect(runtime.index == 2)
+        #expect(runtime.index > atHold)
 
         // 3 番目：クイズ。誤答では進まない。
+        skipTalk(runtime, ctx)
+        let atQuiz = runtime.index
         let quiz = runtime.task?.quiz
         #expect(quiz != nil)
         let wrong = (quiz!.answer + 1) % quiz!.choices.count
         let bad = runtime.answer(wrong, ctx())
         #expect(bad.correct == false)
-        #expect(runtime.index == 2)
+        #expect(runtime.index == atQuiz)
         #expect(runtime.lastAnswerWasWrong)
 
         let good = runtime.answer(quiz!.answer, ctx())
         #expect(good.correct)
         #expect(good.explanation?.isEmpty == false)
-        #expect(runtime.index == 3)
+        #expect(runtime.index > atQuiz)
         #expect(runtime.wrongAnswers == 1)
     }
 
@@ -164,10 +183,12 @@ struct LessonRuntimeTests {
         engine.settings.respiratoryRate = 24
         advance(engine, seconds: 90)
         let ctx = { context(engine, memory: runtime.memory) }
+        skipTalk(runtime, ctx)
+        let atHold = runtime.index
         #expect(engine.measured.minuteVolume >= 3.0 && engine.measured.minuteVolume <= 4.2)
         #expect(runtime.poll(ctx(), seconds: 5) == nil)     // まだ 30 秒に足りない
         #expect(runtime.poll(ctx(), seconds: 30) != nil)
-        #expect(runtime.index == 1)
+        #expect(runtime.index > atHold)
     }
 
     @Test("最後の課題を終えると finished になる")
@@ -330,12 +351,14 @@ struct LessonScenarioTests {
         let runtime = LessonRuntime(lesson: lesson)
         let ctx = { context(engine, memory: runtime.memory) }
         advance(engine, seconds: 40)
+        skipTalk(runtime, ctx)
 
         runtime.poll(ctx(), seconds: 1)                 // 1 番目：平常時を記録
         let basePeak = runtime.memory["pip0"] ?? 0
         let basePlateau = runtime.memory["plat0"] ?? 0
         #expect(basePeak > 0)
 
+        skipTalk(runtime, ctx)
         let before = engine.airwayResistance.inspiratory
         runtime.poll(ctx(), seconds: 1)                 // 2 番目に入ると onStart が発火する
         #expect(engine.airwayResistance.inspiratory > before * 4)
@@ -425,6 +448,7 @@ struct LessonScenarioTests {
         let tidal0 = engine.measured.tidalVolumeExp
         let spo20 = engine.spo2
 
+        skipTalk(runtime, ctx)
         runtime.enter(ctx())                     // 1 番目の onStart で急変が起きる
         advance(engine, seconds: 300, dt: 0.01)
         #expect(engine.measured.peakPressure > peak0 + 8)

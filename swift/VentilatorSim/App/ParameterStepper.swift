@@ -40,7 +40,7 @@ struct VentilatorParameter: Identifiable {
         .init(id: "pause", label: "吸気ポーズ", unit: "秒", range: 0...0.8, step: 0.1, digits: 1,
               modes: [.volumeAssistControl, .simvVolume],
               read: { $0.inspiratoryPause }, write: { $0.inspiratoryPause = $1 }),
-        .init(id: "trigger", label: "トリガ感度", unit: "L/分", range: 0.5...8, step: 0.5, digits: 1,
+        .init(id: "trig", label: "トリガ感度", unit: "L/分", range: 0.5...8, step: 0.5, digits: 1,
               modes: nil, read: { $0.triggerFlow }, write: { $0.triggerFlow = $1 })
     ]
 
@@ -60,7 +60,7 @@ struct VentilatorParameter: Identifiable {
             case "ti":      r = limits.inspiratoryTime
             case "flow":    r = limits.inspiratoryFlow
             case "pause":   r = limits.inspiratoryPause
-            case "trigger": r = limits.trigger
+            case "trig":    r = limits.trigger
             case "pinsp":   r = limits.inspiratoryPressure
             case "ps":      r = limits.pressureSupport
             default:        r = nil
