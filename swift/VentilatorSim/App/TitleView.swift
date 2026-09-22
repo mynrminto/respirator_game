@@ -64,6 +64,19 @@ struct TitleView: View {
 
     private var backdrop: some View {
         ZStack {
+            drawnBackdrop
+            // Web 版と同じ NICU の背景。無ければ上の塗りだけで成立する。
+            if Chrome.isPop, let bg = AppAssets.image(named: "bg_title_day") {
+                bg.resizable().aspectRatio(contentMode: .fill)
+                    .opacity(0.9)
+                    .accessibilityHidden(true)
+            }
+        }
+        .clipped()      // fill で広げた背景が画面の外へはみ出さないように
+    }
+
+    private var drawnBackdrop: some View {
+        ZStack {
             LinearGradient(colors: Chrome.isPop
                            ? [Color(red: 1.00, green: 0.937, blue: 0.839),
                               Color(red: 1.00, green: 0.878, blue: 0.925),
@@ -85,16 +98,15 @@ struct TitleView: View {
     // MARK: - キャラクター
 
     private func cast(height: CGFloat) -> some View {
-        HStack(alignment: .bottom, spacing: height * 0.06) {
-            PatientView(tone: .ok)
-                .frame(width: height * 0.78, height: height * 0.78)
-                .rotationEffect(.degrees(-4))
-            MascotView(mood: .happy)
-                .frame(width: height, height: height)
+        let cheerful = done >= total && total > 0
+        return HStack(alignment: .bottom, spacing: height * 0.06) {
+            Art(["mascot_happy"]) { MascotView(mood: .happy) }
+                .frame(width: height * 0.82, height: height * 0.82)
                 .offset(y: floating ? -6 : 0)
-            DoctorView(mood: done >= total && total > 0 ? .happy : .normal)
-                .frame(width: height * 0.92, height: height * 0.92)
-                .rotationEffect(.degrees(3))
+            Art([cheerful ? "doctor_happy" : "doctor_normal", "doctor_normal"]) {
+                DoctorView(mood: cheerful ? .happy : .normal)
+            }
+            .frame(width: height * 0.92, height: height)
         }
         .frame(height: height)
         .frame(maxWidth: .infinity)
@@ -167,42 +179,50 @@ struct TitleView: View {
         VStack(spacing: 8) {
             if done > 0, let next = nextLesson {
                 let chapter = LessonLibrary.chapter(of: next.id)
-                menuItem("▶", "つづきから",
+                menuItem("▶", icon: "icon_go", "つづきから",
                          [chapter?.title, next.title].compactMap { $0 }.joined(separator: "　"),
                          primary: true) {
                     enter { onStartLesson(next) }
                 }
             } else {
-                menuItem("▶", "はじめる", "学習コースを 1 から", primary: true) {
+                menuItem("▶", icon: "icon_go", "はじめる", "学習コースを 1 から", primary: true) {
                     guard let first = LessonLibrary.all.first else { return }
                     enter { onStartLesson(first) }
                 }
             }
-            menuItem("☰", "コースを選ぶ",
+            menuItem("☰", icon: "icon_course", "コースを選ぶ",
                      "\(LessonLibrary.chapters.count) 章 \(total) レッスンから選ぶ") {
                 enter { onOpenCourse() }
             }
-            menuItem("✚", "症例で練習", "\(ScenarioLibrary.all.count) 症例を自由に操作する") {
+            menuItem("✚", icon: "icon_cases", "症例で練習", "\(ScenarioLibrary.all.count) 症例を自由に操作する") {
                 enter { onOpenCases() }
             }
-            menuItem("?", "この教材について", "免責事項とモデルの説明") {
+            menuItem("?", icon: "icon_about", "この教材について", "免責事項とモデルの説明") {
                 pending = nil
                 showingAbout = true
             }
         }
     }
 
-    private func menuItem(_ glyph: String, _ title: String, _ subtitle: String,
+    private func menuItem(_ glyph: String, icon: String? = nil,
+                          _ title: String, _ subtitle: String,
                           primary: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Text(glyph)
-                    .font(.system(size: 15, weight: .black, design: .rounded))
-                    .foregroundStyle(primary ? Chrome.accentInk : Chrome.accent)
-                    .frame(width: 30, height: 30)
-                    .background(
-                        Circle().fill(primary ? Color.white.opacity(0.25) : Chrome.panel2)
-                    )
+                // 生成アイコンがあればそれを、無ければ文字のまま。
+                Group {
+                    if let icon, let image = AppAssets.image(named: icon) {
+                        image.resizable().aspectRatio(contentMode: .fit).padding(2)
+                    } else {
+                        Text(glyph)
+                            .font(.system(size: 15, weight: .black, design: .rounded))
+                            .foregroundStyle(primary ? Chrome.accentInk : Chrome.accent)
+                    }
+                }
+                .frame(width: 30, height: 30)
+                .background(
+                    Circle().fill(primary ? Color.white.opacity(0.25) : Chrome.panel2)
+                )
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .font(Chrome.label(16, weight: .heavy))

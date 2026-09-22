@@ -41,7 +41,16 @@ struct VentilatorParameter: Identifiable {
               modes: [.volumeAssistControl, .simvVolume],
               read: { $0.inspiratoryPause }, write: { $0.inspiratoryPause = $1 }),
         .init(id: "trig", label: "トリガ感度", unit: "L/分", range: 0.5...8, step: 0.5, digits: 1,
-              modes: nil, read: { $0.triggerFlow }, write: { $0.triggerFlow = $1 })
+              modes: nil, read: { $0.triggerFlow }, write: { $0.triggerFlow = $1 }),
+        // 呼気に移る流量のしきい値。低くすると吸気が延びるので、PSV の非同調の原因になる。
+        .init(id: "esens", label: "呼気感度", unit: "%", range: 10...60, step: 5, digits: 0,
+              modes: [.pressureSupport],
+              read: { $0.expiratoryTriggerFraction * 100 },
+              write: { $0.expiratoryTriggerFraction = $1 / 100 }),
+        // 目標圧まで立ち上がる時間。速すぎるとオーバーシュート、遅すぎると吸気努力が残る。
+        .init(id: "rise", label: "立ち上がり", unit: "秒", range: 0.05...0.4, step: 0.05, digits: 2,
+              modes: [.pressureAssistControl, .pressureSupport],
+              read: { $0.riseTime }, write: { $0.riseTime = $1 })
     ]
 
     static func applicable(to mode: VentilationMode) -> [VentilatorParameter] {
