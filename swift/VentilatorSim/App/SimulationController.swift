@@ -238,6 +238,7 @@ final class SimulationController {
     init(scenario: Scenario, settings: VentilatorSettings) {
         self.scenario = scenario
         self.engine = VentilatorEngine(patient: scenario.patient, settings: settings)
+        engine.settle()
         append("換気開始：\(settings.mode.rawValue)")
     }
 
@@ -444,6 +445,7 @@ final class SimulationController {
         self.scenario = scenario
         engine = VentilatorEngine(patient: scenario.patient, settings: settings)
         if let sedation = lesson.sedation { engine.sedation = sedation }
+        engine.settle()                  // レッスンの設定で数呼吸ぶん進め、実測をそろえてから始める
         settingsVersion &+= 1
         bloodGases = []
         pendingBloodGasAt = nil

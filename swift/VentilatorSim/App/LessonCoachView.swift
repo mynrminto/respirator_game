@@ -71,6 +71,7 @@ struct LessonCoachView: View {
 
     var body: some View {
         let _ = controller.lessonVersion       // ランタイムの変化を購読する
+        let _ = controller.tickCount           // セリフに差し込む実測値（{PIP} など）を追随させる
         if let lesson = controller.lesson, let runtime = controller.lessonRuntime {
             VStack(alignment: .leading, spacing: 0) {
                 header(lesson: lesson, runtime: runtime)

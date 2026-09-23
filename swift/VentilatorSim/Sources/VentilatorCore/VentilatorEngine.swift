@@ -205,6 +205,17 @@ public final class VentilatorEngine {
 
     // MARK: - 1 ステップ
 
+    /// 換気を始めた直後は PIP や Vte がまだ 0 のまま。数呼吸ぶん先に進めて、
+    /// 最初の 1 コマから実測のそろった画面を見せる（セリフに 0 が差し込まれるのも防ぐ）。
+    public func settle() {
+        let dt = 0.005
+        var elapsed = 0.0
+        while breaths.count < 2 && elapsed < 12 {
+            step(dt: dt)
+            elapsed += dt
+        }
+    }
+
     /// `dt` 秒だけ進める。指数積分を使っているので 5 ms でも 12 ms でも結果はほぼ変わらない。
     public func step(dt: Double) {
         clock += dt

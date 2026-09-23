@@ -494,6 +494,13 @@
     fitAll();
   }
 
+  /* 換気を始めた直後は PIP や Vte がまだ 0 のまま。数呼吸ぶん先に進めて、
+   * 最初の 1 コマから実測のそろった画面を見せる（セリフに 0 が差し込まれるのも防ぐ）。 */
+  function settleEngine(e) {
+    var dt = 0.005, t = 0;
+    while (e.breaths.length < 2 && t < 12) { e.step(dt, false); t += dt; }
+  }
+
   function loadScenario(sc, showSetup, keepLesson) {
     if (!keepLesson) endLesson(false);
     S.scen = sc;
@@ -503,6 +510,7 @@
     st.alarms = E.alarmsFor(E.predictedBodyWeight(sc.patient), nm0, st.vt, st.rr);
     S.eng = new E.Engine(sc.patient, st);
     applyLimits(S.eng);
+    settleEngine(S.eng);
     S.abgs = []; S.abgPending = null; S.trend = []; S.sbt = null; S.sbtSaved = null; S.extubated = null;
     S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1;
     S.loopCur = []; S.loopLast = null; S.banner = null; trendAcc = 4;
@@ -1717,6 +1725,7 @@
     for (var k in st) if (Object.prototype.hasOwnProperty.call(st, k)) S.eng.s[k] = st[k];
     if (lesson.sedation != null) S.eng.sedation = lesson.sedation;
     S.eng._recomputeDrive();
+    settleEngine(S.eng);                 // レッスンの設定で数呼吸ぶん進め、実測をそろえてから始める
     setScreen('wave');
     S.lesson = {
       id: id, lesson: lesson, chap: LS.chapterOf(id),
@@ -1885,6 +1894,9 @@
       }
     }
 
+    /* 数値は差し込んだあとの文で比べる。差し込み前の文で比べると、実測が変わっても
+     * 画面が最初の値（開始直後なら 0）のまま残ってしまう。 */
+    say = fillSay(say); hint = fillSay(hint);
     var pr = rt.progress();
     var mood = coachMood(L, t);
     var sig = L.mode + '|' + rt.index + '|' + say + '|' + hint + '|' + tone + '|' + who
@@ -1908,13 +1920,13 @@
         dots.appendChild(d);
       }
       var sayN = $('cSay');
-      sayN.textContent = fillSay(say);
+      sayN.textContent = say;
       sayN.className = 'csay' + (tone ? ' ' + tone : '');
       var wn = $('cWho');
       wn.textContent = WHO_NAME[who] || '';
       wn.className = 'cwho ' + (who || 'doc');
       wn.hidden = !wn.textContent;
-      var hn = $('cHint'); hn.textContent = fillSay(hint); hn.hidden = !hint;
+      var hn = $('cHint'); hn.textContent = hint; hn.hidden = !hint;
       paintChoices(choices);
     }
 
