@@ -30,9 +30,12 @@ extension StoryLibrary {
             StoryLine(.doc, "同じ考え方で、ずっと細かく。この子に 1 回で送る空気は、小さじ 1 杯ほどです。"),
             StoryLine(.scene, "奥のベッドには、肺炎で両肺が真っ白になった 3 歳の女の子。隣には、RSV で入院した生後 4 か月の男の子。", bg: "picu"),
             StoryLine(.doc, "覚えることは多いけれど、根っこは 1 つ。この機械が何を保証して、何をこの子に預けているか。"),
-            StoryLine(.nurse, "いぶき先生、手術室から電話です。"),
+            StoryLine(.nurse, "いぶき先生、救急外来から電話です。"),
             StoryLine(.doc, "…はい。…分かりました。ベッドを空けて待っています。", mood: "think"),
-            StoryLine(.doc, "虫垂炎の穿孔で手術になった 8 歳の男の子が、挿管されたまま今夜ここへ来ます。ハルト君です。"),
+            StoryLine(.doc, "8 歳の男の子。虫垂炎が破れて、お腹じゅうに膿が広がっています。血圧が保てない、ショックです。"),
+            StoryLine(.doc, "昼から緊急手術。終わったら、挿管のままここへ来ます。ハルト君です。"),
+            StoryLine(.puku, "手術が終わっても、チューブは抜かないの？", mood: "sad"),
+            StoryLine(.doc, "ショックのあいだは、息をする仕事まで体にさせたくない。循環が落ち着くまで、呼吸は機械に預けます。"),
             StoryLine(.doc, "{名前}先生、今夜は一緒に残ってください。あなたの最初の受け持ちです。"),
             StoryLine(.puku, "いきなり!? だ、だいじょうぶかな…", mood: "alert"),
             StoryLine(.doc, "だいじょうぶ。わたしが隣にいます。まずは、機械の言葉を読めるようになりましょう。", mood: "happy")
@@ -42,7 +45,7 @@ extension StoryLibrary {
                    card: StoryCard(kicker: "第1章", title: "機械を読む", sub: "初日の夜　PICU"),
                    bg: "night", end: nil, lines: [
             StoryLine(.scene, "午後 8 時。手術室から、ハルト君のベッドが運ばれてきた。麻酔科医が、手際よく呼吸器につなぎ替えていく。"),
-            StoryLine(.nurse, "呼吸器、つながりました。設定は麻酔科の先生が入れてくれています。"),
+            StoryLine(.nurse, "呼吸器、つながりました。ノルアドレナリンは 0.1 で続いています。設定は麻酔科の先生が入れてくれています。"),
             StoryLine(.puku, "画面に線と数字がいっぱい…。どこから見ればいいの？", mood: "sad"),
             StoryLine(.doc, "全部を一度に見なくていい。{名前}先生、今夜は「読む」ことだけに集中しましょう。")
         ]),
@@ -60,7 +63,7 @@ extension StoryLibrary {
                    title: "第2章　扉　2 日目の朝",
                    card: StoryCard(kicker: "第2章", title: "挿管直後の初期設定", sub: "2 日目の朝　回診"),
                    bg: "picu", end: nil, lines: [
-            StoryLine(.scene, "翌朝 8 時。回診の前に、夜勤の看護師から申し送りを受ける。"),
+            StoryLine(.scene, "翌朝 8 時。ハルト君の昇圧薬は、夜のうちに半分まで減った。回診の前に、夜勤の看護師から申し送りを受ける。"),
             StoryLine(.nurse, "夜中に何度か換気量のアラームが鳴って、当直の先生が一回換気量を上げていきました。"),
             StoryLine(.doc, "鳴ったから上げる。いちばん多い落とし穴です。{名前}先生、今日は設定を「決める」側に回ってもらいます。", mood: "think"),
             StoryLine(.puku, "決めるって、何から？"),
@@ -94,32 +97,35 @@ extension StoryLibrary {
             StoryLine(.pt, "（チューブがあって話せない。かわりに指で、小さな OK をつくってみせる）", name: "ハルト君", caseID: "postop"),
             StoryLine(.puku, "いま、ハルト君が OK って！", mood: "excited"),
             StoryLine(.doc, "自分で息をする力が戻ってきた証拠です。{名前}先生、手伝い方を選べるようになりましたね。", mood: "happy"),
-            StoryLine(.doc, "今夜はもう一度、当直です。次は機械の外から答え合わせをします。血液ガスです。")
+            StoryLine(.puku, "じゃあ、もうチューブ抜けるね！", mood: "excited"),
+            StoryLine(.doc, "まだです。昇圧薬が少し残っていて、お腹も張っています。明日の朝の数字を見てから決めましょう。"),
+            StoryLine(.doc, "明日は、機械の外から答え合わせをします。血液ガスです。")
         ]),
         StoryScene(id: "ch4-open", kind: "open", chapter: "ch4",
-                   title: "第4章　扉　2 回目の当直",
-                   card: StoryCard(kicker: "第4章", title: "血液ガスを読む", sub: "2 日目の夜　当直"),
+                   title: "第4章　扉　3 日目の朝",
+                   card: StoryCard(kicker: "第4章", title: "血液ガスを読む", sub: "3 日目の朝　回診前"),
                    bg: "station", end: nil, lines: [
-            StoryLine(.scene, "2 回目の当直。日付が変わるころ、ナースステーションに採血の結果が並びはじめる。"),
+            StoryLine(.scene, "3 日目の朝。回診の前に、ナースステーションに夜のあいだの採血の結果が並んでいる。"),
             StoryLine(.me, "数字が多すぎて、どれから見ればいいのか…。"),
             StoryLine(.doc, "呼吸器の画面は「送ったもの」。血液ガスは「体に届いたもの」。両方を見て、はじめて答え合わせになります。"),
             StoryLine(.puku, "答え合わせ、ぼく得意！ …たぶん。", mood: "happy")
         ]),
         StoryScene(id: "ch4-close", kind: "close", chapter: "ch4",
-                   title: "第4章　幕　明け方",
+                   title: "第4章　幕　夕方",
                    card: nil,
-                   bg: "dawn", end: nil, lines: [
-            StoryLine(.scene, "明け方。ミオちゃんの pH は低めのまま。それでも、肺にかかる圧は上限の下に収まった。"),
+                   bg: "picu", end: nil, lines: [
+            StoryLine(.scene, "夕方。ミオちゃんの pH は低めのまま。それでも、肺にかかる圧は上限の下に収まった。"),
             StoryLine(.me, "CO₂ が高いままでいいのか、まだ少し怖いです。"),
             StoryLine(.doc, "その怖さは大事にしてください。許すのは、肺を守るという目的があるときだけです。"),
-            StoryLine(.fam, "先生たち、ひと晩じゅう、そばにいてくださったんですね。", name: "ミオちゃんのお母さん"),
-            StoryLine(.doc, "次の当直では、鳴ってからの動き方を体に入れます。アラームは待ってくれません。", mood: "think")
+            StoryLine(.fam, "先生たち、今日は何度も見に来てくださったんですね。", name: "ミオちゃんのお母さん"),
+            StoryLine(.doc, "今夜はわたしの当直です。{名前}先生も一緒に。鳴ってからの動き方を体に入れます。", mood: "think")
         ]),
         StoryScene(id: "ch5-open", kind: "open", chapter: "ch5",
-                   title: "第5章　扉　3 回目の当直",
+                   title: "第5章　扉　2 回目の当直",
                    card: StoryCard(kicker: "第5章", title: "アラームとトラブル", sub: "3 日目の夜　当直"),
                    bg: "station", end: nil, lines: [
-            StoryLine(.scene, "3 回目の当直。ナースステーションで、ななみさんが {名前}先生に声をかけた。"),
+            StoryLine(.scene, "2 回目の当直。ナースステーションで、ななみさんが {名前}先生に声をかけた。"),
+            StoryLine(.nurse, "ハルト君、夕方に点滴の管が詰まって、左の鎖骨の下から入れ直しています。昇圧薬は、もう切れました。"),
             StoryLine(.nurse, "今夜は静かだといいですね。…って言うと、たいてい鳴るんですけど。"),
             StoryLine(.puku, "ぼく、アラームが鳴ると頭が真っ白になっちゃうんだ。", mood: "sad"),
             StoryLine(.doc, "だから順番を決めておきます。頭が真っ白になっても、手が先に動くように。")
@@ -131,14 +137,15 @@ extension StoryLibrary {
             StoryLine(.scene, "夜明け。ハルト君の胸には細いドレーンが入り、モニターの音はまた高く澄んだ音に戻っている。"),
             StoryLine(.me, "手が震えていました。でも、酸素を上げるところまでは、考える前にできました。"),
             StoryLine(.doc, "それで十分です。今夜ハルト君を守ったのは、{名前}先生の最初の一手です。", mood: "happy"),
+            StoryLine(.doc, "夕方の管の針が、肺の表面をかすめたのかもしれません。そこから、機械の圧で空気が漏れました。", mood: "think"),
             StoryLine(.puku, "ぼく、ずっとポケットの中で震えてた…。", mood: "sad"),
             StoryLine(.doc, "ここから先は、外す話です。つけるより、外すほうが難しい。")
         ]),
         StoryScene(id: "ch6-open", kind: "open", chapter: "ch6",
-                   title: "第6章　扉　数日後",
-                   card: StoryCard(kicker: "第6章", title: "離脱と抜管", sub: "数日後の朝　PICU"),
+                   title: "第6章　扉　4 日目の朝",
+                   card: StoryCard(kicker: "第6章", title: "離脱と抜管", sub: "4 日目の朝　PICU"),
                    bg: "picu", end: nil, lines: [
-            StoryLine(.scene, "数日後の朝。ハルト君の熱は下がり、胸のドレーンも抜けた。お母さんが面会に来ている。"),
+            StoryLine(.scene, "翌朝。ハルト君の熱は下がり、お腹の張りも引いた。ドレーンからの空気漏れも止まっている。お母さんが面会に来ている。"),
             StoryLine(.fam, "先生、この管はいつ抜けるんでしょう。あの子、しゃべりたがっていて。", name: "ハルト君のお母さん"),
             StoryLine(.doc, "今日から、それを確かめていきます。{名前}先生、条件を一緒に見ましょう。"),
             StoryLine(.puku, "抜けたら、ハルト君とおしゃべりできる？", mood: "excited"),
