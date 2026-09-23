@@ -5,6 +5,7 @@
 
   var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons, CH = window.VentChars;
   var AR = window.VentArt, AS = window.VentAssets, LU = window.VentLung3D;
+  var ST = window.VentStory;           // 物語（story.js）
   /* 音は無くても動く（sound.js を読まない構成やテスト用） */
   var SND = window.VentSound || { play: function () {}, alarm: function () {}, pulse: function () { return false; }, pulseReset: function () {},
     enabled: function () { return false; }, setEnabled: function () {}, pulseEnabled: function () { return false; }, setPulseEnabled: function () {} };
@@ -362,7 +363,7 @@
     initTheme();
     buildVals();
     loadScenario(SC.SCENARIOS[0], false);
-    buildTabs(); bindHard(); bindKnob(); bindCoach(); bindSounds();
+    buildTabs(); bindHard(); bindKnob(); bindCoach(); bindSounds(); bindStory();
     buildTitle();
     window.addEventListener('resize', fitAll);
     requestAnimationFrame(frame);
@@ -469,15 +470,16 @@
     items.push({ id: 'about', glyph: '?', title: 'この教材について', sub: '免責事項とモデルの説明' });
     return {
       done: d, total: n, items: items, next: next,
-      line: d === 0 ? 'はじめまして。小児科の いぶき先生です。\nいっしょに こどもたちの呼吸を守りましょう。'
+      line: d === 0 ? (storedName() ? 'おかえりなさい、' + storedName() + '先生。\nハルト君が待っています。'
+                                    : 'はじめまして。小児科の いぶき先生です。\nいっしょに こどもたちの呼吸を守りましょう。')
           : (d >= n ? '全レッスン修了、おみごとです。\n症例で腕を試してみましょう。'
-                    : 'おかえりなさい。ここまで ' + d + ' / ' + n + ' レッスン。\nつづきからどうぞ。')
+                    : 'おかえりなさい、' + playerName() + '先生。\nここまで ' + d + ' / ' + n + ' レッスン。つづきからどうぞ。')
     };
   }
 
   function titleSelect(id, data) {
     if (id === 'go') {
-      enter(function () { startLesson((data.next ? data.next.lesson : LS.allLessons()[0].lesson).id); });
+      enter(function () { beginLesson((data.next ? data.next.lesson : LS.allLessons()[0].lesson).id); });
     } else if (id === 'course') {
       enter(function () { openCourse(); });
     } else if (id === 'cases') {
@@ -1834,6 +1836,7 @@
        ['⟳', '初期設定をやり直す', function () { close(); openSetup(); }],
        ['↺', 'この症例を最初から', function () { close(); loadScenario(S.scen, false); }],
        ['★', '振り返り', function () { close(); openDebrief(); }],
+       ['✦', '物語を読み返す', function () { close(); openStoryList(); }],
        ['⌂', 'タイトルへ戻る', function () { close(); endLesson(false); showTitle(); }],
        ['♪', SND.enabled() ? '音：オン（押すと消す）' : '音：オフ（押すと鳴らす）',
         function () { SND.setEnabled(!SND.enabled()); close(); openMenu(); }],
@@ -2074,6 +2077,9 @@
     if (n >= all) celebrate('全レッスン修了！おめでとう 🏆');
     else if (first) celebrate('レッスン修了！ ' + n + ' / ' + all + ' 🎉');
     else celebrate('レッスン修了！ 🎉');
+    /* 章の最後のレッスンなら、その章の幕を下ろす（紙吹雪が見えるぶんだけ待つ）。 */
+    var after = ST ? ST.after(L.id, L.chap, storySeen()) : [];
+    if (after.length) setTimeout(function () { if (S.lesson === L) playStories(after); }, 1400);
   }
 
   function bindCoach() {
@@ -2139,6 +2145,7 @@
   function fillSay(text) {
     if (!text || text.indexOf('{') < 0) return text;
     return text.replace(/\{([^{}]+)\}/g, function (m, name) {
+      if (name === '名前') return playerName();          // 主人公（プレイヤー）の名前
       for (var i = 0; i < VALS.length; i++) if (VALS[i].k === name) return String(VALS[i].get(S.eng));
       for (var k in P) if (P[k].k === name) return String(P[k].get(S.eng.s));
       return m;
@@ -2290,7 +2297,7 @@
       if (nid) {
         var nb = el('button', 'cbtn go', '次のレッスンへ');
         nb.style.flex = '0 0 auto';
-        nb.onclick = function () { startLesson(nid); };
+        nb.onclick = function () { beginLesson(nid); };
         box.appendChild(nb);
       }
       var cb = el('button', 'cbtn', 'コース一覧');
@@ -2324,6 +2331,317 @@
       r.appendChild(go); b.appendChild(r);
     });
   }
+
+  /* ===================== 物語（幕） =====================
+   * レッスンの外側の物語。プロローグ・章の扉・章の幕・エピローグを、機器を覆う 1 枚の
+   * 紙芝居として見せる。データと進行は story.js、ここは描画と保存だけ。
+   * 見た幕は STORY_KEY に残し、メニューの「物語を読み返す」から何度でも読める。 */
+
+  var STORY_KEY = 'ventsim.story.seen.v1';
+  var PLAYER_KEY = 'ventsim.player.v1';
+  var SAY_CPS = 42;                         // 文字送りの速さ（字/秒）
+
+  function storySeen() {
+    try { var raw = window.localStorage.getItem(STORY_KEY); return raw ? JSON.parse(raw) : []; }
+    catch (err) { return []; }
+  }
+  function markStorySeen(id) {
+    try {
+      var s = storySeen();
+      if (s.indexOf(id) < 0) { s.push(id); window.localStorage.setItem(STORY_KEY, JSON.stringify(s)); }
+    } catch (err) { /* 記録できなくても物語は進む */ }
+  }
+  /* 名前がまだ決まっていなければ null。呼ぶときは playerName() で既定の名前に落とす。 */
+  function storedName() {
+    try { var n = window.localStorage.getItem(PLAYER_KEY); return n ? ST.cleanName(n) : null; }
+    catch (err) { return null; }
+  }
+  function playerName() { return storedName() || ST.DEFAULT_NAME; }
+  function setPlayerName(n) {
+    try { window.localStorage.setItem(PLAYER_KEY, ST.cleanName(n)); } catch (err) { /* 無視 */ }
+  }
+
+  /* レッスンに入る入口はすべてここを通す。まだ見ていない幕があれば、先に見せる。 */
+  function beginLesson(id) {
+    var ch = LS.chapterOf(id);
+    var list = ST ? ST.before(id, ch ? ch.id : '', storySeen()) : [];
+    if (!list.length) { startLesson(id); return; }
+    playStories(list, function () { startLesson(id); });
+  }
+
+  var SV = null;   // 再生中の状態 { queue, run, done, typing, shown, full, timer, stage }
+
+  function playStories(ids, done, opts) {
+    ids = (ids || []).filter(function (id) { return ST.sceneById(id); });
+    if (!ids.length) { if (done) done(); return; }
+    if (SV) closeStory(false);
+    SV = { queue: ids.slice(), run: null, done: done || null, replay: !!(opts && opts.replay),
+      typing: false, shown: 0, full: '', timer: null, stage: null, bgKey: '', final: false };
+    var box = $('story');
+    box.hidden = false;
+    box.setAttribute('data-theme-dark', currentTheme() === 'device' ? '1' : '0');
+    nextScene();
+  }
+
+  function nextScene() {
+    var id = SV.queue.shift();
+    var sc = ST.sceneById(id);
+    SV.run = new ST.Run(sc);
+    SV.stage = null; SV.bgKey = '';
+    $('story').setAttribute('data-chap', sc.chapter || 'ch1');
+    $('sPlace').textContent = sc.card ? sc.card.sub : sc.title;
+    paintStory();
+  }
+
+  /* 幕を 1 つ見終えた（飛ばしたときも同じ）。 */
+  function sceneEnded() {
+    markStorySeen(SV.run.scene.id);
+    if (SV.queue.length) { nextScene(); return; }
+    var end = SV.run.scene.end;
+    if (end && !SV.final) { SV.final = true; paintStory(); return; }
+    closeStory(true);
+  }
+
+  function closeStory(fire) {
+    if (!SV) return;
+    clearInterval(SV.timer);
+    var done = SV.done;
+    SV = null;
+    $('story').hidden = true;
+    $('sStage').innerHTML = '';
+    if (fire && done) done();
+  }
+
+  function storyBg(key) {
+    var names = (ST.BG[key] || ST.BG.picu);
+    for (var i = 0; i < names.length; i++) if (AS.has(names[i])) return AS.url(names[i]);
+    return null;
+  }
+
+  /* 立ち絵。先生とぷくぷくは全身、患者はベッドの一枚絵を窓に入れる。
+   * 主人公・家族・ト書きは絵を持たないので、直前の立ち絵を薄くして残す。 */
+  function storyArt(line) {
+    var dark = currentTheme() === 'device';
+    if (line.who === 'doc') return { key: 'doc', src: docArt(line.mood || 'normal', dark), cls: 'doc' };
+    if (line.who === 'puku') {
+      return { key: 'puku', cls: 'puku',
+        src: AS.url('mascot_' + (line.mood || 'happy')) || AS.url('mascot_happy') || AR.mascot(dark, false) };
+    }
+    if (line.who === 'nurse') {
+      var nu = AS.url('nurse_normal');
+      return { key: 'nurse', src: nu || null, cls: 'nurse', badge: nu ? '' : '看' };
+    }
+    if (line.who === 'pt' && line.case) {
+      var sc = SC.SCENARIOS.filter(function (x) { return x.id === line.case; })[0];
+      if (sc) return { key: 'pt:' + sc.id, src: patientArt(sc, 'ok', dark), cls: 'patient', focus: PT_FOCUS[sc.id] };
+    }
+    return null;
+  }
+
+  function paintStoryStage(line) {
+    var st = $('sStage'), art = storyArt(line);
+    /* ト書き・家族の台詞では立ち絵を引っ込めて場所を見せる。主人公の台詞では、話している相手（直前の立ち絵）を暗くして残す。 */
+    st.classList.toggle('away', !art && line.who !== 'me');
+    if (!art) { st.classList.add('dim'); return; }
+    st.classList.remove('dim');
+    var sig = art.key + '|' + art.src;
+    if (SV.stage === sig) return;
+    var changed = !SV.stage || SV.stage.split('|')[0] !== art.key;
+    SV.stage = sig;
+    st.innerHTML = '';
+    var fig = el('div', 'sfig ' + art.cls + (changed ? ' enter' : ''));
+    if (art.focus) {
+      /* 患者はベッドの一枚絵なので、顔のあたりを寄せて窓に入れる（学習帯の丸い顔と同じ考え方）。 */
+      var z = 1.9, win = el('div', 'swin');
+      win.style.backgroundImage = 'url("' + art.src + '")';
+      win.style.backgroundSize = (z * 100) + '% auto';
+      win.style.backgroundPosition = focusPct(art.focus[0], z).toFixed(1) + '% ' + focusPct(Math.min(0.6, art.focus[1] + 0.12), z).toFixed(1) + '%';
+      fig.appendChild(win);
+    } else if (art.src) fig.innerHTML = '<img alt="" src="' + art.src + '">';
+    else fig.appendChild(el('span', 'sbadge', art.badge || ''));
+    st.appendChild(fig);
+  }
+
+  function paintStory() {
+    if (!SV) return;
+    var run = SV.run, sc = run.scene, name = playerName();
+    var card = $('sCard'), box = $('sBox'), act = $('sAct');
+    clearInterval(SV.timer); SV.typing = false;
+
+    /* 背景は行ごとに替えられる（廊下 → PICU → NICU）。 */
+    var bgKey = sc.bg;
+    for (var i = 0; i <= Math.min(run.index, sc.lines.length - 1); i++) if (sc.lines[i].bg) bgKey = sc.lines[i].bg;
+    if (SV.bgKey !== bgKey) {
+      SV.bgKey = bgKey;
+      var u = storyBg(bgKey), bg = $('sBg');
+      bg.style.backgroundImage = u ? 'url("' + u + '")' : '';
+      bg.setAttribute('data-bg', bgKey);
+    }
+
+    if (run.phase === 'card') {
+      card.hidden = false; box.hidden = true;
+      $('sKick').textContent = sc.card.kicker;
+      $('sTitle').textContent = sc.card.title;
+      $('sSub').textContent = sc.card.sub;
+      $('sStage').innerHTML = ''; SV.stage = null;
+      return;
+    }
+    card.hidden = true; box.hidden = false;
+    act.innerHTML = ''; act.hidden = true;
+
+    if (SV.final) {
+      /* エピローグのあと。次にやることを差し出して終える。 */
+      var end = sc.end;
+      $('sName').hidden = true;
+      $('sText').className = 'stext scene';
+      setStoryText(end.say || '');
+      $('sNext').hidden = true;
+      act.hidden = false;
+      var go = el('button', 'sbtn go', end.label);
+      go.onclick = function (ev) { ev.stopPropagation(); closeStory(true); if (end.action === 'cases') openCases(); };
+      var cl = el('button', 'sbtn', '閉じる');
+      cl.onclick = function (ev) { ev.stopPropagation(); closeStory(true); };
+      act.appendChild(go); act.appendChild(cl);
+      return;
+    }
+
+    var line = run.line();
+    if (!line) return;
+    paintStoryStage(line);
+    var who = ST.speakerName(line, name);
+    var nm = $('sName');
+    nm.textContent = who; nm.hidden = !who;
+    nm.className = 'sname w-' + line.who;
+    $('sText').className = 'stext' + (line.who === 'scene' ? ' scene' : '');
+    typeStory(ST.fill(line.say, name));
+  }
+
+  /* 文字送り。押すと一気に最後まで出す。入力・選択は全文が出てから見せる。 */
+  function typeStory(text) {
+    SV.full = text; SV.shown = 0;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || window.VENT_FAST_STORY) { finishTyping(); return; }
+    SV.typing = true;
+    $('sNext').hidden = true;
+    setStoryText('');
+    var t0 = performance.now();
+    SV.timer = setInterval(function () {
+      if (!SV) return;
+      var n = Math.min(SV.full.length, Math.floor((performance.now() - t0) / 1000 * SAY_CPS) + 1);
+      if (n !== SV.shown) { SV.shown = n; setStoryText(SV.full.slice(0, n)); }
+      if (n >= SV.full.length) finishTyping();
+    }, 30);
+  }
+
+  function setStoryText(t) { $('sText').textContent = t; }
+
+  function finishTyping() {
+    clearInterval(SV.timer);
+    SV.typing = false;
+    setStoryText(SV.full);
+    var w = SV.run.waiting(), act = $('sAct');
+    $('sNext').hidden = !!w;
+    act.innerHTML = '';
+    act.hidden = !w;
+    if (w === 'input') {
+      var f = el('form', 'sform');
+      var inp = el('input');
+      inp.type = 'text'; inp.maxLength = ST.NAME_MAX; inp.id = 'sNameInput';
+      inp.placeholder = ST.DEFAULT_NAME; inp.value = storedName() || '';
+      inp.setAttribute('aria-label', '名前（苗字）');
+      inp.setAttribute('autocomplete', 'off');
+      var ok = el('button', 'sbtn go', '決める');
+      ok.type = 'submit';
+      f.appendChild(inp); f.appendChild(ok);
+      f.appendChild(el('i', 'snote', 'いぶき先生は「〇〇先生」と呼びます。空のままなら「' + ST.DEFAULT_NAME + '」。'));
+      f.onsubmit = function (ev) {
+        ev.preventDefault();
+        setPlayerName(inp.value);
+        SV.run.submit();
+        paintStory();
+      };
+      f.onclick = function (ev) { ev.stopPropagation(); };
+      act.appendChild(f);
+      setTimeout(function () { try { inp.focus(); } catch (e) { /* 無視 */ } }, 50);
+    } else if (w === 'choose') {
+      SV.run.line().choose.forEach(function (c, i) {
+        var b = el('button', 'sbtn', c.label);
+        b.onclick = function (ev) { ev.stopPropagation(); SV.run.pick(i); paintStory(); };
+        act.appendChild(b);
+      });
+    }
+  }
+
+  function storyTap() {
+    if (!SV) return;
+    if (SV.final) return;
+    if (SV.typing) { finishTyping(); return; }
+    if (SV.run.waiting()) return;
+    SND.play('tap');
+    if (SV.run.next()) sceneEnded();
+    else paintStory();
+  }
+
+  /* 飛ばす。名前をまだ決めていなければ名前の行で止まる。残りの幕もまとめて飛ばす。 */
+  function storySkip() {
+    if (!SV) return;
+    if (!SV.run.skip(!!storedName())) { paintStory(); finishTyping(); return; }
+    markStorySeen(SV.run.scene.id);
+    while (SV.queue.length) {
+      var id = SV.queue.shift(), r = new ST.Run(ST.sceneById(id));
+      if (!r.skip(!!storedName())) { SV.run = r; paintStory(); finishTyping(); return; }
+      markStorySeen(id);
+    }
+    closeStory(true);
+  }
+
+  function bindStory() {
+    $('story').addEventListener('click', function (ev) {
+      if (ev.target.closest('button,input,form')) return;
+      storyTap();
+    });
+    $('sSkip').onclick = function (ev) { ev.stopPropagation(); storySkip(); };
+    document.addEventListener('keydown', function (ev) {
+      if (!SV) return;
+      if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopImmediatePropagation(); storyTap(); }
+    }, true);
+  }
+
+  /* 読み返し。見た幕だけを物語の順に並べる。名前もここで直せる。 */
+  function openStoryList() {
+    var seen = storySeen();
+    modal('物語を読み返す', function (b, close) {
+      var nm = el('div', 'sname-row');
+      nm.appendChild(el('span', '', 'あなたの名前'));
+      var inp = el('input');
+      inp.type = 'text'; inp.maxLength = ST.NAME_MAX; inp.value = playerName();
+      inp.setAttribute('aria-label', 'あなたの名前');
+      var save = el('button', 'mbtn', '名前を変える');
+      save.onclick = function () { setPlayerName(inp.value); inp.value = playerName(); save.textContent = '変えました'; };
+      nm.appendChild(inp); nm.appendChild(save);
+      b.appendChild(nm);
+      b.appendChild(el('p', 'note', 'まだ読んでいない幕は、そのレッスンに進むと開きます。'));
+      var g = el('div', 'grid2');
+      ST.SCENES.forEach(function (sc) {
+        var open = seen.indexOf(sc.id) >= 0 || sc.id === 'prologue';
+        var c = el('button', 'lesson story-item' + (open ? '' : ' locked'));
+        c.setAttribute('data-chap', sc.chapter || 'ch1');
+        c.appendChild(el('span', 'mk ' + (open ? 'y' : 'n'), open ? '▶' : '・'));
+        var t = el('div', 'lt');
+        t.appendChild(el('b', '', sc.title));
+        t.appendChild(el('span', '', open ? (sc.lines.length + ' 場面') : 'まだ読んでいません'));
+        c.appendChild(t);
+        c.disabled = !open;
+        c.onclick = function () { close(); playStories([sc.id], null, { replay: true }); };
+        g.appendChild(c);
+      });
+      b.appendChild(g);
+    });
+  }
+
+  /* 動作確認用。幕を直接流す（web/smoke.js が使う）。 */
+  window.VentStoryUI = { play: function (ids) { playStories(ids); }, list: function () { openStoryList(); } };
 
   function openCourse() {
     var done = doneSet();
@@ -2361,7 +2679,7 @@
           t.appendChild(el('b', '', l.title));
           t.appendChild(el('span', '', '目安 ' + l.minutes + ' 分'));
           c.appendChild(t);
-          c.onclick = function () { close(); startLesson(l.id); };
+          c.onclick = function () { close(); beginLesson(l.id); };
           g.appendChild(c);
         });
         b.appendChild(g);

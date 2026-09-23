@@ -583,6 +583,93 @@
   :root[data-theme="device"] .cav.puku,:root[data-theme="device"] .cav.pt{background:#0F1B18;border-color:#1F4639}
   @media(max-width:420px){.cav{width:32px;height:32px}}
 
+  /* ---- 物語（プロローグ・章の扉と幕） ----
+     機器を覆う紙芝居。背景 → 立ち絵 → 下の会話窓、の 3 層。押すと 1 行進む。 */
+  .story{position:fixed;inset:0;z-index:95;overflow:hidden;background:#1D1A2E;cursor:pointer;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  .story[hidden]{display:none}
+  .sbg{position:absolute;inset:0;background:var(--deck);background-size:cover;background-position:center}
+  .sbg::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(20,16,40,.18) 0%,rgba(20,16,40,0) 30%,rgba(20,16,40,.42) 100%)}
+  .sbg[data-bg="night"]::after,.sbg[data-bg="station"]::after{
+    background:linear-gradient(180deg,rgba(8,10,30,.42),rgba(8,10,30,.62))}
+  .sbg[data-bg="dawn"]::after{background:linear-gradient(180deg,rgba(255,170,120,.22),rgba(40,20,60,.38))}
+  .stop{position:absolute;z-index:3;top:max(10px,env(safe-area-inset-top));left:12px;right:12px;
+    display:flex;justify-content:space-between;align-items:center;gap:8px;pointer-events:none}
+  .splace,.sskip{font-size:12px;font-weight:800;color:#fff;background:rgba(30,24,60,.58);
+    padding:5px 12px;border-radius:999px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+  .splace{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sskip{flex:none;border:1.5px solid rgba(255,255,255,.55);pointer-events:auto}
+  .sstage{position:absolute;z-index:1;left:0;right:0;top:44px;bottom:118px;display:flex;
+    justify-content:center;align-items:flex-end;pointer-events:none;transition:opacity .25s,filter .25s}
+  .sstage.dim{filter:brightness(.72) saturate(.7)}
+  .sstage.away{opacity:0}
+  .sfig{height:90%;max-height:600px;display:flex;align-items:flex-end;justify-content:center}
+  .sfig img{display:block;height:100%;width:auto;max-width:94vw;object-fit:contain;
+    filter:drop-shadow(0 10px 14px rgba(30,20,60,.35))}
+  .sfig.puku{height:44%}
+  .sfig.patient{height:auto;margin-bottom:60px}
+  .swin{width:min(74vw,380px);aspect-ratio:1;border-radius:26px;border:4px solid #fff;background-color:#DDE8F5;
+    background-repeat:no-repeat;box-shadow:0 10px 24px rgba(20,10,40,.35)}
+  .sfig.nurse{height:auto;margin-bottom:90px}
+  .sbadge{display:grid;place-items:center;width:112px;height:112px;border-radius:50%;background:#FFE3D0;
+    border:4px solid #262745;color:#FF8A3D;font-size:48px;font-weight:800;box-shadow:0 6px 0 rgba(38,39,69,.25)}
+  .sfig.enter{animation:sfigIn .35s cubic-bezier(.2,1.3,.4,1)}
+  @keyframes sfigIn{from{transform:translateY(24px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+  .sbox{position:absolute;z-index:2;left:50%;transform:translateX(-50%);
+    bottom:max(14px,env(safe-area-inset-bottom));width:min(760px,calc(100% - 24px));min-height:136px;
+    background:rgba(255,253,248,.97);border:3px solid #262745;border-radius:20px;padding:22px 18px 18px;
+    box-shadow:0 6px 0 rgba(38,39,69,.25),0 18px 40px rgba(20,10,40,.35);cursor:pointer}
+  .sbox[hidden]{display:none}
+  .sname{position:absolute;top:-17px;left:16px;padding:4px 14px;border-radius:999px;font-weight:800;
+    font-size:13.5px;color:#fff;background:var(--chap);border:3px solid #262745;white-space:nowrap}
+  .sname[hidden]{display:none}
+  .sname.w-doc{background:#12C48B}.sname.w-puku{background:#5B7CFA}.sname.w-me{background:#FF5E8A}
+  .sname.w-nurse{background:#FF8A3D}.sname.w-pt,.sname.w-fam{background:#8B6BFF}
+  .stext{font-size:16px;line-height:1.75;min-height:3.5em;white-space:pre-wrap;color:#262745;font-weight:500}
+  .stext.scene{color:#55577A;border-left:3px solid #DCCFE8;padding-left:10px}
+  .snext{position:absolute;right:16px;bottom:8px;color:var(--accent);font-size:13px;
+    animation:snext 1s ease-in-out infinite}
+  .snext[hidden]{display:none}
+  @keyframes snext{50%{transform:translateY(3px);opacity:.45}}
+  .sact{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;cursor:default}
+  .sact[hidden]{display:none}
+  .sbtn{flex:1 1 130px;padding:11px 14px;border-radius:14px;border:2.5px solid #262745;background:#fff;
+    font:inherit;font-weight:800;font-size:14.5px;color:#262745;box-shadow:0 3px 0 #262745;cursor:pointer}
+  .sbtn.go{background:var(--accent);color:#fff}
+  .sbtn:active{transform:translateY(3px);box-shadow:none}
+  .sform{display:flex;flex-wrap:wrap;gap:8px;width:100%;align-items:center}
+  .sform input{flex:1 1 150px;min-width:0;font:inherit;font-size:17px;font-weight:700;padding:10px 12px;
+    border-radius:12px;border:2.5px solid #262745;background:#FFF8EE;color:#262745;-webkit-user-select:text;user-select:text}
+  .sform .sbtn{flex:0 0 auto}
+  .snote{flex-basis:100%;font-style:normal;font-size:11.5px;color:#767898}
+  .scard{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:8px;padding:0 20px;background:rgba(20,16,40,.55);color:#fff;text-align:center;
+    animation:scardIn .7s ease}
+  .scard[hidden]{display:none}
+  .scard i{font-style:normal;font-family:"Dela Gothic One",var(--jp);font-size:15px;letter-spacing:.2em;
+    color:var(--chap);background:#fff;padding:3px 16px;border-radius:999px}
+  .scard b{font-family:"Dela Gothic One",var(--jp);font-weight:400;font-size:clamp(28px,8vw,48px);
+    letter-spacing:.06em;line-height:1.25;text-shadow:0 3px 0 rgba(0,0,0,.28)}
+  .scard span{font-size:14px;font-weight:700;opacity:.92}
+  .scard::after{content:"タップで進む";position:absolute;bottom:max(30px,env(safe-area-inset-bottom));
+    font-size:12px;opacity:.8;animation:snext 1.4s ease-in-out infinite}
+  @keyframes scardIn{from{opacity:0;letter-spacing:.3em}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.sfig.enter,.scard,.snext,.scard::after{animation:none}}
+  @media(max-height:640px){.sstage{bottom:100px}.stext{font-size:15px;line-height:1.65}}
+  :root[data-theme="device"] .sbox{background:rgba(11,16,20,.95);border:1px solid #1F4639;border-radius:6px;box-shadow:0 10px 30px #000}
+  :root[data-theme="device"] .stext{color:#CFE6DD}
+  :root[data-theme="device"] .stext.scene{color:#8FB5A7;border-left-color:#1F4639}
+  :root[data-theme="device"] .sname{border:1px solid #0A0E12;border-radius:3px}
+  :root[data-theme="device"] .sbtn{border-radius:4px;border-width:1px;box-shadow:none;background:#12241F;border-color:#1F4639;color:#8CF0C4}
+  :root[data-theme="device"] .sbtn.go{background:#0F2A20;border-color:#2C8A64}
+  :root[data-theme="device"] .sform input{background:#0F1B18;border:1px solid #1F4639;color:#CFE6DD;border-radius:4px}
+  .sname-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px}
+  .sname-row span{font-weight:800;font-size:13px}
+  .sname-row input{flex:1 1 120px;min-width:0;font:inherit;font-size:15px;padding:8px 10px;border-radius:10px;
+    border:2px solid var(--br);background:var(--panel2);color:var(--ink)}
+  .story-item.locked{opacity:.5}
+
   /* ---- タイトル画面 ---- */
   .title{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:12px;
     background:var(--deck);overflow:auto}
@@ -925,6 +1012,19 @@
   </div>
 </div>
 
+<div id="story" class="story" hidden>
+  <div class="sbg" id="sBg"></div>
+  <div class="stop"><span class="splace" id="sPlace"></span><button class="sskip" id="sSkip">スキップ ▸▸</button></div>
+  <div class="sstage" id="sStage"></div>
+  <div class="scard" id="sCard" hidden><i id="sKick"></i><b id="sTitle"></b><span id="sSub"></span></div>
+  <div class="sbox" id="sBox" hidden>
+    <div class="sname" id="sName"></div>
+    <div class="stext" id="sText"></div>
+    <div class="sact" id="sAct" hidden></div>
+    <span class="snext" id="sNext" aria-hidden="true">▼</span>
+  </div>
+</div>
+
 <div id="fx"></div>
 <div id="modals"></div>
 
@@ -938,5 +1038,6 @@
 <script src="engine.js"></script>
 <script src="scenarios.js"></script>
 <script src="lessons.js"></script>
+<script src="story.js"></script>
 <script src="lung3d.js"></script>
 <script src="app.js"></script>

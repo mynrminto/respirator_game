@@ -41,9 +41,10 @@ struct RootView: View {
     private func start(lesson: Lesson) {
         showingCourse = false
         // startLesson が症例の推奨設定・アラームとレッスンの設定を入れ直す。
+        // 初めてなら、その前にプロローグや章の扉が重なって出る（beginLesson）。
         let created = SimulationController(scenario: lesson.scenario,
                                            settings: lesson.scenario.initialSettings())
-        created.startLesson(lesson)
+        created.beginLesson(lesson)
         controller = created
     }
 }

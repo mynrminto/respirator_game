@@ -38,9 +38,22 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     console.log(vp.n, 'タイトルが消えた:', await p.locator('#title').isHidden());
     await p.screenshot({ path: `${SHOT}/${vp.n}-2-course.png` });
 
-    // 1-2「PIP と Pplat」を開く。解説を読まずにいきなり操作へ入れること。
+    // 1-2「PIP と Pplat」を開く。初めてなので、先にプロローグと第1章の扉が出る。
     await p.getByRole('button', { name: /PIP と Pplat/ }).click();
     await p.waitForTimeout(500);
+    console.log(vp.n, '物語が先に出た:', await p.locator('#story').isVisible());
+    await p.screenshot({ path: `${SHOT}/${vp.n}-2b-prologue.png` });
+    // スキップしても名前の行では止まる。名前を入れてからもう一度スキップする。
+    await p.locator('#sSkip').click();
+    await p.waitForTimeout(200);
+    console.log(vp.n, '名前の行で止まった:', await p.locator('#sNameInput').count() === 1);
+    await p.locator('#sNameInput').fill('高橋');
+    await p.getByRole('button', { name: '決める' }).click();
+    await p.waitForTimeout(200);
+    console.log(vp.n, '名前のあとの台詞:', (await p.locator('#sText').innerText()).trim().slice(0, 20));
+    await p.locator('#sSkip').click();
+    await p.waitForTimeout(500);
+    console.log(vp.n, '物語を閉じてレッスンへ:', await p.locator('#story').isHidden());
     await p.screenshot({ path: `${SHOT}/${vp.n}-3-lesson.png` });
     console.log(vp.n, '開始直後にダイアログが無い:', (await p.locator('#modals .mbox').count()) === 0);
     // 物語から始まること。最初はト書きで、話し手の名前が出る会話が続く。

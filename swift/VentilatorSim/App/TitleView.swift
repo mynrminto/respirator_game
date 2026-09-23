@@ -163,13 +163,15 @@ struct TitleView: View {
     }
 
     private var line: String {
+        let name = StoryProgress.storedName
         if done == 0 {
+            if let name { return "おかえりなさい、\(name)先生。\nハルト君が待っています。" }
             return "はじめまして。わたしは いぶき先生。\nいっしょに呼吸器を動かしてみましょう。"
         }
         if done >= total {
             return "全レッスン修了、おみごとです。\n症例で腕を試してみましょう。"
         }
-        return "おかえりなさい。\nここまで \(done) / \(total) レッスン。つづきからどうぞ。"
+        return "おかえりなさい、\(StoryProgress.playerName)先生。\nここまで \(done) / \(total) レッスン。つづきからどうぞ。"
     }
 
     // MARK: - メニュー

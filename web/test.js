@@ -498,6 +498,7 @@ console.log('\n18b. 教材は読み物ではなく操作であること');
   // セリフに数字を書き込むと「PIP は 22」と言いながら画面は 18、というずれが起きる。
   {
     const captions = new Set([...app.matchAll(/\bk: '([^']+)'/g)].map(m => m[1]));
+    captions.add('名前');          // 主人公（プレイヤー）の名前。fillSay が差し込む
     const swiftDir = path.join(__dirname, '..', 'swift', 'VentilatorSim', 'Sources', 'VentilatorCore');
     const sources = { 'lessons.js': fs.readFileSync(path.join(__dirname, 'lessons.js'), 'utf8') };
     for (const f of ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift']) {
@@ -1051,6 +1052,117 @@ console.log('\n25. 説明に出てきたモニターの場所を光らせる');
   const swAlias = [...list('monitorAlias').matchAll(/"([^"]+)"/g)].map(m => m[1]);
   const swLanes = [...list('monitorLanes').matchAll(/"([^"]+)"/g)].map(m => m[1]);
   ok('iPhone 版の呼び方と波形の段が同じ', swAlias.length >= 10 && swLanes.length >= 12, `${swAlias.length / 2} / ${swLanes.length / 2}`);
+}
+
+console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ）');
+{
+  const ST = require('./story.js');
+  const LS = require('./lessons.js');
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'assets', 'manifest.json'), 'utf8'));
+  const ids = ST.SCENES.map(s => s.id);
+
+  ok('プロローグで始まりエピローグで終わる', ids[0] === 'prologue' && ids[ids.length - 1] === 'epilogue', ids.join(' '));
+  const missing = [];
+  for (const ch of LS.CHAPTERS) for (const k of ['-open', '-close']) if (!ST.sceneById(ch.id + k)) missing.push(ch.id + k);
+  ok('どの章にも扉と幕がある', missing.length === 0, missing.join(' '));
+  const cards = ST.SCENES.filter(s => s.kind === 'open');
+  ok('章の扉の文字が章の題と一致する', cards.every(s => {
+    const ch = LS.CHAPTERS.find(c => c.id === s.chapter);
+    return ch && ch.title.replace(/^第\d章\s*/, '') === s.card.title && s.card.kicker === ch.title.slice(0, 3);
+  }));
+
+  // 台詞の話し手・長さ・差し込み
+  const WHO = ['scene', 'doc', 'puku', 'me', 'nurse', 'pt', 'fam'];
+  const bad = [], long = [], names = [], badBg = [], badMood = [];
+  const MOOD = { doc: ['normal', 'happy', 'think', 'alert'], puku: ['happy', 'excited', 'sad', 'alert'] };
+  let nameLines = 0, nameAt = null, firstFill = null;
+  ST.SCENES.forEach((s, si) => {
+    if (!ST.BG[s.bg]) badBg.push(s.id + ':' + s.bg);
+    s.lines.forEach((l, li) => {
+      if (WHO.indexOf(l.who) < 0) bad.push(`${s.id}:${l.who}`);
+      if ((l.who === 'pt' || l.who === 'fam') && !l.name) bad.push(`${s.id}:${l.who} に呼び名が無い`);
+      if (l.case && !SCENARIOS.find(x => x.id === l.case)) bad.push(`${s.id}:${l.case}`);
+      if (l.bg && !ST.BG[l.bg]) badBg.push(s.id + ':' + l.bg);
+      if (l.mood && MOOD[l.who] && MOOD[l.who].indexOf(l.mood) < 0) badMood.push(`${s.id}:${l.who}/${l.mood}`);
+      const filled = ST.fill(l.say, 'あいうえおかきく');   // 名前は最長 8 字
+      if (filled.length > 72) long.push(`${s.id}:${filled.length}字`);
+      for (const m of l.say.matchAll(/\{([^{}]+)\}/g)) if (m[1] !== '名前') names.push(`${s.id}:{${m[1]}}`);
+      if (l.input === 'name') { nameLines++; nameAt = nameAt || [si, li]; }
+      if (/\{名前\}/.test(l.say) && !firstFill) firstFill = [si, li];
+      for (const c of l.choose || []) if (!c.label || !c.reply || c.reply.length > 72) bad.push(`${s.id}: 選択肢`);
+    });
+  });
+  ok('話し手・患者の症例・選択肢が正しい', bad.length === 0, bad.join(' '));
+  ok('台詞は会話窓に収まる長さ（名前込みで 72 字以内）', long.length === 0, long.join(' '));
+  ok('差し込みは {名前} だけ（物語では実測値を使わない）', names.length === 0, names.join(' '));
+  ok('背景の名前が実在し、表情が絵のある表情', badBg.length === 0 && badMood.length === 0, badBg.concat(badMood).join(' '));
+  ok('名前を聞くのはプロローグの 1 回だけで、呼ぶより先', nameLines === 1 && nameAt[0] === 0
+    && firstFill && (firstFill[0] > nameAt[0] || firstFill[1] > nameAt[1]));
+  ok('どの背景も、今ある絵のどれかで表示できる', Object.keys(ST.BG).every(k => ST.BG[k].some(n => manifest[n])));
+
+  // いつ流すか
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  ok('初めてのレッスンの前にプロローグと章の扉', same(ST.before('1-1', 'ch1', []), ['prologue', 'ch1-open'])
+    && same(ST.before('4-2', 'ch4', ['prologue']), ['ch4-open'])
+    && same(ST.before('1-2', 'ch1', ['prologue', 'ch1-open']), []));
+  const ch = id => LS.chapterOf(id);
+  ok('章の最後のレッスンのあとに幕、第6章のあとはエピローグも', same(ST.after('1-3', ch('1-3'), []), ['ch1-close'])
+    && same(ST.after('1-2', ch('1-2'), []), [])
+    && same(ST.after('4-4', ch('4-4'), ['ch4-close']), [])
+    && same(ST.after('6-3', ch('6-3'), []), ['ch6-close', 'epilogue']));
+
+  // 進行
+  const r = new ST.Run(ST.sceneById('prologue'));
+  let okRun = r.phase === 'card' && !r.next() && r.phase === 'line';
+  while (!r.waiting()) r.next();
+  okRun = okRun && r.waiting() === 'input' && r.next() === false && r.waiting() === 'input';
+  r.submit();
+  while (!r.waiting()) r.next();
+  okRun = okRun && r.waiting() === 'choose' && r.pick(1) && r.line().isReply && r.waiting() === null;
+  r.next();
+  okRun = okRun && !r.waiting();
+  let guard = 0; while (!r.next() && guard++ < 200);
+  ok('押して進み、名前と選択肢では止まる', okRun && r.phase === 'end');
+  const f = new ST.Run(ST.sceneById('prologue'));
+  ok('名前が無いまま飛ばすと名前の行で止まる', f.skip(false) === false && f.waiting() === 'input'
+    && f.skip(true) === true && f.phase === 'end');
+  ok('名前を整える（空なら既定、「先生」は落とす、8 字まで）',
+    ST.cleanName('  山田先生 ') === '山田' && ST.cleanName('') === ST.DEFAULT_NAME
+    && ST.cleanName('あいうえおかきくけこ').length === 8 && ST.fill('{名前}先生', '高橋') === '高橋先生');
+
+  // 画面への組み込み
+  ok('index.html が story.js を app.js より前に読み、幕の画面を持つ',
+    html.indexOf('src="story.js"') > 0 && html.indexOf('src="story.js"') < html.indexOf('src="app.js"')
+    && /id="story"/.test(html));
+  const direct = [...app.matchAll(/startLesson\(/g)].length;
+  ok('レッスンの入口はすべて beginLesson を通る', direct === 3
+    && /enter\(function \(\) \{ beginLesson\(/.test(app) && /close\(\); beginLesson\(l\.id\)/.test(app)
+    && /beginLesson\(nid\)/.test(app), `startLesson の呼び出し ${direct - 1} 箇所`);
+  ok('レッスンを終えたら章の幕を流す', /ST\.after\(L\.id, L\.chap, storySeen\(\)\)/.test(app));
+  ok('セリフの {名前} を主人公の名前で差し込む', /name === '名前'\) return playerName\(\)/.test(app)
+    && /\{名前\}/.test(fs.readFileSync(path.join(__dirname, 'lessons.js'), 'utf8')));
+  ok('メニューから読み返せる', /'物語を読み返す', function \(\) \{ close\(\); openStoryList\(\); \}/.test(app));
+
+  // iPhone 版は story.js から書き出した台本を持つ
+  const swDir = path.join(__dirname, '..', 'swift', 'VentilatorSim');
+  const scenesPath = path.join(swDir, 'Sources', 'VentilatorCore', 'StoryScenes.swift');
+  if (fs.existsSync(scenesPath)) {
+    const { render } = require('./tools/story-swift.js');
+    ok('iPhone 版の台本が story.js と一致する（node web/tools/story-swift.js で書き出す）',
+      fs.readFileSync(scenesPath, 'utf8') === render());
+    const core = fs.readFileSync(path.join(swDir, 'Sources', 'VentilatorCore', 'Story.swift'), 'utf8');
+    ok('iPhone 版の既定の名前・背景がそろっている', core.includes(`defaultName = "${ST.DEFAULT_NAME}"`)
+      && Object.keys(ST.BG).every(k => core.includes(`"${k}": [${ST.BG[k].map(n => '"' + n + '"').join(', ')}]`)));
+    const appDir = path.join(swDir, 'App');
+    const swApp = fs.readdirSync(appDir).filter(f => f.endsWith('.swift'))
+      .map(f => fs.readFileSync(path.join(appDir, f), 'utf8')).join('\n');
+    const swDirect = [...swApp.matchAll(/\.startLesson\(/g)].length;
+    ok('iPhone 版もレッスンの入口は beginLesson、{名前} を差し込む',
+      swDirect === 0 && /controller\.beginLesson\(\$0\)/.test(swApp) && /created\.beginLesson\(lesson\)/.test(swApp)
+      && /name == "名前"/.test(swApp) && /StoryLibrary\.after\(/.test(swApp), `.startLesson( ${swDirect} 箇所`);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

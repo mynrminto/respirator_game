@@ -17,6 +17,7 @@ struct VentilatorScreen: View {
     @State private var showingPatient = false
     @State private var showingCourse = false
     @State private var showingCases = false
+    @State private var showingStoryList = false
 
     /// 設定キーやダイヤルの見出し。Dynamic Type に合わせて大きくするが、キーの折り返しが
     /// 崩れない範囲で頭打ちにする。
@@ -86,7 +87,24 @@ struct VentilatorScreen: View {
             PatientInfoSheet(controller: controller)
         }
         .sheet(isPresented: $showingCourse) {
-            LessonCourseView { controller.startLesson($0) }
+            LessonCourseView { controller.beginLesson($0) }
+        }
+        .sheet(isPresented: $showingStoryList) {
+            StoryListView { id in
+                showingStoryList = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { controller.playStory([id]) }
+            }
+        }
+        // 物語の幕。プロローグ・章の扉・章の幕・エピローグを機器の上に重ねる。
+        .fullScreenCover(isPresented: Binding(
+            get: { !controller.storyQueue.isEmpty },
+            set: { if !$0 { controller.storyFinished() } })) {
+            StoryView(ids: controller.storyQueue,
+                      onFinish: { controller.storyFinished() },
+                      onCases: {
+                          controller.storyFinished()
+                          DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { showingCases = true }
+                      })
         }
         .sheet(isPresented: $showingCases) {
             ScenarioListView(onStart: { scenario, settings, provisional in
@@ -151,6 +169,9 @@ struct VentilatorScreen: View {
                 }
                 Button { showingCases = true } label: {
                     Label("症例を選ぶ", systemImage: "person.2")
+                }
+                Button { showingStoryList = true } label: {
+                    Label("物語を読み返す", systemImage: "book")
                 }
                 Button { SoundBoard.shared.isEnabled.toggle() } label: {
                     Label(SoundBoard.shared.isEnabled ? "音を消す（いま：オン）" : "音を鳴らす（いま：オフ）",

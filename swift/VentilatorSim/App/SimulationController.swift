@@ -696,6 +696,47 @@ final class SimulationController {
     private func completeLesson(_ lesson: Lesson) {
         lessonPhase = .done
         celebrate(lesson)
+        // 章の最後のレッスンなら、その章の幕を下ろす（お祝いが見えるぶんだけ待つ）。
+        let after = StoryLibrary.after(lessonID: lesson.id, chapter: LessonLibrary.chapter(of: lesson.id),
+                                       seen: StoryProgress.seen)
+        if !after.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
+                guard let self, self.lesson?.id == lesson.id else { return }
+                self.playStory(after)
+            }
+        }
+    }
+
+    // MARK: - 物語（幕）
+
+    /// いま流す幕。空でなければ VentilatorScreen が StoryView を上に重ねる。
+    var storyQueue: [String] = []
+    /// 幕を見終えたら始めるレッスン。
+    @ObservationIgnored private var storyThen: Lesson?
+
+    /// レッスンに入る入口はすべてここを通す。まだ見ていない幕（プロローグ・章の扉）があれば先に見せる。
+    func beginLesson(_ lesson: Lesson) {
+        let list = StoryLibrary.before(lessonID: lesson.id,
+                                       chapterID: LessonLibrary.chapter(of: lesson.id)?.id,
+                                       seen: StoryProgress.seen)
+        guard !list.isEmpty else { startLesson(lesson); return }
+        storyThen = lesson
+        storyQueue = list
+    }
+
+    /// 幕だけを流す（章の幕・読み返し）。
+    func playStory(_ ids: [String]) {
+        storyThen = nil
+        storyQueue = ids
+    }
+
+    /// StoryView が閉じた。待っていたレッスンがあれば始める。
+    func storyFinished() {
+        storyQueue = []
+        if let lesson = storyThen {
+            storyThen = nil
+            startLesson(lesson)
+        }
     }
 
     /// 修了の演出。通し番号を付けて、同じレッスンを繰り返しても必ず出るようにする。
@@ -846,6 +887,7 @@ extension SimulationController {
     /// "FiO2" のように下付きでない書き方も受ける。知らない名前は {…} のまま残す。
     private func lookupSay(_ raw: String) -> String? {
         let name = raw.trimmingCharacters(in: .whitespaces)
+        if name == "名前" { return StoryProgress.playerName }      // 主人公（プレイヤー）の名前
         for candidate in [name, name.subscripted] {
             if let readout = Readout.find(candidate) { return readout.value(engine) }
             if let key = self.parameter(label: candidate) {

@@ -348,6 +348,77 @@ on a solid flat bright green (#00FF00) background.
 
 ---
 
+## E. 物語の場面（あれば）— プロローグと章の扉・幕
+
+コースの前後に、主人公（初期研修医）が小児科を回る物語の幕が入りました。下の絵は**無くても動きます**
+（今ある PICU の昼と夜の絵で代えています）。届いたものから順に差し替わります。
+
+### 15. `bg_story_corridor.png` あれば — プロローグ：朝の病院の廊下と PICU の入口
+サイズ: 1536×1024
+
+```
+{STYLE} Wide-angle illustration of a quiet hospital corridor in the early morning, seen
+from eye level. At the far end a pair of frosted-glass automatic sliding doors with a
+small sign panel above them (leave the sign blank, no letters), a hand-sanitizer station
+and an intercom next to the doors. Clean light floor reflecting soft morning sunlight
+from tall windows on one side, a few wheeled carts and an empty wheelchair parked along
+the wall, pastel-mint wall stripe, calm and a little tense like a first day at work.
+Empty floor in the center foreground for characters. No people, no text.
+```
+
+### 16. `bg_story_nicu.png` あれば — プロローグ：NICU の保育器の並ぶ一角
+サイズ: 1536×1024
+
+```
+{STYLE} Wide-angle illustration of a real neonatal intensive care unit (NICU), same camera
+style as the PICU background: a row of closed transparent incubators on stands with
+small ventilator circuits, patient monitors glowing with green and cyan traces, syringe
+pumps stacked on poles, soft dimmed lighting with covers half over some incubators to keep
+the babies' environment dark. Inside the nearest incubator only a tiny swaddled shape
+under a blanket and a small knitted hat is visible (no face details). Medical headwall
+with gas outlets behind. Empty floor in the center foreground. No people, no text.
+```
+注記: 患者の絵で安全フィルタに引っかかったことがあるので、赤ちゃんは毛布と帽子だけにしています。
+
+### 17. `bg_story_station.png` あれば — 当直の夜のナースステーション
+サイズ: 1536×1024
+
+```
+{STYLE} Wide-angle illustration of a hospital ICU nurses' station at night: a long
+counter with several computer screens and a central monitor showing many small patient
+panels with colored waveforms, a wall clock, a telephone, clipboards and a mug, a dim
+corridor with ICU bays and glowing equipment visible behind glass partitions. Dark ceiling,
+warm desk lamps, cool teal screen light. Empty floor in the center foreground.
+No people, no text.
+```
+
+### 18. `bg_story_dawn.png` あれば — 夜明け・夕方の PICU（章の幕とエピローグ）
+サイズ: 1536×1024
+
+```
+{STYLE} The same pediatric intensive care bay as bg_title_day from the same camera angle,
+but at dawn: orange and pink early sunlight coming through the back windows, long soft
+shadows, the room lights still off, the monitor and ventilator screens glowing softly,
+a feeling of relief after a long night. Same layout, empty floor in the center foreground.
+No people, no text.
+```
+
+### 19. `nurse_normal.png` あれば — PICU の看護師「ななみさん」（全身・縦長）
+サイズ: 1024×1536
+
+```
+{STYLE} CHARACTER "Nanami": a friendly young Japanese female ICU nurse, shoulder-length
+light-brown hair tied in a low ponytail, gentle eyes, navy-blue nurse scrubs with a small
+pink heart badge, a penlight and a small notebook in the chest pocket, a watch pinned to
+the chest, chibi-ish proportions (about 3.5 heads tall) in the same art style as
+Dr. Midori, full body, standing, facing the viewer, one hand holding a clipboard, on a
+solid flat bright green (#00FF00) background with nothing else.
+```
+注記: いぶき先生の 1 枚目を見せながら出すと絵柄がそろいます。無いあいだは「看」の丸い印で出しています。
+
+
+---
+
 ## 届いたあとにこちらでやること
 
 - 緑背景の切り抜き、2×2 シートの分割、ボタンと枠の 9 スライス化、患者 3 種の顔色差分の生成。

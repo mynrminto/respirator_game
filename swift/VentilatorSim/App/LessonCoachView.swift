@@ -115,7 +115,7 @@ struct LessonCoachView: View {
             }
             .sheet(isPresented: $showingBrief) { LessonBriefView(lesson: lesson) }
             .sheet(isPresented: $showingCourse) {
-                LessonCourseView { controller.startLesson($0) }
+                LessonCourseView { controller.beginLesson($0) }
             }
             .onChange(of: controller.lessonPhase) { _, phase in
                 if phase == .done { markCompleted(lesson.id) }
@@ -353,7 +353,7 @@ struct LessonCoachView: View {
             }
             FlowLayout(spacing: 6, lineSpacing: 6) {
                 if let next = LessonLibrary.next(after: runtime.lesson.id) {
-                    primaryButton("次のレッスンへ") { controller.startLesson(next) }
+                    primaryButton("次のレッスンへ") { controller.beginLesson(next) }
                 }
                 smallButton("コース一覧") { showingCourse = true }
                 smallButton("自由に操作する") { controller.endLesson() }
