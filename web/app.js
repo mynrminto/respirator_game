@@ -1674,13 +1674,15 @@
     return out.length ? out : null;
   }
 
+  /* 「課題に入ったときの値 → いまの値」。変わっていないものに矢印を付けると
+   * 「17 → 17」になって意味が読めないので、変わったものだけ前の値を添える。 */
   function watchHtml(now, before) {
     var h = '';
     for (var i = 0; i < now.length; i++) {
       var a = before && before[i] && before[i].k === now[i].k ? before[i].v : null;
       var chg = a != null && a !== now[i].v;
       h += '<div class="w' + (chg ? ' chg' : '') + '"><b>' + esc(now[i].k) + '</b>'
-        + (a != null ? '<em>' + esc(a) + ' →</em>' : '')
+        + (chg ? '<em>' + esc(a) + ' →</em>' : '')
         + '<span>' + esc(now[i].v) + '</span><i>' + esc(now[i].u) + '</i></div>';
     }
     return h;
