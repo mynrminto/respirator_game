@@ -100,10 +100,10 @@ struct VentilatorScreen: View {
     private func scrollToSpot(_ spots: [String], proxy: ScrollViewProxy) {
         let scrollable = ["key:", "hard:", "mode:", "val:"]
         guard let target = spots.first(where: { spec in
-            spec == "wave" || scrollable.contains { spec.hasPrefix($0) }
+            spec == "wave" || spec.hasPrefix("lane:") || scrollable.contains { spec.hasPrefix($0) }
         }) else { return }
         withAnimation(.easeInOut(duration: 0.3)) {
-            proxy.scrollTo(target, anchor: nil)
+            proxy.scrollTo(target.hasPrefix("lane:") ? "wave" : target, anchor: nil)   // 波形の段は波形の画面ごと
         }
     }
 
@@ -155,6 +155,10 @@ struct VentilatorScreen: View {
                 Button { SoundBoard.shared.isEnabled.toggle() } label: {
                     Label(SoundBoard.shared.isEnabled ? "音を消す（いま：オン）" : "音を鳴らす（いま：オフ）",
                           systemImage: SoundBoard.shared.isEnabled ? "speaker.wave.2" : "speaker.slash")
+                }
+                Button { SoundBoard.shared.isPulseEnabled.toggle() } label: {
+                    Label(SoundBoard.shared.isPulseEnabled ? "パルス音を消す（いま：オン）" : "パルス音を鳴らす（いま：オフ）",
+                          systemImage: SoundBoard.shared.isPulseEnabled ? "heart" : "heart.slash")
                 }
                 Button { ThemeStore.shared.toggle() } label: {
                     Label("見た目を切り替える（いま：\(Chrome.kind.label)）", systemImage: "paintpalette")
@@ -341,6 +345,20 @@ struct VentilatorScreen: View {
             sampleCount: trace.capacity,
             sweepSeconds: trace.sweepSeconds)
             .spotlight(controller.isSpotted("wave"), corner: Chrome.corner)
+            .overlay { laneSpots }
+    }
+
+    /// 波形の 1 段だけを光らせる枠。ScopeView は高さを 3 等分して段を描くので、それに合わせる。
+    /// 説明の中で「流量」「圧波形」と言ったときに、その段を指す（Web 版 .lanehl と同じ）。
+    private var laneSpots: some View {
+        VStack(spacing: 0) {
+            ForEach(["paw", "flow", "vol"], id: \.self) { lane in
+                Color.clear
+                    .spotlight(controller.isSpotted("lane:" + lane), corner: 8)
+                    .padding(3)
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     /// 計測値。1 枚 108pt 以上あれば「——」と「mL/cmH₂O」が 1 行に収まるので、
@@ -350,7 +368,8 @@ struct VentilatorScreen: View {
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 1)], spacing: 1) {
             ForEach(Readout.all) { r in
                 ValueTile(caption: r.caption, value: r.value(engine), unit: r.unit,
-                          limit: r.limit?(engine), tone: r.tone?(engine))
+                          limit: r.limit?(engine), tone: r.tone?(engine),
+                          beat: r.caption == "SpO₂" ? controller.pulseBeat : nil)
                     .spotlight(controller.isSpotted("val:" + r.caption), corner: Chrome.corner)
                     .id("val:" + r.caption)
             }

@@ -16,7 +16,8 @@
  *   watch: ['Pplat', …] … その計測値を帯の中にも出す。課題に入った時点の値を控え、あとで「前 → 後」で見せる。
  *   spot:  'key:vt'     … いま押す／見るところを光らせる。文章で場所を説明しないための仕掛け。
  *                         'key:<設定キー>' / 'val:<計測値>' / 'hard:<ハードキーの id>' /
- *                         'mode:<モード>' / 'screen:<画面>' / 'dial' / 'wave'。配列も可。
+ *                         'mode:<モード>' / 'screen:<画面>' / 'dial' / 'wave' / 'lane:paw|flow|vol'。配列も可。
+ *   look:  ['val:PIP']  … 会話・クイズで光らせるモニターの場所。書かなければ文から拾う（monitorSpots）。
  * c は { e, s, m, pbw, abgs, lastAbg, sbt, mem } を持つ判定用コンテキスト。
  */
 (function (root) {
@@ -61,6 +62,7 @@
             say: 'うわ、波形が 3 つもある…。どれが何なの？'
           },
           {
+            look: ['wave'],
             talk: true, who: 'doc',
             say: '3 つとも呼吸に合わせて動きます。どれが何かは、名前ではなく動き方で見分けられます。'
           },
@@ -95,6 +97,7 @@
             why: 'VC は入れる量を機械が保証するので、Vte はほぼ設定どおりに返ってきます。'
           },
           {
+            look: ['val:Vte'],
             talk: true, who: 'puku',
             say: '入れた量と、戻ってくる量って、ちがうことあるの？'
           },
@@ -130,6 +133,7 @@
           '上限は年齢で変わる（タイルの下に出ている）'],
         tasks: [
           {
+            look: ['val:PIP'],
             talk: true, who: 'scene',
             say: 'ハルト君の設定はひとまず落ち着いた。いぶき先生が、画面の圧の数字を指さす。'
           },
@@ -158,6 +162,7 @@
             why: '平らになったところが Pplat。流れが止まったあとに残っている、肺胞の圧です。'
           },
           {
+            look: ['val:PIP', 'val:Pplat'],
             talk: true, who: 'doc',
             say: '2 つに分かれました。どちらが何なのか、ここで確かめておきましょう。'
           },
@@ -258,6 +263,7 @@
             say: '割り算？'
           },
           {
+            look: ['val:Cstat', 'val:Raw'],
             talk: true, who: 'doc',
             say: '肺の柔らかさと、気道の通りにくさです。夜中のアラームは、ほとんどこの 2 つで説明がつきます。'
           },
@@ -811,6 +817,7 @@
             }
           },
           {
+            look: ['val:RR tot'],
             quiz: {
               q: 'SIMV で設定 RR 10、実測 RR 18 でした。差の 8 回は何ですか。',
               choices: ['機械の誤作動', '患者自身の自発呼吸', 'オートトリガ', '無呼吸バックアップ'],
@@ -1443,6 +1450,7 @@
             say: 'RSV のそうた君（生後 4 か月）。呼吸回数を上げたのに、血圧が下がってきた。'
           },
           {
+            look: ['lane:flow'],
             talk: true, who: 'doc',
             say: '入れることばかり見ていると、これを見落とします。吐けているかどうか。'
           },
@@ -1607,6 +1615,7 @@
               + 'つまりリークでも抵抗でもなく、肺が硬くなった形です。'
           },
           {
+            look: ['lane:paw'],
             talk: true, who: 'doc',
             say: '圧の形と、聴診。2 つ合わせると 1 つに絞れます。'
           },
@@ -2072,8 +2081,62 @@
     return last;
   }
 
+  /* ---- 説明の文から、モニターのどこを見ればよいかを決める ----
+   * 会話・クイズ・操作後の解説で「PIP は…」「流量波形が…」と言ったら、画面のその場所を
+   * ボタンと同じ光り方で光らせる。文で場所を探させないため。
+   * 計測値タイルは見出し（app.js の VALS.k、Swift の Readout.caption）そのままの名前で拾う。
+   * 英字の名前は前後が英数字でないときだけ（「SIMV」の中の MV や「Vt」を Vte と取り違えない）。
+   * 課題に look: [...] があればそれを優先する（look: [] で光らせない）。
+   * iPhone 版 Lessons.swift の monitorSpots(in:) が同じ規則を持つ。片方を変えたらもう片方も。 */
+  var MONITOR_VALS = ['PIP', 'Pplat', 'PEEP tot', 'ΔP', 'Vte', 'MV', 'RR tot', 'I:E', 'Cstat', 'Raw',
+    'auto-PEEP', 'f/VT', 'SpO₂', 'etCO₂', 'HR', 'ABP mean'];
+  /* 日本語で呼んだときの言い方。[言い方, タイルの名前] */
+  var MONITOR_ALIAS = [['SpO2', 'SpO₂'], ['心拍', 'HR'], ['血圧', 'ABP mean'], ['総 PEEP', 'PEEP tot'],
+    ['分時換気量', 'MV']];
+  /* 波形の段。[言い方, 段] 。どれにも当たらず「波形」とだけ言ったら波形の画面全体。 */
+  var MONITOR_LANES = [['圧波形', 'paw'], ['圧の波形', 'paw'], ['気道内圧', 'paw'],
+    ['流量', 'flow'], ['換気量波形', 'vol'], ['換気量の波形', 'vol']];
+
+  function wordAt(text, name) {
+    var from = 0, i, ascii = /[A-Za-z0-9]/;
+    while ((i = text.indexOf(name, from)) >= 0) {
+      var before = i > 0 ? text.charAt(i - 1) : '', after = text.charAt(i + name.length);
+      var edgeL = !ascii.test(name.charAt(0)) || !ascii.test(before);
+      var edgeR = !ascii.test(name.charAt(name.length - 1)) || !(ascii.test(after) || after === '₂');
+      if (edgeL && edgeR) return true;
+      from = i + 1;
+    }
+    return false;
+  }
+
+  function monitorSpots(text) {
+    if (!text) return [];
+    var out = [], seen = {};
+    function add(s) { if (!seen[s]) { seen[s] = 1; out.push(s); } }
+    MONITOR_VALS.forEach(function (k) { if (wordAt(text, k)) add('val:' + k); });
+    MONITOR_ALIAS.forEach(function (a) { if (text.indexOf(a[0]) >= 0) add('val:' + a[1]); });
+    var lane = false;
+    MONITOR_LANES.forEach(function (a) { if (text.indexOf(a[0]) >= 0) { add('lane:' + a[1]); lane = true; } });
+    if (!lane && text.indexOf('波形') >= 0) add('wave');
+    return out;
+  }
+
+  /* 会話・クイズの課題で光らせるもの。text は差し込み前のセリフや設問。 */
+  function lookFor(t, text) {
+    if (!t) return [];
+    if (t.look) return t.look.slice();
+    var out = t.spot ? (Array.isArray(t.spot) ? t.spot.slice() : [t.spot]) : [];
+    function add(s) { if (out.indexOf(s) < 0) out.push(s); }
+    (t.watch || []).forEach(function (k) { add('val:' + k); });     // 帯に出す計測値は画面でも光らせる
+    monitorSpots(text).forEach(add);
+    return out;
+  }
+
   var api = {
     CHAPTERS: CHAPTERS,
+    monitorSpots: monitorSpots,
+    lookFor: lookFor,
+    MONITOR_VALS: MONITOR_VALS,
     storyNow: storyNow,
     allLessons: allLessons,
     lessonById: lessonById,

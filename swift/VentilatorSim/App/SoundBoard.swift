@@ -15,6 +15,11 @@ import Foundation
 /// 優先度が上がった瞬間は待たずにすぐ鳴らす。消音中・音をオフにしたときは鳴らさない。
 /// 時刻は実時間で数える（早送り中に連打にならないように）。
 ///
+/// パルス音は、パルスオキシメータの「ピッ」。心拍 1 拍に 1 回、実時間で鳴らす。
+/// 音の高さは SpO₂ で決まり、100% で A5（880 Hz）、1% 下がるごとに半音下がる。
+/// 値は画面の表示と同じく整数に丸めてから音にする。アラームとは音色で分ける
+/// （倍音のない短い純音で音量も小さい）。消音 2 分はアラームだけを止め、パルス音は止めない。
+///
 /// オーディオセッションは .ambient にしてあるので、マナーモードでは鳴らず、ほかのアプリの音も止めない。
 final class SoundBoard {
     static let shared = SoundBoard()
@@ -24,6 +29,25 @@ final class SoundBoard {
     static let highEvery: Double = 8
     static let mediumEvery: Double = 15
     private static let enabledKey = "ventsim.sound.v1"
+
+    /// パルス音。web/sound.js の PULSE と同じ値（test.js が突き合わせる）。
+    static let pulseTop: Double = 880
+    static let pulseDur: Double = 0.06
+    static let pulseGain: Double = 0.16
+    private static let pulseKey = "ventsim.pulse.v1"
+
+    /// パルス音だけを鳴らすかどうか。音全体（isEnabled）が切れていれば、こちらがオンでも鳴らない。
+    var isPulseEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: Self.pulseKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: Self.pulseKey) }
+    }
+
+    /// SpO₂ から音の高さ。100% で 880 Hz、1% ごとに半音。50% より下は同じ高さ。
+    static func pulseFrequency(spo2: Double) -> Double {
+        guard spo2.isFinite else { return 0 }
+        let s = min(100, max(50, spo2.rounded()))
+        return pulseTop * pow(2, (s - 100) / 12)
+    }
 
     /// 音を鳴らすかどうか。メニューから切り替え、次回の起動にも残す。
     var isEnabled: Bool {
@@ -43,6 +67,11 @@ final class SoundBoard {
     private var alarmLevel = 0
     private var alarmAt = Date.distantPast
 
+    private let pulseNode = AVAudioPlayerNode()
+    /// SpO₂ の整数値ごとに 1 回だけ合成して取っておく（50〜100 の 51 通り）。
+    private var pulseBuffers: [Int: AVAudioPCMBuffer] = [:]
+    private var nextBeat: TimeInterval?
+
     private init() {
         try? AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
         for cue in Cue.allCases {
@@ -52,8 +81,37 @@ final class SoundBoard {
             players[cue] = node
             buffers[cue] = render(Self.notes(for: cue))
         }
+        engine.attach(pulseNode)
+        engine.connect(pulseNode, to: engine.mainMixerNode, format: format)
         engine.mainMixerNode.outputVolume = 0.6
     }
+
+    /// 毎フレーム呼ぶ。hr は /分、now は実時間の秒。拍が来たら（音を消していても）true を返す。
+    /// 画面の ♥ はこれに合わせて光らせる。フレームが止まっていたら拍を溜めずに打ち直す。
+    @discardableResult
+    func pulse(spo2: Double, heartRate hr: Double, now: TimeInterval) -> Bool {
+        guard hr.isFinite, hr > 0 else { nextBeat = nil; return false }
+        let interval = 60 / min(250, max(30, hr))
+        let due = nextBeat ?? now
+        guard now >= due else { nextBeat = due; return false }
+        var next = due + interval
+        if next <= now { next = now + interval }
+        nextBeat = next
+        guard isEnabled, isPulseEnabled else { return true }
+        let key = Int(min(100, max(50, spo2.isFinite ? spo2.rounded() : 100)))
+        if pulseBuffers[key] == nil {
+            pulseBuffers[key] = render([Note(f: Self.pulseFrequency(spo2: Double(key)), t: 0,
+                                             d: Self.pulseDur, gain: Self.pulseGain)])
+        }
+        if start(), let buffer = pulseBuffers[key] {
+            pulseNode.scheduleBuffer(buffer, at: nil, options: .interrupts)
+            if !pulseNode.isPlaying { pulseNode.play() }
+        }
+        return true
+    }
+
+    /// 画面を離れたとき。次に戻ったら最初の拍から数え直す。
+    func resetPulse() { nextBeat = nil }
 
     func play(_ cue: Cue) {
         guard isEnabled, start(), let node = players[cue], let buffer = buffers[cue] else { return }

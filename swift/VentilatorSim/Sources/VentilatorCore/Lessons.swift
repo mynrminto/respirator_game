@@ -174,6 +174,9 @@ public struct LessonTask {
     /// いま押す／見るところ。"key:vt" / "val:Pplat" / "hard:kInsp" / "wave" / "dial"、
     /// およびモードのタブ "mode:" ＋ そのモードの表示名（web とは表示名が違うのでそこだけ読み替える）。
     public var spot: [String]
+    /// 会話・クイズで光らせるモニターの場所。nil なら文から拾う（LessonLibrary.lookFor）。
+    /// [] なら何も光らせない。web/lessons.js の look と同じ。
+    public var look: [String]?
     public var onStart: ((LessonContext) -> Void)?
     public var onPass: ((LessonContext) -> Void)?
     /// event の課題で、違うキーを押したときに返す一言。
@@ -255,6 +258,10 @@ public extension LessonTask {
     /// いま押す／見るところを光らせる。
     func spotting(_ specs: [String]) -> LessonTask {
         var copy = self; copy.spot = specs; return copy
+    }
+    /// 会話・クイズで光らせるモニターの場所を、文から拾わずに決める。"lane:paw" / "val:PIP" / "wave" など。
+    func looking(_ specs: [String]) -> LessonTask {
+        var copy = self; copy.look = specs; return copy
     }
     /// 解説を、そのときの計測値から組み立てたいとき。クイズなら正解したときの解説になる。
     func explaining(_ body: @escaping (LessonContext) -> String) -> LessonTask {
@@ -464,6 +471,63 @@ public final class LessonRuntime {
 // MARK: - コース
 
 public enum LessonLibrary {
+
+    /* ---- 説明の文から、モニターのどこを見ればよいかを決める ----
+     * 会話・クイズ・操作後の解説で「PIP は…」「流量波形が…」と言ったら、画面のその場所を
+     * ボタンと同じ光り方で光らせる。web/lessons.js の monitorSpots と同じ規則・同じ一覧
+     * （test.js の 25 番が突き合わせる）。
+     * 計測値タイルは見出し（Readout.caption）そのままの名前で拾う。英字の名前は前後が英数字でない
+     * ときだけ（「SIMV」の中の MV や「Vt」を Vte と取り違えない）。 */
+    public static let monitorVals: [String] = ["PIP", "Pplat", "PEEP tot", "ΔP", "Vte", "MV", "RR tot", "I:E", "Cstat", "Raw",
+        "auto-PEEP", "f/VT", "SpO₂", "etCO₂", "HR", "ABP mean"]
+    /// 日本語で呼んだときの言い方。（言い方, タイルの名前）
+    public static let monitorAlias: [(String, String)] = [("SpO2", "SpO₂"), ("心拍", "HR"), ("血圧", "ABP mean"), ("総 PEEP", "PEEP tot"),
+        ("分時換気量", "MV")]
+    /// 波形の段。（言い方, 段）。どれにも当たらず「波形」とだけ言ったら波形の画面全体。
+    public static let monitorLanes: [(String, String)] = [("圧波形", "paw"), ("圧の波形", "paw"), ("気道内圧", "paw"),
+        ("流量", "flow"), ("換気量波形", "vol"), ("換気量の波形", "vol")]
+
+    private static func isWordChar(_ c: Character?) -> Bool {
+        guard let c else { return false }
+        return c.isASCII && (c.isLetter || c.isNumber)
+    }
+
+    static func containsWord(_ text: String, _ name: String) -> Bool {
+        var from = text.startIndex
+        while from < text.endIndex, let r = text.range(of: name, range: from..<text.endIndex) {
+            let before: Character? = r.lowerBound > text.startIndex ? text[text.index(before: r.lowerBound)] : nil
+            let after: Character? = r.upperBound < text.endIndex ? text[r.upperBound] : nil
+            let edgeL = !isWordChar(name.first) || !isWordChar(before)
+            let edgeR = !isWordChar(name.last) || !(isWordChar(after) || after == "₂")
+            if edgeL && edgeR { return true }
+            from = text.index(after: r.lowerBound)
+        }
+        return false
+    }
+
+    /// 文に出てきたモニターの場所。"val:PIP" / "lane:flow" / "wave"。
+    public static func monitorSpots(in text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        var out: [String] = []
+        func add(_ s: String) { if !out.contains(s) { out.append(s) } }
+        for k in monitorVals where containsWord(text, k) { add("val:" + k) }
+        for (say, k) in monitorAlias where text.contains(say) { add("val:" + k) }
+        var lane = false
+        for (say, k) in monitorLanes where text.contains(say) { add("lane:" + k); lane = true }
+        if !lane && text.contains("波形") { add("wave") }
+        return out
+    }
+
+    /// 会話・クイズの課題で光らせるもの。text は差し込み前のセリフや設問。
+    /// look があればそれ。無ければ spot ＋ watch の計測値 ＋ 文に出てきたモニターの場所。
+    public static func lookFor(_ task: LessonTask, text: String) -> [String] {
+        if let look = task.look { return look }
+        var out = task.spot
+        func add(_ s: String) { if !out.contains(s) { out.append(s) } }
+        for k in task.watch { add("val:" + k) }
+        for s in monitorSpots(in: text) { add(s) }
+        return out
+    }
 
     public static let chapters: [LessonChapter] = [
         LessonChapter(id: "ch1", title: "第1章　機械を読む", tag: "基礎",

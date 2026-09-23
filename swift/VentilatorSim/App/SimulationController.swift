@@ -134,10 +134,14 @@ final class SimulationController {
                       memory: lessonRuntime?.memory ?? LessonMemory())
     }
 
-    /// いま課題が指している操作先。課題に取り組んでいるあいだだけ光らせる。
-    /// 解説を読んでいるあいだは消す（もうその操作は終わっているので）。
+    /// いま光らせているところ。
+    /// - 操作の課題 … 課題の spot（押すところ。押したらダイヤルと確定へ移る）
+    /// - 会話・クイズ … 課題の spot ＋ セリフや設問に出てきたモニターの場所（lessonLook）
+    /// - 操作後の解説 … 解説の文に出てきたモニターの場所（押す操作はもう終わっているので、キーは光らせない）
     var lessonSpots: [String] {
-        guard lessonPhase == .task, let task = lessonRuntime?.task, !task.isTalk else { return [] }
+        if lessonPhase == .feedback { return lessonLook }
+        guard lessonPhase == .task, let task = lessonRuntime?.task else { return [] }
+        if task.isTalk || task.quiz != nil { return lessonLook }
         // 光っているキーを押したら、次に触るダイヤル（値を変えたら「確定」）へ光を移す。
         if let selected = selectedParameterID, task.spot.contains("key:" + selected) {
             return task.spot.filter { !$0.hasPrefix("key:") } + [hasPendingChange ? "confirm" : "dial"]
@@ -146,6 +150,31 @@ final class SimulationController {
     }
 
     func isSpotted(_ spec: String) -> Bool { lessonSpots.contains(spec) }
+
+    /* 会話・クイズ・解説で光らせるモニターの場所。Web 版 app.js の paintLook と同じ規則で、
+     * 文の中に出てきた計測値や波形（LessonLibrary.monitorSpots）を光らせる。
+     * 場面が変わったときだけ作り直す（View の描画のたびに文を調べない）。 */
+    private(set) var lessonLook: [String] = []
+    private var lessonFeedbackRaw = ""
+
+    private func refreshLessonLook() {
+        var look: [String] = []
+        if let runtime = lessonRuntime {
+            switch lessonPhase {
+            case .task:
+                if let task = runtime.task, task.isTalk || task.quiz != nil {
+                    // 差し込み前の文で調べる（{PIP} も名前として拾える）
+                    let text = task.quiz?.questionText(lessonContext) ?? task.instruction(lessonContext)
+                    look = LessonLibrary.lookFor(task, text: text)
+                }
+            case .feedback:
+                look = LessonLibrary.monitorSpots(in: lessonFeedbackRaw)
+            case .done:
+                break
+            }
+        }
+        if look != lessonLook { lessonLook = look }
+    }
 
     /* 帯にも出す計測値。課題に入った時点の値を控えておき、操作が終わったら「前 → 後」で見せる。
      * 解説を出しているあいだも、いま終えた課題の計測値を出し続けたいので、
@@ -169,6 +198,9 @@ final class SimulationController {
         for caption in lessonWatch { snapshot[caption] = Readout.find(caption)?.value(engine) ?? "––" }
         lessonWatchBefore = snapshot
     }
+
+    /// 心拍の拍ごとに 1 進む。SpO₂ のタイルの ♥ がこれに合わせて光る（パルス音と同じ拍）。
+    private(set) var pulseBeat: Int = 0
 
     /// 5 Hz で更新する表示用スナップショット。60 fps で View を無効化しないための仕切り。
     private(set) var tickCount: Int = 0
@@ -347,6 +379,7 @@ final class SimulationController {
         #endif
         link = nil
         SoundBoard.shared.updateAlarm(level: 0, silenced: true)
+        SoundBoard.shared.resetPulse()
     }
 
     private func advance(timestamp: CFTimeInterval) {
@@ -408,6 +441,11 @@ final class SimulationController {
     }
 
     private func syncDisplay(_ realSeconds: Double) {
+        // パルス音は拍の時刻がずれないよう毎フレーム見る（数値表示の 5 Hz とは別）。
+        if SoundBoard.shared.pulse(spo2: engine.spo2, heartRate: engine.heartRate,
+                                   now: ProcessInfo.processInfo.systemUptime) {
+            pulseBeat &+= 1
+        }
         displaySync += realSeconds
         if displaySync >= 0.2 {          // 数値表示は 5 Hz で十分
             displaySync = 0
@@ -577,6 +615,7 @@ final class SimulationController {
         lessonWatchAfter = [:]
         lessonWatchIndex = -1
         lessonVersion &+= 1
+        refreshLessonLook()
         append("学習コース：\(lesson.title)")
     }
 
@@ -589,6 +628,7 @@ final class SimulationController {
         lessonWatchAfter = [:]
         lessonWatchIndex = -1
         lessonVersion &+= 1
+        refreshLessonLook()
     }
 
     /// 解説を読み終えて「次へ」。最後の課題の解説だったら、ここで修了にする。
@@ -600,6 +640,7 @@ final class SimulationController {
             lessonPhase = .task
         }
         lessonVersion &+= 1
+        refreshLessonLook()
     }
 
     /// 会話の場面の「続ける」。物語を、読む人の速さで進める。
@@ -607,6 +648,7 @@ final class SimulationController {
         guard let runtime = lessonRuntime, lessonPhase == .task else { return }
         if let why = runtime.tap(lessonContext) { finishStep(why) }
         lessonVersion &+= 1
+        refreshLessonLook()
     }
 
     func answerLesson(_ choice: Int) {
@@ -614,12 +656,14 @@ final class SimulationController {
         let result = runtime.answer(choice, lessonContext)
         if result.correct { finishStep(result.explanation ?? "") }
         lessonVersion &+= 1
+        refreshLessonLook()
     }
 
     private func send(_ event: LessonEvent) {
         guard let runtime = lessonRuntime, lessonPhase == .task else { return }
         if let why = runtime.fire(event, lessonContext) { finishStep(why) }
         lessonVersion &+= 1
+        refreshLessonLook()
     }
 
     private func advanceLesson(simulated: Double) {
@@ -627,10 +671,12 @@ final class SimulationController {
         let before = runtime.index
         if let why = runtime.poll(lessonContext, seconds: simulated) { finishStep(why) }
         if before != runtime.index || runtime.holdFraction > 0 { lessonVersion &+= 1 }
+        if before != runtime.index { refreshLessonLook() }
     }
 
     private func finishStep(_ why: String) {
         guard let runtime = lessonRuntime else { return }
+        lessonFeedbackRaw = why
         lessonFeedback = fillSay(why)      // 解説は通過した瞬間の値で固定する
         // 帯の「前 → 後」も、解説が出た瞬間の値で止める。
         var after: [String: String] = [:]

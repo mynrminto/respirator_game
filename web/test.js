@@ -410,6 +410,7 @@ console.log('\n18b. 教材は読み物ではなく操作であること');
       const i = one.indexOf(':');
       const kind = i < 0 ? one : one.slice(0, i), arg = i < 0 ? '' : one.slice(i + 1);
       if (kind === 'dial' || kind === 'wave') continue;
+      if (kind === 'lane' && ['paw', 'flow', 'vol'].includes(arg)) continue;
       if (kind === 'val' && valKeys.has(arg)) continue;
       if (kind === 'key' && keyIds.has(arg)) continue;
       if (kind === 'hard' && hardIds.has(arg)) continue;
@@ -422,6 +423,7 @@ console.log('\n18b. 教材は読み物ではなく操作であること');
     for (const t of lesson.tasks) {
       for (const w of t.watch || []) if (!valKeys.has(w)) badWatch.push(`${lesson.id}:${w}`);
       if (t.spot) checkSpot(lesson.id, t.spot);
+      if (t.look) checkSpot(lesson.id, t.look);
     }
   }
   ok('watch がすべて実在の計測値を指す', badWatch.length === 0, badWatch.join(' '));
@@ -709,6 +711,7 @@ console.log('\n21. Web 版と iPhone 版がそろっているか');
         quizAnswers: [...body.matchAll(/answer: (\d+)/g)].map(x => +x[1]),
         watch: [...body.matchAll(/\.watching\(\[([^\]]*)\]\)/g)].map(x => x[1]),
         spot: [...body.matchAll(/\.spotting\(\[([^\]]*)\]\)/g)].map(x => x[1]),
+        look: [...body.matchAll(/\.looking\(\[([^\]]*)\]\)/g)].map(x => x[1]),
         holds: [...body.matchAll(/hold: (\d+)/g)].map(x => +x[1]),
         // 会話の場面。話し手の並びまでそろっていること
         talk: [...body.matchAll(/\.talk\(\.(scene|doctor|puku|patient), "/g)].map(x => x[1])
@@ -739,8 +742,10 @@ console.log('\n21. Web 版と iPhone 版がそろっているか');
       }
       const jsWatch = l.tasks.filter(t => t.watch).length;
       const jsSpot = l.tasks.filter(t => t.spot).length;
+      const jsLook = l.tasks.filter(t => t.look).map(t => t.look.join(',')).join(' ; ');
       if (jsWatch !== sw.watch.length) diff.push(`${l.id} の watch の数 ${jsWatch}/${sw.watch.length}`);
       if (jsSpot !== sw.spot.length) diff.push(`${l.id} の spot の数 ${jsSpot}/${sw.spot.length}`);
+      if (jsLook.split(' ; ').filter(Boolean).length !== sw.look.length) diff.push(`${l.id} の look の数 [${jsLook}] / [${sw.look.join(' ; ')}]`);
     }
     ok('題・所要時間・クイズの正解・保持秒数・見どころ・会話がそろっている', diff.length === 0,
        diff.join(' / '));
@@ -932,6 +937,29 @@ console.log('\n24. 操作音とアラーム音');
   ok('危険の 1 回分は次の繰り返しまでに鳴り終わる', hiLen < SN.ALARM.high.every, hiLen.toFixed(2) + ' 秒');
   ok('node では音を出さずに通る', (SN.play('click'), SN.alarm(2, false, 100), true));
 
+  // パルス音：心拍 1 拍に 1 回、高さは SpO₂ で決まる
+  ok('SpO₂ 100% は 880 Hz', near(SN.pulseFreq(100), 880, 0.01));
+  ok('1% 下がるごとに半音下がる', near(SN.pulseFreq(99) / SN.pulseFreq(100), Math.pow(2, -1 / 12), 1e-9)
+    && near(SN.pulseFreq(88) / SN.pulseFreq(100), 0.5, 1e-9), `90%: ${SN.pulseFreq(90).toFixed(0)} Hz / 80%: ${SN.pulseFreq(80).toFixed(0)} Hz`);
+  ok('画面の表示と同じく整数に丸めてから音にする', SN.pulseFreq(94.4) === SN.pulseFreq(94) && SN.pulseFreq(94.6) === SN.pulseFreq(95));
+  ok('SpO₂ が下がるほど低い音', [100, 97, 92, 85, 70].every((v, i, a) => i === 0 || SN.pulseFreq(v) < SN.pulseFreq(a[i - 1])));
+  const pb = { next: null };
+  let beats = 0;
+  for (let t = 0; t < 10; t += 1 / 60) if (SN.pulsePlan(120, t, pb)) beats++;
+  ok('心拍 120 なら 10 秒で 20 拍（実時間・フレーム単位で数えても）', beats === 20, beats + ' 拍');
+  const pb2 = { next: null };
+  beats = 0;
+  for (let t = 0; t < 10; t += 1 / 60) if (SN.pulsePlan(150, t, pb2)) beats++;
+  ok('新生児の心拍 150 なら 25 拍', beats === 25, beats + ' 拍');
+  const pb3 = { next: null };
+  SN.pulsePlan(100, 0, pb3);
+  let burst = 0;
+  for (let t = 30; t < 30.05; t += 1 / 60) if (SN.pulsePlan(100, t, pb3)) burst++;
+  ok('フレームが止まっていたあとも、溜まった拍をまとめて鳴らさない', burst === 1, burst + ' 拍');
+  ok('心拍が無ければ鳴らさない', SN.pulsePlan(0, 1, { next: null }) === false && SN.pulsePlan(NaN, 1, { next: null }) === false);
+  ok('パルス音はアラームより短く小さい純音', SN.PULSE.d < Math.min(...SN.ALARM.medium.pulses.map(p => p.d))
+    && SN.PULSE.gain < SN.ALARM.medium.gain);
+
   // iPhone 版も同じ間隔・同じ音数であること
   const swiftSound = path.join(__dirname, '..', 'swift', 'VentilatorSim', 'App', 'SoundBoard.swift');
   if (fs.existsSync(swiftSound)) {
@@ -939,9 +967,67 @@ console.log('\n24. 操作音とアラーム音');
     const every = [...sw.matchAll(/static let (high|medium)Every: Double = ([\d.]+)/g)].reduce((o, m) => (o[m[1]] = +m[2], o), {});
     ok('iPhone 版のアラーム間隔が同じ', every.high === SN.ALARM.high.every && every.medium === SN.ALARM.medium.every,
       JSON.stringify(every));
+    const pul = [...sw.matchAll(/static let pulse(Top|Dur|Gain): (?:Double|Float) = ([\d.]+)/g)].reduce((o, m) => (o[m[1]] = +m[2], o), {});
+    ok('iPhone 版のパルス音も同じ高さ・長さ・音量', pul.Top === SN.PULSE.top && pul.Dur === SN.PULSE.d && pul.Gain === SN.PULSE.gain,
+      JSON.stringify(pul));
   } else {
     ok('iPhone 版に SoundBoard.swift がある', false);
   }
+}
+
+console.log('\n25. 説明に出てきたモニターの場所を光らせる');
+{
+  const LS = require('./lessons.js');
+  const M = LS.monitorSpots;
+  const has = (text, spec) => M(text).includes(spec);
+  ok('{PIP} の差し込みも名前として拾う', has('PIP は {PIP}。', 'val:PIP'));
+  ok('SIMV の中の MV は拾わない', !has('SIMV と PSV って、どう違うの？', 'val:MV'));
+  ok('設定の Vt を実測の Vte と取り違えない', !has('Vt を 180 mL にします', 'val:Vte') && has('Vte が戻る', 'val:Vte'));
+  ok('PaCO₂ を etCO₂ と取り違えない', M('PaCO₂ が 58').length === 0);
+  ok('流量は流量波形の段', has('流量にも小さな山', 'lane:flow'));
+  ok('圧波形は圧の段、段を言わなければ波形全体', has('見るのは圧波形です', 'lane:paw') && !has('見るのは圧波形です', 'wave')
+    && has('波形に出ます', 'wave'));
+  ok('日本語の呼び方（心拍・血圧）も拾う', has('心拍の振動', 'val:HR') && has('血圧が下がってきた', 'val:ABP mean'));
+
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const i = app.indexOf('var VALS = [');
+  const valKeys = [...app.slice(i, app.indexOf('\n  ];', i)).matchAll(/\{ k: '([^']+)'/g)].map(m => m[1]);
+  ok('拾う名前が画面の計測値タイルと同じ', valKeys.join(',') === LS.MONITOR_VALS.join(','),
+    LS.MONITOR_VALS.length + ' 個');
+
+  // 会話・クイズ・解説のうち、モニターの場所を光らせる場面の数
+  let talk = 0, lit = 0, why = 0, whyLit = 0;
+  for (const { lesson } of LS.allLessons()) {
+    for (const t of lesson.tasks) {
+      if (t.talk || t.quiz) {
+        const text = t.talk ? (typeof t.say === 'string' ? t.say : '') : (typeof t.quiz.q === 'string' ? t.quiz.q : '');
+        talk++;
+        if (LS.lookFor(t, text).length) lit++;
+      }
+      const w = t.quiz ? t.quiz.why : t.why;
+      if (typeof w === 'string') { why++; if (M(w).length) whyLit++; }
+    }
+  }
+  ok('会話・クイズでモニターを光らせる場面がある', lit >= 40, `${lit} / ${talk} 場面、解説 ${whyLit} / ${why}`);
+  ok('look を書いた場面は文からの拾いより優先する',
+    LS.lookFor({ talk: true, look: [] }, 'PIP は高い').length === 0
+    && LS.lookFor({ talk: true, look: ['wave'] }, 'PIP は高い').join() === 'wave');
+  ok('クイズの watch も光らせる', LS.lookFor({ quiz: {}, watch: ['Pplat'] }, '').join() === 'val:Pplat');
+  ok('app.js は会話・クイズ・解説で光らせる', /LS\.lookFor\(t, text\)/.test(app) && /LS\.monitorSpots\(L\.fbRaw/.test(app));
+
+  // iPhone 版も同じ規則を持つ
+  const swPath = path.join(__dirname, '..', 'swift', 'VentilatorSim', 'Sources', 'VentilatorCore', 'Lessons.swift');
+  const sw = fs.existsSync(swPath) ? fs.readFileSync(swPath, 'utf8') : '';
+  const list = (name) => {
+    const j = sw.indexOf('static let ' + name);
+    const k = sw.indexOf('= [', j);
+    return j < 0 ? '' : sw.slice(k, sw.indexOf(']\n', k) + 1);
+  };
+  const swVals = [...list('monitorVals').matchAll(/"([^"]+)"/g)].map(m => m[1]);
+  ok('iPhone 版の拾う名前が同じ', swVals.join(',') === LS.MONITOR_VALS.join(','), swVals.length + ' 個');
+  const swAlias = [...list('monitorAlias').matchAll(/"([^"]+)"/g)].map(m => m[1]);
+  const swLanes = [...list('monitorLanes').matchAll(/"([^"]+)"/g)].map(m => m[1]);
+  ok('iPhone 版の呼び方と波形の段が同じ', swAlias.length >= 10 && swLanes.length >= 12, `${swAlias.length / 2} / ${swLanes.length / 2}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

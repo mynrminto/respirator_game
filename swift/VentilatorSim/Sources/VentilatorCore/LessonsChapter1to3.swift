@@ -26,7 +26,8 @@ extension LessonLibrary {
             .talk(.scene, "午後 8 時、PICU。虫垂炎の手術を終えたハルト君（8歳）が、挿管されたまま運ばれてきた。"),
             .talk(.doctor, "今夜の担当はあなたです。まずは、この機械が何を言っているのかを読めるようにしましょう。"),
             .talk(.puku, "うわ、波形が 3 つもある…。どれが何なの？"),
-            .talk(.doctor, "3 つとも呼吸に合わせて動きます。どれが何かは、名前ではなく動き方で見分けられます。"),
+            .talk(.doctor, "3 つとも呼吸に合わせて動きます。どれが何かは、名前ではなく動き方で見分けられます。")
+                .looking(["wave"]),
             .quiz("3 つのうち、ゼロ線をまたいで上にも下にも振れるのはどれですか。",
                   ["気道内圧",
                    "流量",
@@ -47,7 +48,8 @@ extension LessonLibrary {
                   why: "VC は入れる量を機械が保証するので、Vte はほぼ設定どおりに返ってきます。",
                   check: { $0.measured.tidalVolumeExp > 160 })
                 .spotting(["val:Vte"]).watching(["Vte", "MV"]),
-            .talk(.puku, "入れた量と、戻ってくる量って、ちがうことあるの？"),
+            .talk(.puku, "入れた量と、戻ってくる量って、ちがうことあるの？")
+                .looking(["val:Vte"]),
             .talk(.doctor, "あります。しかもそれが、いちばん最初に気づくべき異常です。"),
             .quiz("設定 180 mL に対して Vte が 120 mL しか戻りません。まず疑うのは何ですか。",
                   ["正常。気にしなくてよい",
@@ -76,7 +78,8 @@ extension LessonLibrary {
                  "Pplat は吸気ポーズで測る",
                  "上限は年齢で変わる（タイルの下に出ている）"],
         tasks: [
-            .talk(.scene, "ハルト君の設定はひとまず落ち着いた。いぶき先生が、画面の圧の数字を指さす。"),
+            .talk(.scene, "ハルト君の設定はひとまず落ち着いた。いぶき先生が、画面の圧の数字を指さす。")
+                .looking(["val:PIP"]),
             .talk(.doctor, "PIP は {PIP}。でもこの数字だけでは、肺に何がかかっているかは分かりません。"),
             .talk(.puku, "え、圧は圧じゃないの？"),
             .talk(.doctor, "圧は 2 つあるんです。流れを押す分と、肺を膨らませる分。分けて測ってみましょう。"),
@@ -88,7 +91,8 @@ extension LessonLibrary {
                   why: "平らになったところが Pplat。流れが止まったあとに残っている、肺胞の圧です。",
                   check: { $0.measured.plateauPressure != nil && $0.measured.drivingPressure != nil })
                 .spotting(["val:Pplat"]).watching(["PIP", "Pplat", "ΔP"]),
-            .talk(.doctor, "2 つに分かれました。どちらが何なのか、ここで確かめておきましょう。"),
+            .talk(.doctor, "2 つに分かれました。どちらが何なのか、ここで確かめておきましょう。")
+                .looking(["val:PIP", "val:Pplat"]),
             .quiz("出ている 3 つの数字のうち、気道抵抗にとられている分はどれですか。",
                   ["PIP − Pplat",
                    "Pplat − PEEP",
@@ -153,7 +157,8 @@ extension LessonLibrary {
         tasks: [
             .talk(.doctor, "いまの 2 つの圧を、機械が勝手に割り算してくれています。それが Cstat と Raw。"),
             .talk(.puku, "割り算？"),
-            .talk(.doctor, "肺の柔らかさと、気道の通りにくさです。夜中のアラームは、ほとんどこの 2 つで説明がつきます。"),
+            .talk(.doctor, "肺の柔らかさと、気道の通りにくさです。夜中のアラームは、ほとんどこの 2 つで説明がつきます。")
+                .looking(["val:Cstat", "val:Raw"]),
             .step("Cstat と Raw に数字が入るまで待ちます。",
                   hint: "吸気ポーズを 0.3 秒に設定してあるので、毎回の呼吸で自動的に測られます。",
                   check: { $0.measured.staticCompliance != nil && $0.measured.airwayResistance != nil })
@@ -522,7 +527,8 @@ extension LessonLibrary {
                   miss: ["SIMV では設定を超える分があるのが普通です。", nil,
                          "オートトリガもありえますが、まず考えるのは患者の呼吸です。",
                          "バックアップは呼吸が止まったときの仕組みです。"],
-                  why: "患者の自発呼吸です。2 種類の呼吸が混ざるので、波形も大きい山と小さい山が交互に出ます。"),
+                  why: "患者の自発呼吸です。2 種類の呼吸が混ざるので、波形も大きい山と小さい山が交互に出ます。")
+                .looking(["val:RR tot"]),
             .talk(.puku, "SIMV と PSV って、どう違うの？"),
             .talk(.doctor, "SIMV は決めた回数だけ必ず送ります。PSV は 1 回も送りません。押せば分かります。"),
             .key("今度は「PSV」に切り替えてください。", event: .modePSV,

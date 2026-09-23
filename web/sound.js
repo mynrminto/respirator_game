@@ -12,6 +12,13 @@
  * 優先度が上がった瞬間は待たずにすぐ鳴らす。消音中・音をオフにしたときは鳴らさない。
  * 時刻はシミュレーション内ではなく実時間で数える（早送り中に連打にならないように）。
  *
+ * パルス音は、パルスオキシメータの「ピッ」。心拍 1 拍に 1 回、実時間で鳴らす。
+ * 音の高さは SpO₂ で決まり、100% で A5（880 Hz）、1% 下がるごとに半音下がる（90% で 494 Hz、80% で 277 Hz）。
+ * 値は画面の表示と同じく整数に丸めてから音にする（1% の変化が 1 段の音程差として聞こえる）。
+ * アラームとは音色で分ける。パルス音は倍音のない短い純音（60 ms）で音量も小さく、
+ * アラームは倍音を足した長めの音の並び。消音 2 分はアラームだけを止め、パルス音は止めない（実機と同じ）。
+ * パルス音だけを消すこともできる（メニュー）。
+ *
  * iPhone 版 App/SoundBoard.swift が同じ音程・長さ・間隔を持つ。片方を変えたらもう片方も。
  */
 (function (root) {
@@ -45,6 +52,16 @@
     }
   };
 
+  var PULSE = { top: 880, d: 0.06, gain: 0.16, floor: 50, hrMin: 30, hrMax: 250 };
+
+  /* SpO₂ から音の高さ。100% で 880 Hz、1% ごとに半音。50% より下は同じ高さ。 */
+  function pulseFreq(spo2) {
+    var s = Math.round(spo2);
+    if (!isFinite(s)) return 0;
+    s = Math.max(PULSE.floor, Math.min(100, s));
+    return PULSE.top * Math.pow(2, (s - 100) / 12);
+  }
+
   var CUES = {
     click:   [{ f: 2300, t: 0, d: 0.018, type: 'square', g: 0.10 }, { f: 170, t: 0, d: 0.03, type: 'sine', g: 0.30 }],
     tick:    [{ f: 3400, t: 0, d: 0.008, type: 'square', g: 0.05 }],
@@ -53,8 +70,9 @@
   };
 
   /* ---- 設定 ---- */
-  var on = true;
+  var on = true, pulseOn = true, PULSE_KEY = 'ventsim.pulse.v1';
   try { on = root.localStorage ? root.localStorage.getItem(KEY) !== 'off' : true; } catch (e) { on = true; }
+  try { pulseOn = root.localStorage ? root.localStorage.getItem(PULSE_KEY) !== 'off' : true; } catch (e) { pulseOn = true; }
 
   /* ---- Web Audio ---- */
   var ctx = null, master = null;
@@ -127,6 +145,37 @@
     return name;
   }
 
+  /* 拍の時刻。hr は /分、now は実時間の秒。拍が来ていれば true を返す（テスト用に state を渡せる）。
+   * 心拍が変わったら次の拍から間隔を変える。フレームが止まっていたら（タブの裏など）拍を溜めずに打ち直す。 */
+  var beat = { next: null };
+  function pulsePlan(hr, now, state) {
+    state = state || beat;
+    if (!(hr > 0) || !isFinite(hr)) { state.next = null; return false; }
+    var iv = 60 / Math.max(PULSE.hrMin, Math.min(PULSE.hrMax, hr));
+    if (state.next == null) { state.next = now; }
+    if (now < state.next) return false;
+    state.next += iv;
+    if (state.next <= now) state.next = now + iv;
+    return true;
+  }
+
+  /* 毎フレーム呼ぶ。拍が来たら（音を消していても）true を返す。画面の ♥ はこれに合わせて光らせる。 */
+  function pulse(spo2, hr, now) {
+    if (!pulsePlan(hr, now)) return false;
+    var f = pulseFreq(spo2);
+    if (on && pulseOn && f) {
+      var c = audio();
+      if (c) voice(c, c.currentTime + 0.005, { f: f, t: 0, d: PULSE.d, type: 'sine', g: PULSE.gain });
+    }
+    return true;
+  }
+  function pulseReset() { beat.next = null; }
+
+  function setPulseEnabled(v) {
+    pulseOn = !!v;
+    try { if (root.localStorage) root.localStorage.setItem(PULSE_KEY, pulseOn ? 'on' : 'off'); } catch (e) { /* 記録できなくても動く */ }
+  }
+
   function setEnabled(v) {
     on = !!v;
     try { if (root.localStorage) root.localStorage.setItem(KEY, on ? 'on' : 'off'); } catch (e) { /* 記録できなくても動く */ }
@@ -142,8 +191,10 @@
 
   var api = {
     play: play, alarm: alarm, alarmPlan: alarmPlan,
+    pulse: pulse, pulsePlan: pulsePlan, pulseFreq: pulseFreq, pulseReset: pulseReset,
+    pulseEnabled: function () { return pulseOn; }, setPulseEnabled: setPulseEnabled,
     enabled: function () { return on; }, setEnabled: setEnabled,
-    ALARM: ALARM, CUES: CUES
+    ALARM: ALARM, CUES: CUES, PULSE: PULSE
   };
   root.VentSound = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

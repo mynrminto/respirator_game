@@ -233,7 +233,7 @@ struct LessonShapeTests {
 
     /* 画面のタイル（App 側の Readout）と設定キー（VentilatorParameter）に合わせた一覧。
      * ここが食い違うと、光も帯の計測値も黙って出なくなるので、テストで固定しておく。 */
-    private static let readoutCaptions: Set<String> = [
+    static let readoutCaptions: Set<String> = [
         "PIP", "Pplat", "PEEP tot", "ΔP", "Vte", "MV", "RR tot", "I:E",
         "Cstat", "Raw", "auto-PEEP", "f/VT", "SpO₂", "etCO₂", "HR", "ABP mean"
     ]
@@ -264,13 +264,14 @@ struct LessonShapeTests {
         var bad: [String] = []
         for lesson in LessonLibrary.all {
             for task in lesson.tasks {
-                for spec in task.spot {
+                for spec in task.spot + (task.look ?? []) {
                     let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
                     let kind = parts[0]
                     let arg = parts.count > 1 ? parts[1] : ""
                     let ok: Bool
                     switch kind {
                     case "wave", "dial": ok = arg.isEmpty
+                    case "lane": ok = ["paw", "flow", "vol"].contains(arg)
                     case "val":  ok = Self.readoutCaptions.contains(arg)
                     case "key":  ok = Self.parameterIDs.contains(arg)
                     case "hard": ok = Self.hardKeyIDs.contains(arg)
@@ -543,3 +544,40 @@ struct PatientInfoTests {
         #expect(found)
     }
 }
+
+/// 説明に出てきたモニターの場所を光らせる。web/test.js の 25 番と同じ内容。
+@Suite("説明で指すモニターの場所")
+struct MonitorLookTests {
+    private func has(_ text: String, _ spec: String) -> Bool {
+        LessonLibrary.monitorSpots(in: text).contains(spec)
+    }
+
+    @Test("名前の拾い方")
+    func picksNames() {
+        #expect(has("PIP は {PIP}。", "val:PIP"))
+        #expect(!has("SIMV と PSV って、どう違うの？", "val:MV"))
+        #expect(!has("Vt を 180 mL にします", "val:Vte"))
+        #expect(has("Vte が戻る", "val:Vte"))
+        #expect(LessonLibrary.monitorSpots(in: "PaCO₂ が 58").isEmpty)
+        #expect(has("流量にも小さな山", "lane:flow"))
+        #expect(has("見るのは圧波形です", "lane:paw") && !has("見るのは圧波形です", "wave"))
+        #expect(has("波形に出ます", "wave"))
+        #expect(has("心拍の振動", "val:HR") && has("血圧が下がってきた", "val:ABP mean"))
+    }
+
+    @Test("拾う名前が計測値タイルの見出しと同じ")
+    func namesMatchReadouts() {
+        #expect(Set(LessonLibrary.monitorVals) == LessonShapeTests.readoutCaptions)
+    }
+
+    @Test("look があれば文より優先し、無ければ spot・watch・文を合わせる")
+    func lookOverrides() {
+        let talk = LessonTask.talk(.doctor, "PIP は高い")
+        #expect(LessonLibrary.lookFor(talk, text: "PIP は高い") == ["val:PIP"])
+        #expect(LessonLibrary.lookFor(talk.looking([]), text: "PIP は高い").isEmpty)
+        #expect(LessonLibrary.lookFor(talk.looking(["wave"]), text: "PIP は高い") == ["wave"])
+        let quiz = LessonTask.quiz("どれですか", ["a", "b"], answer: 0, why: "").watching(["Pplat"])
+        #expect(LessonLibrary.lookFor(quiz, text: "どれですか") == ["val:Pplat"])
+    }
+}
+

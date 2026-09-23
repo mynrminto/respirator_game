@@ -306,6 +306,17 @@
     0%,100%{box-shadow:0 0 0 2px var(--paw),0 0 0 2px rgba(255,197,61,.35)}
     50%{box-shadow:0 0 0 2px var(--paw),0 0 0 10px rgba(255,197,61,0)}}
   @media (prefers-reduced-motion:reduce){.spot{animation:none;box-shadow:0 0 0 2px var(--paw)}}
+  /* 波形の 1 段だけを光らせる枠。段の高さは drawScope と同じ割り付け（上下 2px の余白を 3 等分）。 */
+  .scopewrap .lanehl{position:absolute;left:3px;right:3px;pointer-events:none;border-radius:8px;visibility:hidden;z-index:3}
+  .scopewrap .lanehl.spot{visibility:visible;background:rgba(255,197,61,.07)}
+  .lanehl[data-lane="paw"]{top:4px;height:calc((100% - 4px) / 3 - 4px)}
+  .lanehl[data-lane="flow"]{top:calc(4px + (100% - 4px) / 3);height:calc((100% - 4px) / 3 - 4px)}
+  .lanehl[data-lane="vol"]{top:calc(4px + (100% - 4px) * 2 / 3);height:calc((100% - 4px) / 3 - 4px)}
+  /* SpO₂ のタイルの ♥。パルス音と同じ拍で光る。 */
+  .val .k .pulse{font-style:normal;margin-left:4px;color:#FF6F91;opacity:.25;display:inline-block}
+  .val .k .pulse.on{animation:beat .28s ease-out}
+  @keyframes beat{0%{opacity:1;transform:scale(1.35)}100%{opacity:.25;transform:scale(1)}}
+  @media (prefers-reduced-motion:reduce){.val .k .pulse.on{animation:none;opacity:1}}
   .cchoices{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
   .cchoices button{flex:1 1 44%;min-width:120px;text-align:left;padding:8px 11px;border-radius:var(--r-m);
     background:var(--panel);border:2px solid var(--br);font-size:12px;line-height:1.4;color:var(--ink);font-weight:500}
@@ -820,6 +831,9 @@
   <div class="screen">
     <div class="scopewrap" id="scopewrap">
       <canvas id="scope"></canvas>
+      <div class="lanehl" data-lane="paw"></div>
+      <div class="lanehl" data-lane="flow"></div>
+      <div class="lanehl" data-lane="vol"></div>
       <div class="lung" id="lung" hidden>
         <div class="lungstage" id="lungStage"></div>
         <div class="lhud lt" id="lungWho"></div>

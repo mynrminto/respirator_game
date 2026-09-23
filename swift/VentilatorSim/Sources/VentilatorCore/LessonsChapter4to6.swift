@@ -430,7 +430,8 @@ extension LessonLibrary {
                  "対策の第一は呼吸回数を下げること"],
         tasks: [
             .talk(.scene, "RSV のそうた君（生後 4 か月）。呼吸回数を上げたのに、血圧が下がってきた。"),
-            .talk(.doctor, "入れることばかり見ていると、これを見落とします。吐けているかどうか。"),
+            .talk(.doctor, "入れることばかり見ていると、これを見落とします。吐けているかどうか。")
+                .looking(["lane:flow"]),
             .talk(.puku, "吐くのって、放っておけば出ていくんじゃないの？"),
             .talk(.doctor, "細い気道では、出ていく時間が足りません。波形に出ます。見てください。"),
             .step("流量波形（真ん中、緑）を 20 秒見てください。呼気がゼロに戻りきっていますか。",
@@ -532,7 +533,8 @@ extension LessonLibrary {
                   why: "PIP も Pplat も上がり、Vte は設定どおり返っています。つまりリークでも抵抗でもなく、肺が硬くなった形です。",
                   check: { $0.measured.plateauPressure != nil && $0.holdSettled })
                 .watching(["PIP", "Pplat", "Vte"]),
-            .talk(.doctor, "圧の形と、聴診。2 つ合わせると 1 つに絞れます。"),
+            .talk(.doctor, "圧の形と、聴診。2 つ合わせると 1 つに絞れます。")
+                .looking(["lane:paw"]),
             .quiz("この所見に加えて、左の呼吸音が聞こえません。何を疑いますか。",
                   ["右片肺挿管または気胸",
                    "痰づまり",

@@ -469,6 +469,8 @@ struct ValueTile: View {
     let unit: String
     var limit: String? = nil
     var tone: Color? = nil
+    /// SpO₂ のタイルだけに渡す。拍ごとに 1 進み、見出しの横の ♥ が光る（パルス音と同じ拍）。
+    var beat: Int? = nil
 
     /// 見出しは 11pt から。Dynamic Type で大きくするが、タイルの最小幅 108pt に収まる範囲で頭打ちにする。
     @ScaledMetric(relativeTo: .caption) private var captionSize: CGFloat = 11
@@ -483,6 +485,9 @@ struct ValueTile: View {
                     .foregroundStyle(Chrome.screenDim)
                     .lineLimit(1)
                     .layoutPriority(1)
+                if let beat {
+                    PulseHeart(beat: beat, size: min(captionSize, 14))
+                }
                 Spacer(minLength: 0)
                 if let limit {
                     Text(limit)
@@ -511,6 +516,27 @@ struct ValueTile: View {
         .background(Chrome.screenTile)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(caption) \(value) \(unit)")
+    }
+}
+
+/// SpO₂ の見出しの横の ♥。拍が来るたびに一瞬大きく光り、0.28 秒で元に戻る（Web 版 .pulse と同じ）。
+struct PulseHeart: View {
+    let beat: Int
+    var size: CGFloat = 11
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var flash = false
+
+    var body: some View {
+        Text("♥")
+            .font(.system(size: size))
+            .foregroundStyle(Color(red: 1.000, green: 0.435, blue: 0.569))
+            .opacity(flash ? 1 : 0.25)
+            .scaleEffect(flash && !reduceMotion ? 1.35 : 1)
+            .accessibilityHidden(true)
+            .onChange(of: beat) { _, _ in
+                flash = true
+                withAnimation(.easeOut(duration: 0.28)) { flash = false }
+            }
     }
 }
 

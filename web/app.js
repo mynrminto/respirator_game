@@ -6,7 +6,8 @@
   var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons, CH = window.VentChars;
   var AR = window.VentArt, AS = window.VentAssets, LU = window.VentLung3D;
   /* 音は無くても動く（sound.js を読まない構成やテスト用） */
-  var SND = window.VentSound || { play: function () {}, alarm: function () {}, enabled: function () { return false; }, setEnabled: function () {} };
+  var SND = window.VentSound || { play: function () {}, alarm: function () {}, pulse: function () { return false; }, pulseReset: function () {},
+    enabled: function () { return false; }, setEnabled: function () {}, pulseEnabled: function () { return false; }, setPulseEnabled: function () {} };
   var $ = function (id) { return document.getElementById(id); };
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
@@ -396,6 +397,18 @@
     SND.alarm(sev, S.silenceUntil > e.clock, performance.now() / 1000);
   }
 
+  /* パルス音。心拍に合わせて 1 拍ごとに鳴り、高さは SpO₂ で変わる（sound.js）。
+   * タイトル画面の裏では鳴らさない。拍が来たら SpO₂ のタイルの ♥ を光らせる（音を消していても）。 */
+  var pulseDot = null;
+  function pulseSound() {
+    var e = S.eng;
+    if (!$('title').hidden) { SND.pulseReset(); return; }
+    if (!SND.pulse(e.spo2, e.hr, performance.now() / 1000) || !pulseDot) return;
+    pulseDot.classList.remove('on');
+    void pulseDot.offsetWidth;                  // 同じアニメーションをもう一度走らせる
+    pulseDot.classList.add('on');
+  }
+
   /* ===================== タイトル画面 =====================
    * ゲームらしく、キャラクターと進み具合を出してから始める。
    * 免責は初回の「はじめる」で一度だけ出し、以後はメニューから読める。 */
@@ -602,7 +615,9 @@
       var v = el('div', 'v'), vs = el('span', '', '––'), u = el('span', 'u', d.u);
       v.appendChild(vs); v.appendChild(u);
       var lim = el('div', 'lim', '');
-      n.appendChild(el('div', 'k', d.k)); n.appendChild(lim); n.appendChild(v);
+      var kn = el('div', 'k', d.k);
+      if (d.k === 'SpO₂') { pulseDot = el('i', 'pulse', '♥'); pulseDot.setAttribute('aria-hidden', 'true'); kn.appendChild(pulseDot); }
+      n.appendChild(kn); n.appendChild(lim); n.appendChild(v);
       box.appendChild(n);
       valNodes.push({ n: n, v: vs, lim: lim, d: d });
     });
@@ -962,7 +977,7 @@
     } else {
       lessonTick(0);          // 抜管後も「結果を確認」の課題は判定を続ける（止めると 6-3 が終わらない）
     }
-    paintVals(); paintStatus(); paintCoach(); alarmSound();
+    paintVals(); paintStatus(); paintCoach(); alarmSound(); pulseSound();
     if (S.screen === 'wave') drawScope();
     else if (S.screen === 'loops') drawLoops();
     else if (S.screen === 'lung') drawLung(real);
@@ -1273,6 +1288,7 @@
       box.hidden = true; cv.style.visibility = '';
     }
     syncTabs();
+    if (S.lesson) S.lesson.lookKey = null;     // 波形の段を光らせていたら、画面に合わせて付け直す
   }
 
   function bindLungChips() {
@@ -1821,6 +1837,8 @@
        ['⌂', 'タイトルへ戻る', function () { close(); endLesson(false); showTitle(); }],
        ['♪', SND.enabled() ? '音：オン（押すと消す）' : '音：オフ（押すと鳴らす）',
         function () { SND.setEnabled(!SND.enabled()); close(); openMenu(); }],
+       ['♥', SND.pulseEnabled() ? 'パルス音：オン（押すと消す）' : 'パルス音：オフ（押すと鳴らす）',
+        function () { SND.setPulseEnabled(!SND.pulseEnabled()); close(); openMenu(); }],
        ['?', 'この教材について', function () { close(); openDisclaimer(false); }]
       ].forEach(function (p) {
         var c = el('button', 'case menuitem');
@@ -1877,6 +1895,11 @@
       } else if (kind === 'dial') { n = $('knob'); if (n) out.push(n); }
       else if (kind === 'ok') { n = $('btnOk'); if (n) out.push(n); }
       else if (kind === 'wave') { n = $('scopewrap'); if (n) out.push(n); }
+      else if (kind === 'lane') {
+        /* 波形の 1 段だけ。波形の画面でないときは画面の枠ごと光らせる。 */
+        n = S.screen === 'wave' ? document.querySelector('.lanehl[data-lane="' + arg + '"]') : $('scopewrap');
+        if (n && out.indexOf(n) < 0) out.push(n);
+      }
     });
     return out;
   }
@@ -1885,6 +1908,18 @@
     spotted.forEach(function (n) { n.classList.remove('spot'); delete n.dataset.spot; });
     spotted = spec ? spotEls(spec) : [];
     spotted.forEach(function (n) { n.classList.add('spot'); n.dataset.spot = '1'; });
+    revealTile();
+  }
+
+  /* 計測値のタイルは枠の中でスクロールする（背の低い画面では SpO₂ や HR が枠の下に隠れる）。
+   * 光らせたタイルが隠れていたら、枠の中だけをスクロールして見せる。ページ自体は動かさない。 */
+  function revealTile() {
+    var box = $('vals'), n = null;
+    for (var i = 0; i < spotted.length; i++) if (spotted[i].parentNode === box) { n = spotted[i]; break; }
+    if (!n || box.scrollHeight <= box.clientHeight) return;
+    var top = n.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop, bottom = top + n.offsetHeight;
+    if (top >= box.scrollTop && bottom <= box.scrollTop + box.clientHeight) return;
+    box.scrollTop = Math.max(0, top - 4);
   }
 
   /* 光らせたキーを押したら、光をダイヤルと「確定」に移す。確定したら元のキーに戻す。
@@ -2019,6 +2054,7 @@
    * （いきなり修了にすると、いちばん大事なまとめが読めない）。 */
   function afterAdvance(r) {
     var L = S.lesson;
+    L.fbRaw = r.why || '';
     L.fb = fillSay(r.why || '');       // 解説は通過した瞬間の値で固定する
     L.fbNow = watchRead(L.curWatch);
     L.finishPending = !!(r.finished && r.why);
@@ -2121,13 +2157,6 @@
       L.tix = rt.index;
       L.curWatch = t ? t.watch : null;
       L.snap = watchRead(L.curWatch);
-      L.spot = t ? t.spot : null;
-      applySpot(L.spot);
-      spotFollow();
-      if (L.spot) setTimeout(scrollToSpot, 60);
-    } else if (L.mode !== 'task' && L.spot) {
-      L.spot = null;
-      applySpot(null);
     }
 
     if (L.mode === 'done') {
@@ -2140,7 +2169,7 @@
       say = L.fb; tone = 'ok';
       choices = { kind: 'next' };
     } else if (t && t.talk) {
-      /* 会話の場面。押すところは光らせず、話し手と言葉だけを見せる。 */
+      /* 会話の場面。押すところは光らせず、話に出てきたモニターの場所だけを光らせる。 */
       say = typeof t.say === 'function' ? t.say(rt.bind(lessonCtx())) : (t.say || '');
       who = t.who || 'doc';
       tone = who === 'scene' ? 'scene' : '';
@@ -2161,6 +2190,7 @@
 
     /* 数値は差し込んだあとの文で比べる。差し込み前の文で比べると、実測が変わっても
      * 画面が最初の値（開始直後なら 0）のまま残ってしまう。 */
+    paintLook(L, t, say);
     say = fillSay(say); hint = fillSay(hint);
     var pr = rt.progress();
     var mood = coachMood(L, t);
@@ -2201,6 +2231,25 @@
     var needBar = L.mode === 'task' && t && t.hold;
     prog.hidden = !needBar;
     if (needBar) $('cProgBar').style.width = Math.round(rt.holdRatio() * 100) + '%';
+  }
+
+  /* 光らせる場所を場面ごとに決める。
+   *   操作の課題 … 課題の spot（押すところ。押したらダイヤルと確定へ移る）
+   *   会話・クイズ … 課題の spot ＋ セリフや設問に出てきたモニターの場所（LS.lookFor）
+   *   操作後の解説 … 解説の文に出てきたモニターの場所
+   * text は差し込み前の文（{PIP} も名前として拾える）。場面が変わったときだけ付け替える。 */
+  function paintLook(L, t, text) {
+    var key = L.mode + '|' + L.rt.index;
+    if (L.lookKey === key) return;
+    L.lookKey = key;
+    var spec = null;
+    if (L.mode === 'task' && t) spec = (t.talk || t.quiz) ? LS.lookFor(t, text) : t.spot;
+    else if (L.mode === 'feedback') spec = LS.monitorSpots(L.fbRaw || '');
+    if (spec && Array.isArray(spec) && !spec.length) spec = null;
+    L.spot = spec || null;
+    applySpot(L.spot);
+    spotFollow();
+    if (L.spot) setTimeout(scrollToSpot, 60);
   }
 
   function paintChoices(choices) {
