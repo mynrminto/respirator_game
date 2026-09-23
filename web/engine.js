@@ -93,6 +93,7 @@
   }
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function smoothstep(a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
   function approach(cur, target, dt, tau) {
     if (tau <= 0) return target;
     var k = 1 - Math.exp(-dt / tau);
@@ -651,7 +652,11 @@
     // 循環：平均気道内圧で静脈還流が落ちる
     var coTarget = (p.co || 5.0) * clamp(1 - 0.014 * Math.max(0, this.m.pmean - 5), 0.60, 1);
     if (p.volumeDepleted) coTarget *= 0.85;
-    this.co = approach(this.co, Math.max(0.35 * (p.co || 5.0), coTarget), d, 25);
+    coTarget = Math.max(0.35 * (p.co || 5.0), coTarget);
+    /* 子どもは一回拍出量をあまり増やせないので、徐脈になると心拍出量はほぼ心拍に比例して落ちる。
+     * 低酸素の徐脈から心停止に向かう流れはここから出る。 */
+    var brady = Math.pow(clamp(this.hr / nm.hr[0], 0.05, 1), 1.5);
+    this.co = approach(this.co, coTarget * brady, d, brady < 1 ? 6 : 25);
 
     // 酸素化
     /* 肺胞の O2 は CO2 から逆算せず、O2 そのものの出入りで動かす。
@@ -680,7 +685,13 @@
     this.hco3 = approach(this.hco3, hco3Target, d, 5400);
     this.ph = 6.1 + Math.log10(Math.max(2, this.hco3) / (0.03 * Math.max(8, this.paco2)));
     this.be = this.hco3 - 24.4 + 14.8 * (this.ph - 7.4);
-    this.etco2 = approach(this.etco2, this.paco2 - 3 - (p.vdAlvFrac || 0) * 25, d, 8);
+    /* etCO2 は吐き終わりのガス。一回換気量が気道＋回路の死腔（センサーより患者側）に近いと、
+     * 肺胞のガスがセンサーまで届かず低く出る（Vt が死腔の 1.6 倍あればほぼ肺胞の値）。
+     * 肺に届く血流が落ちても CO2 が運ばれず低くなる（心拍出量が普段の半分を切ったところから）。 */
+    var etAlv = Math.max(0, this.paco2 - 3 - (p.vdAlvFrac || 0) * 25);
+    var reach = smoothstep(0.5, 1.6, vtL / Math.max(0.0001, vdAnat + vdCircuit));
+    var perf = clamp(this.co / (0.5 * (p.co || 5.0)), 0, 1);
+    if (measured) this.etco2 = approach(this.etco2, etAlv * reach * perf, d, 8);
 
     // 心拍・血圧
     var hrScale = nm.hr[1] / 100;
@@ -689,11 +700,14 @@
       + clamp((this.paco2 - 40) * 0.5 * hrScale, -8 * hrScale, 22 * hrScale)
       + clamp((7.35 - this.ph) * 60 * hrScale, 0, 25 * hrScale)
       + 22 * hrScale * (this.muscleLoad > 0.6 ? this.muscleLoad - 0.6 : 0) * 2;
-    /* 新生児・乳児は重い低酸素で頻脈ではなく徐脈になる。 */
-    if (nm.label === '新生児' && this.spo2 < 78) hrTarget -= (78 - this.spo2) * 3.2;
-    this.hr = approach(this.hr, clamp(hrTarget, nm.hr[0] * 0.75, nm.hr[1] * 1.45), d, 12);
+    /* 重い低酸素では、はじめの頻脈のあとに徐脈になり、放っておけば心停止に向かう。
+     * 小児は成人より早く徐脈になり、若いほどその閾値が高い（新生児は SpO2 78% から）。 */
+    var bradySpo2 = nm.label === '新生児' ? 78 : (nm.label === '乳児' ? 72 : 65);
+    var bradySlope = nm.label === '新生児' ? 3.2 : 3.6 * hrScale;
+    if (this.spo2 < bradySpo2) hrTarget -= (bradySpo2 - this.spo2) * bradySlope;
+    this.hr = approach(this.hr, clamp(hrTarget, nm.hr[0] * 0.2, nm.hr[1] * 1.45), d, 12);
     var mapTarget = clamp((p.map || 80) * (this.co / (p.co || 5)) * (this.ph < 7.2 ? 0.88 : 1),
-      nm.mapMin * 0.5, nm.mapMin * 2.2);
+      nm.mapMin * 0.25, nm.mapMin * 2.2);
     this.map = approach(this.map, mapTarget, d, 15);
 
     this._recomputeDrive();
@@ -755,6 +769,7 @@
     if (this.spo2 < this.nm.spo2[0]) a.push({ k: 'spo2', msg: 'SpO2 低下', sev: 2 });
     if (m.autoPeep > 5) a.push({ k: 'ap', msg: 'auto-PEEP', sev: 1 });
     if (this.map < this.nm.mapMin) a.push({ k: 'map', msg: '血圧低下', sev: 2 });
+    if (this.hr < this.nm.hr[0] * 0.8) a.push({ k: 'hr', msg: '徐脈', sev: 2 });
     this.alarms = a;
   };
 

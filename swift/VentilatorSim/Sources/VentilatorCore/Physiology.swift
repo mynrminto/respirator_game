@@ -59,6 +59,11 @@ public enum Physiology {
 
     static func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double { min(max(v, lo), hi) }
 
+    static func smoothstep(_ a: Double, _ b: Double, _ x: Double) -> Double {
+        let t = clamp((x - a) / (b - a), 0, 1)
+        return t * t * (3 - 2 * t)
+    }
+
     /// 一次遅れ。指数積分なので刻み幅が変わっても結果が変わらない。
     static func approach(_ current: Double, toward target: Double, dt: Double, tau: Double) -> Double {
         guard tau > 0 else { return target }

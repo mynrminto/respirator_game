@@ -737,8 +737,12 @@ public final class VentilatorEngine {
         var targetCO = patient.cardiacOutput
             * Physiology.clamp(1 - 0.014 * max(0, measured.meanAirwayPressure - 5), 0.60, 1)
         if patient.volumeDepleted { targetCO *= 0.85 }
+        /* 子どもは一回拍出量をあまり増やせないので、徐脈になると心拍出量はほぼ心拍に比例して落ちる。
+         * 低酸素の徐脈から心停止に向かう流れはここから出る。 */
+        let brady = pow(Physiology.clamp(heartRate / norms.heartRate.lowerBound, 0.05, 1), 1.5)
         cardiacOutput = Physiology.approach(cardiacOutput,
-            toward: max(0.25 * patient.cardiacOutput, targetCO), dt: d, tau: 25)
+            toward: max(0.25 * patient.cardiacOutput, targetCO) * brady,
+            dt: d, tau: brady < 1 ? 6 : 25)
 
         // 酸素化
         /* 肺胞の O2 は CO2 から逆算せず、O2 そのものの出入りで動かす。
@@ -769,9 +773,17 @@ public final class VentilatorEngine {
         hco3 = Physiology.approach(hco3, toward: target, dt: d, tau: 5400)
         pH = Physiology.pH(hco3: hco3, paco2: paco2)
         baseExcess = hco3 - 24.4 + 14.8 * (pH - 7.4)
-        etco2 = Physiology.approach(etco2,
-                                    toward: paco2 - 3 - patient.alveolarDeadSpaceFraction * 25,
-                                    dt: d, tau: 8)
+        /* etCO2 は吐き終わりのガス。一回換気量が気道＋回路の死腔（センサーより患者側）に近いと、
+         * 肺胞のガスがセンサーまで届かず低く出る（Vt が死腔の 1.6 倍あればほぼ肺胞の値）。
+         * 肺に届く血流が落ちても CO2 が運ばれず低くなる（心拍出量が普段の半分を切ったところから）。 */
+        if ventilationMeasured {
+            let alveolarEtCO2 = max(0, paco2 - 3 - patient.alveolarDeadSpaceFraction * 25)
+            let reach = Physiology.smoothstep(0.5, 1.6,
+                tidalL / max(0.0001, anatomicDeadSpace + circuitDeadSpace))
+            let perfusion = Physiology.clamp(cardiacOutput / (0.5 * patient.cardiacOutput), 0, 1)
+            etco2 = Physiology.approach(etco2, toward: alveolarEtCO2 * reach * perfusion,
+                                        dt: d, tau: 8)
+        }
 
         // 循環
         let hrScale = norms.heartRate.upperBound / 100
@@ -780,16 +792,19 @@ public final class VentilatorEngine {
             + Physiology.clamp((paco2 - 40) * 0.5 * hrScale, -8 * hrScale, 22 * hrScale)
             + Physiology.clamp((7.35 - pH) * 60 * hrScale, 0, 25 * hrScale)
             + 44 * hrScale * max(0, muscleLoad - 0.6)
-        // 新生児・乳児は重い低酸素で頻脈ではなく徐脈になる。
-        if norms.label == "新生児", spo2 < 78 { hrTarget -= (78 - spo2) * 3.2 }
+        /* 重い低酸素では、はじめの頻脈のあとに徐脈になり、放っておけば心停止に向かう。
+         * 小児は成人より早く徐脈になり、若いほどその閾値が高い（新生児は SpO2 78% から）。 */
+        let bradySpO2: Double = norms.label == "新生児" ? 78 : (norms.label == "乳児" ? 72 : 65)
+        let bradySlope = norms.label == "新生児" ? 3.2 : 3.6 * hrScale
+        if spo2 < bradySpO2 { hrTarget -= (bradySpO2 - spo2) * bradySlope }
         heartRate = Physiology.approach(heartRate,
-            toward: Physiology.clamp(hrTarget, norms.heartRate.lowerBound * 0.75,
+            toward: Physiology.clamp(hrTarget, norms.heartRate.lowerBound * 0.2,
                                      norms.heartRate.upperBound * 1.45),
                                         dt: d, tau: 12)
         let mapTarget = Physiology.clamp(
             patient.meanArterialPressure * (cardiacOutput / patient.cardiacOutput)
                 * (pH < 7.2 ? 0.88 : 1),
-            norms.meanArterialPressureMin * 0.5, norms.meanArterialPressureMin * 2.2)
+            norms.meanArterialPressureMin * 0.25, norms.meanArterialPressureMin * 2.2)
         meanArterialPressure = Physiology.approach(meanArterialPressure, toward: mapTarget,
                                                    dt: d, tau: 15)
 
@@ -836,6 +851,7 @@ public final class VentilatorEngine {
         if spo2 < norms.spo2Target.lowerBound { list.append(.init(message: "SpO₂ 低下", severity: 2)) }
         if measured.autoPEEP > 5 { list.append(.init(message: "auto-PEEP", severity: 1)) }
         if meanArterialPressure < norms.meanArterialPressureMin { list.append(.init(message: "血圧低下", severity: 2)) }
+        if heartRate < norms.heartRate.lowerBound * 0.8 { list.append(.init(message: "徐脈", severity: 2)) }
         alarms = list
     }
 

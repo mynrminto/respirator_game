@@ -216,6 +216,19 @@ struct GasExchangeTests {
         run(e, seconds: 60, dt: 0.01)
         #expect(e.spo2 < spo2Before - 8)
         #expect(e.paco2 - paco2Before < 20 && e.paco2 - paco2Before > 5)
+        // Vt が死腔と同じくらいだと、吐き終わりに肺胞のガスが届かず etCO2 は低く出る
+        #expect(e.etco2 < e.paco2 * 0.4)
+        // 学童でも重い低酸素が続くと徐脈になり、血圧が落ちる
+        run(e, seconds: 150, dt: 0.01)
+        #expect(e.heartRate < e.norms.heartRate.lowerBound * 0.5)
+        #expect(e.meanArterialPressure < e.norms.meanArterialPressureMin)
+        #expect(e.alarms.contains { $0.message == "徐脈" })
+        // 換気と酸素を戻せば戻る
+        e.settings.tidalVolume = 180; e.settings.respiratoryRate = 20; e.settings.fio2 = 1.0
+        run(e, seconds: 180, dt: 0.01)
+        #expect(e.spo2 > 95)
+        #expect(e.heartRate > e.norms.heartRate.lowerBound)
+        #expect(e.meanArterialPressure > e.norms.meanArterialPressureMin - 5)
     }
 
     @Test("血液ガスは Henderson-Hasselbalch を満たす")

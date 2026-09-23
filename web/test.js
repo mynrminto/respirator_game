@@ -161,6 +161,15 @@ console.log('\n7. FiO2 と PaO2');
   ok('換気を急に落とすと 1 分で SpO2 が先に落ち、PaCO2 はゆっくり上がる',
     e.spo2 < s0 - 8 && e.paco2 - c0 < 20 && e.paco2 - c0 > 5,
     `SpO2 ${s0.toFixed(0)}→${e.spo2.toFixed(0)}%  PaCO2 ${c0.toFixed(0)}→${e.paco2.toFixed(0)} mmHg`);
+  ok('Vt が死腔と同じくらいだと etCO2 は PaCO2 よりずっと低い', e.etco2 < e.paco2 * 0.4,
+    `etCO2=${e.etco2.toFixed(0)} PaCO2=${e.paco2.toFixed(0)} mmHg`);
+  run(e, 150, 0.01);
+  ok('学童でも重い低酸素が続くと徐脈になり、血圧が落ちる',
+    e.hr < e.nm.hr[0] * 0.5 && e.map < e.nm.mapMin && e.alarms.some(a => a.k === 'hr'),
+    `SpO2=${e.spo2.toFixed(0)}% HR=${e.hr.toFixed(0)} MAP=${e.map.toFixed(0)}`);
+  e.s.vt = 180; e.s.rr = 20; e.s.fio2 = 1.0; run(e, 180, 0.01);
+  ok('換気と酸素を戻せば心拍と血圧は戻る', e.spo2 > 95 && e.hr > e.nm.hr[0] && e.map > e.nm.mapMin - 5,
+    `SpO2=${e.spo2.toFixed(0)}% HR=${e.hr.toFixed(0)} MAP=${e.map.toFixed(0)} etCO2=${e.etco2.toFixed(0)}`);
 }
 
 console.log('\n8. 自発呼吸とトリガ（PSV）');

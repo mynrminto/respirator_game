@@ -422,8 +422,9 @@ struct Readout: Identifiable {
         Readout(caption: "etCO₂", unit: "mmHg", value: { whole($0.etco2) }),
         Readout(caption: "HR", unit: "/min", value: { whole($0.heartRate) },
                 limit: { "\(Int($0.norms.heartRate.lowerBound))–\(Int($0.norms.heartRate.upperBound))" },
-                tone: { $0.heartRate > $0.norms.heartRate.upperBound * 1.15
-                    ? Chrome.warning : Chrome.screenInk }),
+                tone: { $0.heartRate < $0.norms.heartRate.lowerBound * 0.8 ? Chrome.critical
+                    : ($0.heartRate > $0.norms.heartRate.upperBound * 1.15
+                       || $0.heartRate < $0.norms.heartRate.lowerBound ? Chrome.warning : Chrome.screenInk) }),
         Readout(caption: "ABP mean", unit: "mmHg", value: { whole($0.meanArterialPressure) },
                 limit: { "≥\(Int($0.norms.meanArterialPressureMin))" },
                 tone: { $0.meanArterialPressure < $0.norms.meanArterialPressureMin ? Chrome.critical
