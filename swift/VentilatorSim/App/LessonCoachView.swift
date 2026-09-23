@@ -277,7 +277,7 @@ struct LessonCoachView: View {
 
     /// 見た目は小さな枠、押せる範囲は 44pt 四方。
     private func smallButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button { SoundBoard.shared.play(.tap); action() } label: {
             Text(title)
                 .font(Chrome.label(12, weight: Chrome.isPop ? .bold : .regular))
                 .foregroundStyle(Chrome.isPop ? Chrome.dim : Coach.accent)
@@ -444,7 +444,10 @@ struct LessonCoachView: View {
 
     private func choiceButton(_ choice: String, index: Int, runtime: LessonRuntime) -> some View {
         let isWrong = wrong(index, runtime)
-        return Button { controller.answerLesson(index) } label: {
+        return Button {
+            SoundBoard.shared.play(.tap)
+            controller.answerLesson(index)
+        } label: {
             Text(controller.fillSay(choice))
                 .font(Chrome.label(saySize - 0.5))
                 .foregroundStyle(isWrong ? Chrome.critical : Coach.ink)
@@ -478,7 +481,7 @@ struct LessonCoachView: View {
     }
 
     private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button { SoundBoard.shared.play(.tap); action() } label: {
             Text(title)
                 .font(Chrome.label(14, weight: .bold))
                 .foregroundStyle(Chrome.isPop ? Color.white : Chrome.good)

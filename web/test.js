@@ -914,5 +914,35 @@ console.log('\n23. 患者情報');
     l21.tasks.some(x => x.event === 'patient' && x.spot === 'hard:kPt'));
 }
 
+console.log('\n24. 操作音とアラーム音');
+{
+  const SN = require('./sound.js');
+  const st = { level: 0, at: -1e9 };
+  ok('アラームが無ければ鳴らさない', SN.alarmPlan(0, false, 0, st) === null);
+  ok('注意（黄）になった瞬間に鳴る', SN.alarmPlan(1, false, 10, st) === 'medium');
+  ok('注意は 15 秒あけて繰り返す', SN.alarmPlan(1, false, 20, st) === null && SN.alarmPlan(1, false, 25, st) === 'medium');
+  ok('危険（赤）に上がったら待たずに鳴る', SN.alarmPlan(2, false, 26, st) === 'high');
+  ok('危険は 8 秒ごと', SN.alarmPlan(2, false, 30, st) === null && SN.alarmPlan(2, false, 34, st) === 'high');
+  ok('消音中は鳴らさない', SN.alarmPlan(2, true, 60, st) === null);
+  ok('消音が明けたらすぐ鳴る', SN.alarmPlan(2, false, 61, st) === 'high');
+  const hi = SN.ALARM.high.pulses, md = SN.ALARM.medium.pulses;
+  ok('危険は 10 音（3＋2 を 2 回）、注意は 3 音', hi.length === 10 && md.length === 3);
+  ok('どちらもド・ラ・ファの下がる並びで始まる', hi[0].f > hi[1].f && hi[1].f > hi[2].f && md[0].f > md[1].f && md[1].f > md[2].f);
+  const hiLen = hi[hi.length - 1].t + hi[hi.length - 1].d;
+  ok('危険の 1 回分は次の繰り返しまでに鳴り終わる', hiLen < SN.ALARM.high.every, hiLen.toFixed(2) + ' 秒');
+  ok('node では音を出さずに通る', (SN.play('click'), SN.alarm(2, false, 100), true));
+
+  // iPhone 版も同じ間隔・同じ音数であること
+  const swiftSound = path.join(__dirname, '..', 'swift', 'VentilatorSim', 'App', 'SoundBoard.swift');
+  if (fs.existsSync(swiftSound)) {
+    const sw = fs.readFileSync(swiftSound, 'utf8');
+    const every = [...sw.matchAll(/static let (high|medium)Every: Double = ([\d.]+)/g)].reduce((o, m) => (o[m[1]] = +m[2], o), {});
+    ok('iPhone 版のアラーム間隔が同じ', every.high === SN.ALARM.high.every && every.medium === SN.ALARM.medium.every,
+      JSON.stringify(every));
+  } else {
+    ok('iPhone 版に SoundBoard.swift がある', false);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

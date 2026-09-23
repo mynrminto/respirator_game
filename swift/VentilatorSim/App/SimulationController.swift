@@ -346,6 +346,7 @@ final class SimulationController {
         (link as? CADisplayLink)?.invalidate()
         #endif
         link = nil
+        SoundBoard.shared.updateAlarm(level: 0, silenced: true)
     }
 
     private func advance(timestamp: CFTimeInterval) {
@@ -411,7 +412,14 @@ final class SimulationController {
         if displaySync >= 0.2 {          // 数値表示は 5 Hz で十分
             displaySync = 0
             tickCount &+= 1
+            updateAlarmSound()
         }
+    }
+
+    /// アラーム音。抜管後は鳴らさない。消音キーの 2 分間も鳴らさない。
+    private func updateAlarmSound() {
+        let level = extubation == nil ? (engine.alarms.map(\.severity).max() ?? 0) : 0
+        SoundBoard.shared.updateAlarm(level: level, silenced: isAlarmSilenced)
     }
 
     private func recordTrend(simulated: Double) {
@@ -442,6 +450,7 @@ final class SimulationController {
         let current = pendingValue ?? currentValue(parameter)
         let stepped = ((current + steps * parameter.step) / parameter.step).rounded() * parameter.step
         pendingValue = min(max(stepped, parameter.range.lowerBound), parameter.range.upperBound)
+        if pendingValue != current { SoundBoard.shared.play(.tick) }
     }
 
     /// 確定。反映したらキーの選択を外し、次の操作はキーを選ぶところから始める。
@@ -455,6 +464,7 @@ final class SimulationController {
             parameter.write(&updated, pending)
             settings = updated
         }
+        SoundBoard.shared.play(.confirm)
         append("\(parameter.label) を \(pending.formatted(.number.precision(.fractionLength(parameter.digits)))) \(parameter.unit) に変更")
         settingsAreProvisional = false
         selectedParameterID = nil

@@ -152,6 +152,10 @@ struct VentilatorScreen: View {
                 Button { showingCases = true } label: {
                     Label("症例を選ぶ", systemImage: "person.2")
                 }
+                Button { SoundBoard.shared.isEnabled.toggle() } label: {
+                    Label(SoundBoard.shared.isEnabled ? "音を消す（いま：オン）" : "音を鳴らす（いま：オフ）",
+                          systemImage: SoundBoard.shared.isEnabled ? "speaker.wave.2" : "speaker.slash")
+                }
                 Button { ThemeStore.shared.toggle() } label: {
                     Label("見た目を切り替える（いま：\(Chrome.kind.label)）", systemImage: "paintpalette")
                 }
@@ -382,7 +386,7 @@ struct VentilatorScreen: View {
 
     private func tab(_ title: String, selected: Bool, tint: Color,
                      action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button { SoundBoard.shared.play(.click); action() } label: {
             Text(title)
                 .font(Chrome.label(13, weight: .bold))
                 .foregroundStyle(selected ? (Chrome.isPop ? Chrome.accentInk : tint) : Chrome.dim)
@@ -432,7 +436,10 @@ struct VentilatorScreen: View {
         let accent: Color = sim ? Chrome.sim : (Chrome.isPop ? Chrome.accent : Chrome.flow)
         let border: Color = selected ? accent : (sim ? Chrome.sim.opacity(Chrome.isPop ? 0.6 : 0.8) : Chrome.keyBorder)
         let lineWidth: CGFloat = Chrome.isPop ? 2 : 1
-        return Button { controller.select(parameterID: parameter.id) } label: {
+        return Button {
+            SoundBoard.shared.play(.click)
+            controller.select(parameterID: parameter.id)
+        } label: {
             VStack(alignment: .leading, spacing: 1) {
                 Text(parameter.label)
                     .font(Chrome.label(keyCaption, weight: Chrome.isPop ? .bold : .regular))
@@ -625,7 +632,10 @@ struct VentilatorScreen: View {
     /// ダイヤル横の −／＋。1 回押すと 1 目盛り、長押しで送り続ける。
     private func stepButton(_ direction: Double) -> some View {
         let enabled = controller.selectedParameter != nil
-        return Button { controller.nudge(direction) } label: {
+        return Button {
+            SoundBoard.shared.play(.click)
+            controller.nudge(direction)
+        } label: {
             Image(systemName: direction < 0 ? "minus" : "plus")
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(Chrome.keyInk)

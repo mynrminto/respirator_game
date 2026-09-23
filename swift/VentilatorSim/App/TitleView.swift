@@ -207,7 +207,7 @@ struct TitleView: View {
     private func menuItem(_ glyph: String, icon: String? = nil,
                           _ title: String, _ subtitle: String,
                           primary: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button { SoundBoard.shared.play(.tap); action() } label: {
             HStack(spacing: 12) {
                 // 生成アイコンがあればそれを、無ければ文字のまま。
                 Group {

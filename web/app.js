@@ -5,6 +5,8 @@
 
   var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons, CH = window.VentChars;
   var AR = window.VentArt, AS = window.VentAssets, LU = window.VentLung3D;
+  /* 音は無くても動く（sound.js を読まない構成やテスト用） */
+  var SND = window.VentSound || { play: function () {}, alarm: function () {}, enabled: function () { return false; }, setEnabled: function () {} };
   var $ = function (id) { return document.getElementById(id); };
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
@@ -359,12 +361,39 @@
     initTheme();
     buildVals();
     loadScenario(SC.SCENARIOS[0], false);
-    buildTabs(); bindHard(); bindKnob(); bindCoach();
+    buildTabs(); bindHard(); bindKnob(); bindCoach(); bindSounds();
     buildTitle();
     window.addEventListener('resize', fitAll);
     requestAnimationFrame(frame);
     AS.ready.then(applyAssets);
     showTitle();
+  }
+
+  /* ===================== 操作音 =====================
+   * 機器のキーは硬い打鍵音、機器の外（ダイアログ・学習帯）のボタンは柔らかい音。
+   * 「確定」とダイヤルの目盛りは、値が本当に動いたときだけ commit / nudge で鳴らす。 */
+  var DEVICE_KEYS = '.hkey,.pkey,.tabs button,.dstep,.chip,.lchip,#ptName';
+  function bindSounds() {
+    document.addEventListener('pointerdown', function (ev) {
+      var b = ev.target && ev.target.closest && ev.target.closest('button');
+      if (!b || b.disabled || b.id === 'btnOk') return;
+      SND.play(b.matches(DEVICE_KEYS) ? 'click' : 'tap');
+    }, true);
+    /* キーボードで押したとき（pointerdown が来ない） */
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      var b = ev.target && ev.target.closest && ev.target.closest('button');
+      if (!b || b.disabled || b.id === 'btnOk') return;
+      SND.play(b.matches(DEVICE_KEYS) ? 'click' : 'tap');
+    }, true);
+  }
+
+  /* アラーム音。タイトル画面の裏では鳴らさない。消音キーの 2 分間も鳴らさない。 */
+  function alarmSound() {
+    var e = S.eng, a = e.alarms || [], sev = 0;
+    for (var i = 0; i < a.length; i++) if (a[i].sev > sev) sev = a[i].sev;
+    if (!$('title').hidden || e.extubated) sev = 0;
+    SND.alarm(sev, S.silenceUntil > e.clock, performance.now() / 1000);
   }
 
   /* ===================== タイトル画面 =====================
@@ -633,6 +662,7 @@
     var p = P[S.sel];
     if (S.pend === p.get(S.eng.s)) return;
     p.set(S.eng.s, S.pend);
+    SND.play('confirm');
     S.eng._raise('設定変更: ' + p.k + ' ' + fmtP(p, S.pend) + (p.u ? ' ' + p.u : ''));
     if (S.sel === 'sed') S.eng._recomputeDrive();
     /* 確定したら選択を外す。実機と同じで、次の操作はまたキーを押すところから。 */
@@ -645,7 +675,9 @@
     var p = P[S.sel];
     var v = (S.pend == null ? p.get(S.eng.s) : S.pend) + dir * p.step * (mult || 1);
     v = Math.round(v / p.step) * p.step;
+    var before = S.pend == null ? p.get(S.eng.s) : S.pend;
     S.pend = Math.max(p.min, Math.min(p.max, v));
+    if (S.pend !== before) SND.play('tick');
     paintKeys(); paintDial();
   }
 
@@ -930,7 +962,7 @@
     } else {
       lessonTick(0);          // 抜管後も「結果を確認」の課題は判定を続ける（止めると 6-3 が終わらない）
     }
-    paintVals(); paintStatus(); paintCoach();
+    paintVals(); paintStatus(); paintCoach(); alarmSound();
     if (S.screen === 'wave') drawScope();
     else if (S.screen === 'loops') drawLoops();
     else if (S.screen === 'lung') drawLung(real);
@@ -1787,6 +1819,8 @@
        ['↺', 'この症例を最初から', function () { close(); loadScenario(S.scen, false); }],
        ['★', '振り返り', function () { close(); openDebrief(); }],
        ['⌂', 'タイトルへ戻る', function () { close(); endLesson(false); showTitle(); }],
+       ['♪', SND.enabled() ? '音：オン（押すと消す）' : '音：オフ（押すと鳴らす）',
+        function () { SND.setEnabled(!SND.enabled()); close(); openMenu(); }],
        ['?', 'この教材について', function () { close(); openDisclaimer(false); }]
       ].forEach(function (p) {
         var c = el('button', 'case menuitem');

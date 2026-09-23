@@ -270,7 +270,7 @@ struct DeviceKey: View {
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button { SoundBoard.shared.play(.click); action() } label: {
             Text(title)
                 .font(Chrome.label(12, weight: Chrome.isPop ? .bold : .regular))
                 .padding(.horizontal, Chrome.isPop ? 13 : 11)
@@ -325,7 +325,7 @@ struct ChipButton: View {
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button { SoundBoard.shared.play(.click); action() } label: {
             Text(title)
                 .font(Chrome.label(12, weight: Chrome.isPop ? .bold : .regular))
                 .foregroundStyle(isOn ? Chrome.warning : (tint ?? Chrome.dim))

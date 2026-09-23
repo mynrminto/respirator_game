@@ -319,7 +319,7 @@
     c._item = item;
 
     var down = false;
-    c.on('pointerdown', function () { down = true; c._parts.plate.y = 4; badge.y += 4; glyph.y += 4; title.y += 4; sub.y += 4; });
+    c.on('pointerdown', function () { if (window.VentSound) window.VentSound.play('tap'); down = true; c._parts.plate.y = 4; badge.y += 4; glyph.y += 4; title.y += 4; sub.y += 4; });
     var up = function (fire) {
       if (!down) return;
       down = false;
