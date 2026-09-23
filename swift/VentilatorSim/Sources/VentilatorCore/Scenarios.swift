@@ -13,6 +13,10 @@ public struct Scenario: Identifiable, Codable, Equatable {
     public var teachingPoints: [String]
     public var patient: Patient
     public var suggested: SuggestedSettings
+    /// 入室している病棟（NICU / PICU）。
+    public var ward: String = "PICU"
+    /// 学習コースの物語での呼び名。物語に出てこない症例は nil。
+    public var nickname: String? = nil
 
     public struct SuggestedSettings: Codable, Equatable {
         public var mode: VentilationMode
@@ -84,7 +88,7 @@ public enum ScenarioLibrary {
             goals: .init(pH: 7.32...7.46, paco2: 33...48, pao2: 70...120)),
         suggested: .init(mode: .volumeAssistControl, tidalVolume: 180, respiratoryRate: 20,
                          peep: 5, fio2: 0.4, inspiratoryPressure: 12, inspiratoryTime: 0.7,
-                         inspiratoryFlow: 18, pressureSupport: 8, riseTime: 0.12, triggerFlow: 1.0))
+                         inspiratoryFlow: 18, pressureSupport: 8, riseTime: 0.12, triggerFlow: 1.0), ward: "PICU", nickname: "ハルト君")
 
     public static let rds = Scenario(
         id: "rds", title: "早産児の呼吸窮迫症候群（RDS）", tag: "新生児",
@@ -107,7 +111,7 @@ public enum ScenarioLibrary {
             goals: .init(pH: 7.22...7.42, paco2: 45...60, pao2: 45...75)),
         suggested: .init(mode: .pressureAssistControl, tidalVolume: 6, respiratoryRate: 55,
                          peep: 6, fio2: 0.35, inspiratoryPressure: 10, inspiratoryTime: 0.30,
-                         inspiratoryFlow: 2, pressureSupport: 6, riseTime: 0.06, triggerFlow: 0.4))
+                         inspiratoryFlow: 2, pressureSupport: 6, riseTime: 0.06, triggerFlow: 0.4), ward: "NICU")
 
     public static let bronchiolitis = Scenario(
         id: "bronchiolitis", title: "RSV 細気管支炎", tag: "auto-PEEP",
@@ -118,7 +122,7 @@ public enum ScenarioLibrary {
         teachingPoints: ["時定数と呼気時間（乳児でも同じ考え方）", "呼気ポーズで総 PEEP を測る",
                          "頻呼吸が auto-PEEP を作る", "痰づまりで気道内圧が上がる"],
         patient: Patient(
-            name: "生後4か月", sex: .female, heightCm: 62, age: 0,
+            name: "生後4か月", sex: .male, heightCm: 62, age: 0,
             weightKg: 6.0, ageMonths: 4, ageLabel: "生後4か月",
             circuitDeadSpace: 5, normsOverride: nil,
             compliance: 0.0039, resistanceInsp: 80, resistanceExp: 170,
@@ -130,7 +134,7 @@ public enum ScenarioLibrary {
             goals: .init(pH: 7.20...7.42, paco2: 45...75, pao2: 50...90)),
         suggested: .init(mode: .volumeAssistControl, tidalVolume: 45, respiratoryRate: 25,
                          peep: 6, fio2: 0.5, inspiratoryPressure: 14, inspiratoryTime: 0.5,
-                         inspiratoryFlow: 6, pressureSupport: 8, riseTime: 0.08, triggerFlow: 0.6))
+                         inspiratoryFlow: 6, pressureSupport: 8, riseTime: 0.08, triggerFlow: 0.6), ward: "PICU", nickname: "そうた君")
 
     public static let ards = Scenario(
         id: "ards", title: "小児 ARDS（インフルエンザ肺炎）", tag: "酸素化",
@@ -156,7 +160,7 @@ public enum ScenarioLibrary {
             goals: .init(pH: 7.20...7.45, paco2: 40...70, pao2: 55...95)),
         suggested: .init(mode: .volumeAssistControl, tidalVolume: 85, respiratoryRate: 30,
                          peep: 10, fio2: 0.8, inspiratoryPressure: 16, inspiratoryTime: 0.55,
-                         inspiratoryFlow: 12, pressureSupport: 10, riseTime: 0.10, triggerFlow: 0.8))
+                         inspiratoryFlow: 12, pressureSupport: 10, riseTime: 0.10, triggerFlow: 0.8), ward: "PICU", nickname: "ミオちゃん")
 
     public static let asthma = Scenario(
         id: "asthma", title: "喘息重積発作", tag: "上級",
@@ -181,7 +185,7 @@ public enum ScenarioLibrary {
             goals: .init(pH: 7.20...7.45, paco2: 40...80, pao2: 60...110)),
         suggested: .init(mode: .volumeAssistControl, tidalVolume: 250, respiratoryRate: 12,
                          peep: 5, fio2: 0.6, inspiratoryPressure: 18, inspiratoryTime: 0.8,
-                         inspiratoryFlow: 30, pressureSupport: 10, riseTime: 0.15, triggerFlow: 1.5))
+                         inspiratoryFlow: 30, pressureSupport: 10, riseTime: 0.15, triggerFlow: 1.5), ward: "PICU")
 
     public static let guillainBarre = Scenario(
         id: "gbs", title: "ギラン・バレー症候群", tag: "離脱",
@@ -205,7 +209,7 @@ public enum ScenarioLibrary {
             goals: .init(pH: 7.32...7.46, paco2: 33...48, pao2: 70...120)),
         suggested: .init(mode: .volumeAssistControl, tidalVolume: 160, respiratoryRate: 16,
                          peep: 5, fio2: 0.4, inspiratoryPressure: 12, inspiratoryTime: 0.7,
-                         inspiratoryFlow: 16, pressureSupport: 8, riseTime: 0.12, triggerFlow: 1.0))
+                         inspiratoryFlow: 16, pressureSupport: 8, riseTime: 0.12, triggerFlow: 1.0), ward: "PICU", nickname: "あかりちゃん")
 }
 
 /// 離脱の前提条件。

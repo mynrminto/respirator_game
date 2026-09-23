@@ -364,7 +364,14 @@
           },
           {
             talk: true, who: 'doc',
-            say: '小児では体重 1 kg あたり 6〜8 mL。まず、いまの値がいくつなのか確かめましょう。'
+            say: '小児では体重 1 kg あたり 6〜8 mL。体重はカルテにあります。'
+          },
+          {
+            say: '「患者情報」キーを押して、ハルト君の体重を確かめてください。',
+            hint: '閉じるときは「呼吸器に戻る」。',
+            spot: 'hard:kPt',
+            event: 'patient',
+            why: function (c) { return '体重 ' + c.pbw.toFixed(0) + ' kg。この数字に 6〜8 を掛けたものが目安です。まず、いまの値がいくつなのか確かめましょう。'; }
           },
           {
             spot: 'val:Vte', watch: ['Vte', 'Pplat', 'ΔP'],
@@ -2055,8 +2062,19 @@
     return { advanced: true, why: why || '', finished: this.finished };
   };
 
+  /* 物語のいまの場面。いま進めている課題までで最後のト書き（患者の様子を含む）を返す。
+   * 患者情報で「いまの状況」として見せる。セリフが関数のもの（実測値を差し込む）は飛ばす。 */
+  function storyNow(lesson, index) {
+    var t = lesson.tasks, last = null;
+    for (var i = 0; i < t.length && i <= index; i++) {
+      if (t[i].talk && (t[i].who === 'scene' || t[i].who === 'pt') && typeof t[i].say === 'string') last = t[i].say;
+    }
+    return last;
+  }
+
   var api = {
     CHAPTERS: CHAPTERS,
+    storyNow: storyNow,
     allLessons: allLessons,
     lessonById: lessonById,
     chapterOf: chapterOf,

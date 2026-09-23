@@ -242,7 +242,7 @@ struct LessonShapeTests {
         "esens", "rise", "pause", "sed"
     ]
     private static let hardKeyIDs: Set<String> = [
-        "kInsp", "kExp", "kO2", "kSuc", "kFrz", "kSpd", "kAbg", "kWean", "kLearn"
+        "kInsp", "kExp", "kO2", "kSuc", "kFrz", "kSpd", "kPt", "kAbg", "kWean", "kLearn"
     ]
 
     @Test("watch がすべて実在の計測値を指す")
@@ -492,5 +492,54 @@ struct LessonScenarioTests {
         advance(e, seconds: 60 * 20, dt: 0.01)
         let unmet = Weaning.readiness(for: e).filter { !$0.met }.map(\.label)
         #expect(unmet.isEmpty, "満たせない条件: \(unmet)")
+    }
+}
+
+@Suite("患者情報")
+struct PatientInfoTests {
+
+    @Test("物語の呼び名と病棟・体重が出る")
+    func profile() {
+        let p = ScenarioLibrary.postoperative.profile
+        #expect(p.name == "ハルト君")
+        #expect(p.ageSex == "8歳 男児")
+        #expect(p.ward == "PICU")
+        #expect(p.weight == "25 kg")
+        let rds = ScenarioLibrary.rds.profile
+        #expect(rds.ward == "NICU")
+        #expect(rds.weight == "1.1 kg")
+        #expect(rds.ageSex.isEmpty)                  // 呼び名が無い症例は「在胎28週 日齢1 男児」を名前に使う
+        #expect(ScenarioLibrary.bronchiolitis.profile.ageSex == "生後4か月 男児")   // 物語では「そうた君」
+    }
+
+    @Test("体重からの目安は体重 × mL/kg")
+    func targets() {
+        let s = ScenarioLibrary.postoperative
+        let e = VentilatorEngine(patient: s.patient, settings: s.initialSettings())
+        let vt = PatientInfo.targets(for: e).first!
+        #expect(vt.value == "6〜8 mL/kg")
+        #expect(vt.sub == "150〜200 mL")
+        let r = ScenarioLibrary.rds
+        let n = VentilatorEngine(patient: r.patient, settings: r.initialSettings())
+        #expect(PatientInfo.targets(for: n).first!.sub == "4.4〜6.6 mL")
+    }
+
+    @Test("物語のいまの場面は、進めた課題までの最後のト書き")
+    func storyLine() {
+        let lesson = LessonLibrary.lesson(id: "5-1")!
+        let e = VentilatorEngine(patient: lesson.scenario.patient, settings: lesson.scenario.initialSettings())
+        let c = LessonContext(engine: e, memory: LessonMemory())
+        #expect(lesson.storyLine(upTo: 0, c)?.hasPrefix("午前 3 時") == true)
+        #expect(lesson.storyLine(upTo: lesson.tasks.count, c)?.contains("むせている") == true)
+    }
+
+    @Test("2-1 は患者情報を開いて体重を確かめる")
+    func lessonOpensPatientInfo() {
+        let lesson = LessonLibrary.lesson(id: "2-1")!
+        let found = lesson.tasks.contains {
+            if case .event(.openPatientInfo) = $0.advance { return $0.spot == ["hard:kPt"] }
+            return false
+        }
+        #expect(found)
     }
 }

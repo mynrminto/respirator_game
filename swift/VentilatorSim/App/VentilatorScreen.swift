@@ -14,6 +14,7 @@ struct VentilatorScreen: View {
 
     @State private var showingBloodGas: BloodGas?
     @State private var showingWeaning = false
+    @State private var showingPatient = false
     @State private var showingCourse = false
     @State private var showingCases = false
 
@@ -81,6 +82,9 @@ struct VentilatorScreen: View {
         .sheet(isPresented: $showingWeaning) {
             WeaningSheet(controller: controller)
         }
+        .sheet(isPresented: $showingPatient) {
+            PatientInfoSheet(controller: controller)
+        }
         .sheet(isPresented: $showingCourse) {
             LessonCourseView { controller.startLesson($0) }
         }
@@ -138,7 +142,10 @@ struct VentilatorScreen: View {
     /// 症例やレッスンを変える入口。Web 版の「メニュー」キーにあたる。
     private var menuButton: some View {
         Menu {
-            Section(controller.scenario.patient.name + "・" + controller.scenario.title) {
+            Section(controller.scenario.profile.name + "・" + controller.scenario.profile.weight) {
+                Button { openPatientInfo() } label: {
+                    Label("患者情報", systemImage: "person.text.rectangle")
+                }
                 Button { showingCourse = true } label: {
                     Label("レッスン一覧", systemImage: "list.bullet")
                 }
@@ -495,6 +502,9 @@ struct VentilatorScreen: View {
                       isOn: controller.speed.rawValue > 1) { cycleSpeed() }
                 .spotlight(controller.isSpotted("hard:kSpd"), corner: hardCorner)
                 .id("hard:kSpd")
+            DeviceKey(title: "患者情報", tint: Chrome.sim) { openPatientInfo() }
+                .spotlight(controller.isSpotted("hard:kPt"), corner: hardCorner)
+                .id("hard:kPt")
             DeviceKey(title: controller.pendingBloodGasAt == nil ? "血液ガス" : "採血中…",
                       tint: Chrome.sim,
                       isOn: controller.pendingBloodGasAt != nil) { controller.orderBloodGas() }
@@ -514,6 +524,11 @@ struct VentilatorScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 6).padding(.vertical, Chrome.isPop ? 6 : 5)
         .background(Chrome.isPop ? Color.clear : Chrome.chassisTop)
+    }
+
+    private func openPatientInfo() {
+        controller.openedPatientInfo()
+        showingPatient = true
     }
 
     /// ハードキーはポップのときだけ丸い。光の枠もそれに合わせる。

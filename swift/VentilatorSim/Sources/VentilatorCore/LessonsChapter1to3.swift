@@ -214,7 +214,13 @@ extension LessonLibrary {
             .talk(.scene, "翌朝の回診。夜中にアラームが続いたらしく、一回換気量が 300 mL に上げられていた。"),
             .talk(.doctor, "ここからは自分で決めます。最初に決めるのは一回換気量。基準は体重です。"),
             .talk(.puku, "体重？ 身長じゃなくて？"),
-            .talk(.doctor, "小児では体重 1 kg あたり 6〜8 mL。まず、いまの値がいくつなのか確かめましょう。"),
+            .talk(.doctor, "小児では体重 1 kg あたり 6〜8 mL。体重はカルテにあります。"),
+            .key("「患者情報」キーを押して、ハルト君の体重を確かめてください。",
+                 hint: "閉じるときは「呼吸器に戻る」。", event: .openPatientInfo)
+                .explaining { c in
+                    String(format: "体重 %.0f kg。この数字に 6〜8 を掛けたものが目安です。まず、いまの値がいくつなのか確かめましょう。", c.pbw)
+                }
+                .spotting(["hard:kPt"]),
             .quiz("いまの Vte は体重 1 kg あたり何 mL ですか。Vte のタイルで確かめてください。",
                   ["約 6 mL/kg",
                    "約 8 mL/kg",

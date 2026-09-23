@@ -282,3 +282,129 @@ struct SBTResultSheet: View {
         .presentationDetents([.medium, .large])
     }
 }
+
+/// 患者情報。Web 版の openPatient と同じ並び：見出し（顔・名前・体重）→ いまの状況 →
+/// 体重から決める目安 → ここまでの経過 → 入室時の所見。
+/// 開始時の初期設定画面は一度きりなので、体重や経過を見直したくなったらここへ戻ってくる。
+/// いまの状況は開いた時点の値（5 Hz の更新で書き換わる）。
+struct PatientInfoSheet: View {
+    @Bindable var controller: SimulationController
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let _ = controller.tickCount
+        let scenario = controller.scenario, engine = controller.engine
+        let profile = scenario.profile
+        NavigationStack {
+            List {
+                Section { header(scenario, profile) }
+
+                Section("いまの状況") {
+                    if let runtime = controller.lessonRuntime {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(runtime.lesson.id)　\(runtime.lesson.title)")
+                                .font(.caption.weight(.bold)).foregroundStyle(Chrome.warning)
+                            if let line = runtime.lesson.storyLine(upTo: runtime.index, controller.lessonContext) {
+                                Text(controller.fillSay(line)).font(.callout)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    ForEach(stateRows, id: \.0) { row in
+                        LabeledContent(row.0) {
+                            Text(row.1).foregroundStyle(Chrome.ink).monospacedDigit()
+                        }
+                    }
+                }
+
+                Section("体重 \(profile.weight)・\(engine.norms.label)の目安") {
+                    ForEach(PatientInfo.targets(for: engine)) { t in
+                        LabeledContent(t.label) {
+                            VStack(alignment: .trailing, spacing: 0) {
+                                Text(t.value).font(.body.weight(.semibold)).foregroundStyle(Chrome.ink)
+                                if !t.sub.isEmpty {
+                                    Text(t.sub).font(.caption2).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Section("ここまでの経過") {
+                    Text(scenario.history.subscripted).font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Section("入室時の所見") {
+                    ForEach(scenario.findings, id: \.self) { Text($0.subscripted).font(.callout) }
+                }
+            }
+            .navigationTitle("患者情報")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("呼吸器に戻る") { dismiss() } }
+            }
+        }
+    }
+
+    private func header(_ scenario: Scenario, _ profile: PatientProfile) -> some View {
+        HStack(spacing: 12) {
+            CharacterBadge(size: 64, zoom: 1, ring: Chrome.accent.opacity(0.5), background: Chrome.panel2) {
+                FaceArt(AppAssets.patientNames(caseID: scenario.id, tone: tone),
+                        focus: CharacterArt.patientFocus(scenario.id),
+                        zoom: CharacterArt.patientZoom) {
+                    PatientView(tone: tone)
+                }
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(profile.name).font(Chrome.label(18, weight: .bold)).foregroundStyle(Chrome.ink)
+                Text((profile.ageSex.isEmpty ? "" : profile.ageSex + "・") + profile.ward)
+                    .font(.caption.weight(.bold)).foregroundStyle(Chrome.dim)
+                Text(scenario.title).font(.caption2).foregroundStyle(Chrome.faint)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("体重").font(.caption2.weight(.bold)).foregroundStyle(Chrome.dim)
+                Text(profile.weight).font(Chrome.digits(24, weight: .heavy)).foregroundStyle(Chrome.sim)
+                    .lineLimit(1).fixedSize()
+                Text("身長 " + profile.height).font(.caption2).foregroundStyle(Chrome.dim)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var tone: PatientView.Tone {
+        let worst = controller.engine.alarms.map(\.severity).max() ?? 0
+        return worst >= 2 ? .bad : (worst >= 1 ? .mid : .ok)
+    }
+
+    private var stateRows: [(String, String)] {
+        let e = controller.engine
+        var rows: [(String, String)] = [
+            ("換気モード", e.settings.mode.rawValue),
+            ("鎮静", PatientInfo.sedationLabel(e.sedation)),
+            ("自発呼吸", Weaning.hasSpontaneousBreathing(e) ? "あり" : "乏しい"),
+            ("心拍", String(format: "%.0f /分", e.heartRate)),
+            ("平均血圧", String(format: "%.0f mmHg", e.meanArterialPressure)),
+            ("SpO₂", String(format: "%.0f %%", e.spo2)),
+            ("体温", String(format: "%.1f ℃", e.patient.temperature))
+        ]
+        if controller.pendingBloodGasAt != nil {
+            rows.append(("血液ガス", "採血中"))
+        } else if let g = controller.bloodGases.last {
+            rows.append(("血液ガス", String(format: "pH %.2f／PaCO₂ %.0f", g.pH, g.paco2)
+                         + "（" + PatientInfo.ago(e.clock - g.time) + "）"))
+        } else {
+            rows.append(("血液ガス", "まだ採っていない"))
+        }
+        if let x = controller.extubation {
+            rows.append(("離脱", x.succeeded ? "抜管した" : "抜管後に再挿管"))
+        } else if controller.sbtElapsed != nil {
+            rows.append(("離脱", controller.sbtFinished ? (controller.sbtPassed ? "SBT 合格" : "SBT 中止") : "SBT 中"))
+        }
+        return rows
+    }
+}

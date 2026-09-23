@@ -13,6 +13,8 @@ import Foundation
 public enum LessonEvent: String, Sendable, Equatable {
     case inspiratoryHold, expiratoryHold, suction, oxygenFlush, orderBloodGas
     case openWeaning, startSBT, extubate
+    /// 患者情報を開いた。
+    case openPatientInfo
     case modeVolumeAC, modePressureAC, modeSIMV, modePSV, modeCPAP
 
     public static func mode(_ mode: VentilationMode) -> LessonEvent {
@@ -314,6 +316,16 @@ public struct Lesson: Identifiable {
 
     public var scenario: Scenario {
         ScenarioLibrary.all.first { $0.id == scenarioID } ?? ScenarioLibrary.postoperative
+    }
+
+    /// 物語のいまの場面。index までで最後のト書き（患者の様子を含む）。患者情報の「いまの状況」に出す。
+    /// セリフの {FiO₂} などは表示する側で実測値に置き換える。
+    public func storyLine(upTo index: Int, _ context: LessonContext) -> String? {
+        var last: String?
+        for (i, t) in tasks.enumerated() where i <= index {
+            if t.speaker == .scene || t.speaker == .patient { last = t.instruction(context) }
+        }
+        return last
     }
 }
 

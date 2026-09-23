@@ -139,7 +139,8 @@
     background:linear-gradient(92deg,var(--brand1),var(--brand2) 42%,var(--brand3) 74%,var(--brand4));
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .brand i{font-style:normal;font-size:9px;letter-spacing:.14em;color:var(--faint);font-family:var(--num);font-weight:600}
-  .pt{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:26vw}
+  .pt{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:26vw;
+    background:none;border:none;padding:4px 2px;font-weight:700;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
   .alarm{flex:1;min-width:0;display:flex;align-items:center;gap:7px;height:28px;padding:0 11px;border-radius:999px;
     background:var(--panel2);border:1.5px solid var(--br);font-size:12.5px;
     color:var(--dim);overflow:hidden;white-space:nowrap;font-weight:500}
@@ -411,6 +412,38 @@
   #btnOk[disabled]{opacity:.3;pointer-events:none}
   :root[data-theme="device"] #btnOk{border-radius:4px;background:#0F2A20;border:1px solid #1E6B4E;color:#6BE3AF;
     font-family:var(--num);font-size:12.5px;font-weight:600;letter-spacing:.06em;box-shadow:none}
+
+  /* ---- 患者情報 ---- */
+  .pthead{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r-m);
+    background:var(--panel2);border:1.5px solid var(--br);margin-bottom:4px}
+  .ptface{width:64px;height:64px;border-radius:50%;flex:none;background-color:#EEF3FF;background-repeat:no-repeat;
+    border:3px solid #FF5E8A}
+  :root[data-theme="device"] .ptface{background-color:#0B1220;border:1px solid #1F4639}
+  .ptwho{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .ptwho b{font-size:18px;font-weight:800;color:var(--ink);line-height:1.2}
+  .ptwho span{font-size:12px;color:var(--dim);font-weight:700}
+  .ptwho i{font-style:normal;font-size:11px;color:var(--faint);line-height:1.4}
+  .ptbody{display:flex;flex-direction:column;gap:4px;flex:none;text-align:right}
+  .ptkg s{display:block;text-decoration:none;font-size:10px;color:var(--dim);font-weight:700}
+  .ptkg b{font-family:var(--num);font-size:24px;font-weight:800;color:var(--accent2);line-height:1.05;white-space:nowrap}
+  .ptkg.sm b{font-size:14px;color:var(--ink)}
+  :root[data-theme="device"] .ptkg b{color:var(--flow)}
+  :root[data-theme="device"] .ptkg.sm b{color:var(--ink)}
+  .pth{margin:14px 0 6px;font-size:12.5px;font-weight:800;color:var(--ink);letter-spacing:.02em}
+  .ptstory{padding:9px 12px;border-radius:var(--r-m);background:#FFF3DA;border:1.5px solid #FFC85C;margin-bottom:8px;
+    display:flex;flex-direction:column;gap:3px}
+  .ptstory i{font-style:normal;font-size:10.5px;font-weight:800;color:#9A6400}
+  .ptstory span{font-size:12.5px;line-height:1.6;color:var(--ink)}
+  :root[data-theme="device"] .ptstory{background:#241B07;border:1px solid #6A5217}
+  :root[data-theme="device"] .ptstory i{color:#FFCD6B}
+  .ptgrid{display:grid;gap:6px;grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+  .ptcell{padding:7px 10px;border-radius:var(--r-m);background:var(--panel2);border:1.5px solid var(--br);min-width:0}
+  .ptcell s{display:block;text-decoration:none;font-size:10px;color:var(--dim);font-weight:700}
+  .ptcell b{display:block;font-size:13px;font-weight:800;color:var(--ink);line-height:1.35}
+  .ptcell u{display:block;text-decoration:none;font-size:10.5px;color:var(--faint)}
+  :root[data-theme="device"] .pthead,:root[data-theme="device"] .ptcell{border-width:1px}
+  .ptfind{margin:0;padding-left:18px;font-size:12.5px;line-height:1.75;color:var(--dim)}
+  .ptfind li::marker{color:var(--faint)}
 
   /* ---- 早送り帯 ---- */
   .ff{position:absolute;left:50%;top:9px;transform:translateX(-50%);font-size:11px;font-weight:800;
@@ -777,7 +810,7 @@
   <div class="status">
     <div class="brand"><b>VentaSim</b><i>5000</i></div>
     <span class="led on" id="ledPwr" title="運転中"></span>
-    <div class="pt" id="ptName">—</div>
+    <button class="pt" id="ptName" title="患者情報を開く">—</button>
     <div class="alarm" id="alarm"><span class="led" id="ledAlarm"></span><span id="alarmTxt">起動中</span><span class="amore" id="alarmMoreBox" hidden><b id="alarmMore"></b></span></div>
     <button class="chip" id="btnSil">消音 2分</button>
     <button class="chip theme" id="btnTheme" title="見た目を切り替える">ポップ</button>
@@ -836,6 +869,7 @@
     <button class="hkey" id="kSuc">気管吸引</button>
     <button class="hkey" id="kFrz">波形停止</button>
     <button class="hkey sim" id="kSpd">× 1</button>
+    <button class="hkey sim" id="kPt">患者情報</button>
     <button class="hkey sim" id="kAbg">血液ガス</button>
     <button class="hkey sim" id="kWean">離脱</button>
     <button class="hkey sim" id="kLearn">学習コース</button>

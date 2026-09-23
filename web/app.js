@@ -520,7 +520,8 @@
     S.provisional = false;
     S.loopCur = []; S.loopLast = null; S.banner = null; trendAcc = 4;
     W.paw.clear(); W.flow.clear(); W.vol.clear();
-    $('ptName').textContent = sc.patient.name + '・' + sc.title;
+    var pf = SC.patientProfile(sc);
+    $('ptName').textContent = pf.name + '・' + pf.weight;
     $('kFrz').classList.remove('on'); $('frz').hidden = true;
     $('kSpd').textContent = '× 1'; $('kSpd').classList.remove('on'); $('ff').hidden = true;
     $('kO2').classList.remove('on');
@@ -781,6 +782,8 @@
     };
     $('kSpd').onclick = function () { setSpeed(S.speed === 1 ? 10 : (S.speed === 10 ? 60 : 1)); };
     $('kAbg').onclick = abgKey;
+    $('kPt').onclick = openPatient;
+    $('ptName').onclick = openPatient;
     $('kWean').onclick = openWeaning;
     $('kLearn').onclick = openCourse;
     $('kMenu').onclick = openMenu;
@@ -1433,6 +1436,100 @@
         close();
       };
       r.appendChild(a); r.appendChild(c); b.appendChild(r);
+    });
+  }
+
+  /* ===================== 患者情報 ===================== */
+  /* いつでも開けるカルテ。開始時の初期設定画面は一度きりなので、体重や経過を
+   * 見直したくなったときにここへ戻ってくる。いまの状況（鎮静・バイタル・物語の場面）は開いた時点の値。 */
+  function fmtAgo(sec) {
+    var m = Math.max(0, Math.round(sec / 60));
+    return m < 1 ? 'たったいま' : (m < 60 ? m + ' 分前' : Math.floor(m / 60) + ' 時間 ' + (m % 60) + ' 分前');
+  }
+
+  function openPatient() {
+    var sc = S.scen, e = S.eng, pf = SC.patientProfile(sc);
+    lessonEvent('patient');
+    modal('患者情報', function (b, close) {
+      /* 見出し。顔・名前・病棟と、設定の基準になる体重をいちばん大きく出す。 */
+      var head = el('div', 'pthead');
+      var face = el('div', 'ptface');
+      var art = patientArtName(sc, patientTone(e));
+      if (art) {
+        var f = PT_FOCUS[sc.id] || [0.5, 0.28], sz = AS.size(art) || { w: 1, h: 1 };
+        var zx = PT_ZOOM * 0.8, zy = zx * sz.h / sz.w;
+        face.style.backgroundImage = 'url("' + AS.url(art) + '")';
+        face.style.backgroundSize = (zx * 100).toFixed(0) + '% auto';
+        face.style.backgroundPosition = focusPct(f[0], zx).toFixed(1) + '% ' + focusPct(f[1], zy).toFixed(1) + '%';
+      } else {
+        face.style.backgroundImage = 'url("' + patientArt(sc, patientTone(e), currentTheme() === 'device') + '")';
+        face.style.backgroundSize = 'cover';
+      }
+      var who = el('div', 'ptwho');
+      who.appendChild(el('b', '', pf.name));
+      who.appendChild(el('span', '', (pf.ageSex ? pf.ageSex + '・' : '') + pf.ward));
+      who.appendChild(el('i', '', sc.title));
+      head.appendChild(face); head.appendChild(who);
+      var body = el('div', 'ptbody');
+      body.innerHTML = '<div class="ptkg"><s>体重</s><b>' + esc(pf.weight) + '</b></div>'
+        + '<div class="ptkg sm"><s>身長</s><b>' + esc(pf.height) + '</b></div>';
+      head.appendChild(body);
+      b.appendChild(head);
+
+      /* いまの状況。物語の場面（学習コース中）と、ベッドサイドで見える様子。 */
+      b.appendChild(el('h4', 'pth', 'いまの状況'));
+      var L = S.lesson;
+      if (L) {
+        var line = LS.storyNow(L.lesson, L.rt.index);
+        var st = el('div', 'ptstory');
+        st.appendChild(el('i', '', L.lesson.id + '　' + L.lesson.title));
+        if (line) st.appendChild(el('span', '', fillSay(line)));
+        b.appendChild(st);
+      }
+      var state = [
+        ['換気モード', e.s.mode],
+        ['鎮静', SC.sedationLabel(e.sedation)],
+        ['自発呼吸', SC.spontOk(e) ? 'あり' : '乏しい'],
+        ['心拍', Math.round(e.hr) + ' /分'],
+        ['平均血圧', Math.round(e.map) + ' mmHg'],
+        ['SpO₂', Math.round(e.spo2) + ' %'],
+        ['体温', e.temp.toFixed(1) + ' ℃']
+      ];
+      var g0 = S.abgs.length ? S.abgs[S.abgs.length - 1] : null;
+      state.push(['血液ガス', S.abgPending ? '採血中' : (g0
+        ? 'pH ' + g0.ph.toFixed(2) + '／PaCO₂ ' + Math.round(g0.paco2) + '（' + fmtAgo(e.clock - g0.t) + '）'
+        : 'まだ採っていない')]);
+      if (S.extubated) state.push(['離脱', S.extubated.ok ? '抜管した' : '抜管後に再挿管']);
+      else if (S.sbt) state.push(['離脱', S.sbt.done ? (S.sbt.done === 'pass' ? 'SBT 合格' : 'SBT 中止') : 'SBT 中']);
+      var sg = el('div', 'ptgrid');
+      state.forEach(function (r) {
+        var c = el('div', 'ptcell');
+        c.appendChild(el('s', '', r[0])); c.appendChild(el('b', '', r[1]));
+        sg.appendChild(c);
+      });
+      b.appendChild(sg);
+
+      /* 体重から決める目安。 */
+      b.appendChild(el('h4', 'pth', '体重 ' + pf.weight + '・' + e.nm.label + 'の目安'));
+      var tg = el('div', 'ptgrid');
+      SC.targetsFor(e).forEach(function (t) {
+        var c = el('div', 'ptcell');
+        c.appendChild(el('s', '', t.k)); c.appendChild(el('b', '', t.v));
+        if (t.sub) c.appendChild(el('u', '', t.sub));
+        tg.appendChild(c);
+      });
+      b.appendChild(tg);
+
+      b.appendChild(el('h4', 'pth', 'ここまでの経過'));
+      b.appendChild(el('p', '', sc.history));
+      b.appendChild(el('h4', 'pth', '入室時の所見'));
+      var fl = el('ul', 'ptfind');
+      sc.findings.forEach(function (f) { fl.appendChild(el('li', '', f)); });
+      b.appendChild(fl);
+
+      var r = el('div', 'mrow');
+      var c = el('button', 'mbtn go', '呼吸器に戻る'); c.onclick = close;
+      r.appendChild(c); b.appendChild(r);
     });
   }
 

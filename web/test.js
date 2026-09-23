@@ -879,5 +879,40 @@ console.log('\n22. 肺の 3D ビュー（lung3d.js は表示用の物理を持�
   }
 }
 
+console.log('\n23. 患者情報');
+{
+  const SC = require('./scenarios.js'), LS = require('./lessons.js');
+  const byId = id => SCENARIOS.find(s => s.id === id);
+  const p = SC.patientProfile(byId('postop'));
+  ok('物語の呼び名・年齢・病棟・体重が出る',
+    p.name === 'ハルト君' && p.ageSex === '8歳 男児' && p.ward === 'PICU' && p.weight === '25 kg', JSON.stringify(p));
+  const r = SC.patientProfile(byId('rds'));
+  ok('呼び名の無い症例は年齢を名前にし、NICU・小数の体重', r.ward === 'NICU' && r.weight === '1.1 kg' && r.ageSex === '', JSON.stringify(r));
+  ok('物語の性別と症例の性別がそろう（そうた君は男児）', SC.patientProfile(byId('bronchiolitis')).ageSex === '生後4か月 男児');
+  // 物語に出てくる呼び名が、その症例の nickname と一致すること
+  let badName = [];
+  for (const { lesson } of LS.allLessons()) {
+    const nick = byId(lesson.scenario).nickname;
+    for (const t of lesson.tasks) {
+      if (typeof t.say !== 'string') continue;
+      for (const m of t.say.matchAll(/([ァ-ヶー]+(?:君|ちゃん))/g)) {
+        const owner = SCENARIOS.find(s => s.nickname === m[1]);
+        if (!owner) badName.push(lesson.id + ':' + m[1]);
+      }
+    }
+    if (!nick && lesson.tasks.some(t => t.who === 'scene')) badName.push(lesson.id + ' の症例に呼び名が無い');
+  }
+  ok('物語の呼び名がすべて症例に登録されている', badName.length === 0, badName.join(' '));
+  const t = SC.targetsFor(mk('postop', {}));
+  ok('体重からの目安は体重 × mL/kg', t[0].v === '6〜8 mL/kg' && t[0].sub === '150〜200 mL', t[0].sub);
+  ok('早産児の目安は小数で出る', SC.targetsFor(mk('rds', {}))[0].sub === '4.4〜6.6 mL');
+  const l51 = LS.lessonById('5-1');
+  ok('物語のいまの場面は、進めた課題までの最後のト書き',
+    /^午前 3 時/.test(LS.storyNow(l51, 0)) && /むせている/.test(LS.storyNow(l51, 999)));
+  const l21 = LS.lessonById('2-1');
+  ok('2-1 は患者情報を開いて体重を確かめる',
+    l21.tasks.some(x => x.event === 'patient' && x.spot === 'hard:kPt'));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

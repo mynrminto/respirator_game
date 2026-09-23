@@ -1,13 +1,15 @@
 /* VentSim — 症例データ。コードを触らずに症例を足せるよう、パラメータだけで病態を表す。
  * すべて小児（新生児〜思春期）。設定の基準は予測体重ではなく実体重（weightKg）。
  * ageMonths から年齢相応の呼吸数・心拍・血圧・圧の上限が決まる（engine.js の ageNorms）。
- * tone は患者の絵の顔色（ok / mid / bad）。年齢層は ageMonths から自動で決まるので持たない。 */
+ * tone は患者の絵の顔色（ok / mid / bad）。年齢層は ageMonths から自動で決まるので持たない。
+ * ward は入室している病棟、nickname は学習コースの物語での呼び名（物語に出てこない症例は持たない）。 */
 (function (root) {
   'use strict';
 
   var SCENARIOS = [
     {
       id: 'postop', tone: 'ok',
+      ward: 'PICU',  nickname: 'ハルト君',
       title: '小児外科術後の呼吸管理',
       tag: '入門',
       oneLine: '肺はほぼ正常。体重あたりの初期設定と離脱の流れを一通り通す症例。',
@@ -33,6 +35,7 @@
     },
     {
       id: 'rds', tone: 'mid',
+      ward: 'NICU',
       title: '早産児の呼吸窮迫症候群（RDS）',
       tag: '新生児',
       oneLine: 'サーファクタント投与後の硬い肺。mL 単位の換気量と短い吸気時間を扱う。',
@@ -58,6 +61,7 @@
     },
     {
       id: 'bronchiolitis', tone: 'mid',
+      ward: 'PICU',  nickname: 'そうた君',
       title: 'RSV 細気管支炎',
       tag: 'auto-PEEP',
       oneLine: '気道が細く痰が多い。呼吸数を上げると息が吐けなくなる乳児の典型。',
@@ -69,7 +73,7 @@
       teaching: ['時定数と呼気時間（乳児でも同じ考え方）', '呼気ポーズで総 PEEP を測る',
         '頻呼吸が auto-PEEP を作る', '痰づまりで気道内圧が上がる'],
       patient: {
-        name: '生後4か月', sex: 'F', heightCm: 62, age: 0, ageMonths: 4, weightKg: 6.0,
+        name: '生後4か月', sex: 'M', heightCm: 62, age: 0, ageMonths: 4, weightKg: 6.0,
         ageLabel: '生後4か月', vdCircuit: 5,
         compliance: 0.0039, Rinsp: 80, Rexp: 170,
         shunt0: 0.34, shuntMin: 0.16, recruitP: 9, recruitK: 2.5, vdAlvFrac: 0.14,
@@ -83,6 +87,7 @@
     },
     {
       id: 'ards', tone: 'bad',
+      ward: 'PICU',  nickname: 'ミオちゃん',
       title: '小児 ARDS（インフルエンザ肺炎）',
       tag: '酸素化',
       oneLine: '硬い肺と大きなシャント。小児の肺保護換気と PEEP の調整を学ぶ。',
@@ -109,6 +114,7 @@
     },
     {
       id: 'asthma', tone: 'bad',
+      ward: 'PICU',
       title: '喘息重積発作',
       tag: '上級',
       oneLine: '極端に高い気道抵抗。息を吐かせることを最優先にする学童の症例。',
@@ -135,6 +141,7 @@
     },
     {
       id: 'gbs', tone: 'ok',
+      ward: 'PICU',  nickname: 'あかりちゃん',
       title: 'ギラン・バレー症候群',
       tag: '離脱',
       oneLine: '肺は正常だが呼吸筋が弱い。離脱の可否を筋力で判断する。',
@@ -181,7 +188,42 @@
     ];
   }
 
-  var api = { SCENARIOS: SCENARIOS, weaningReadiness: weaningReadiness, spontOk: spontOk };
+  /* ===================== 患者情報 ===================== */
+
+  /* 患者情報パネルの見出し。物語の呼び名があればそれを主に、無ければ「8歳 男児」を出す。 */
+  function patientProfile(sc) {
+    var p = sc.patient, kg = p.weightKg;
+    var ageSex = (p.ageLabel || p.name) + ' ' + (p.sex === 'F' ? '女児' : '男児');
+    return {
+      name: sc.nickname || ageSex,
+      ageSex: sc.nickname ? ageSex : '',
+      ward: sc.ward || 'PICU',
+      weight: (kg < 10 ? kg.toFixed(1) : String(Math.round(kg))) + ' kg',
+      height: p.heightCm + ' cm'
+    };
+  }
+
+  /* 体重と年齢から決まる設定の目安。初期設定の画面と患者情報で同じものを出す。 */
+  function targetsFor(eng) {
+    var nm = eng.nm, kg = eng.p.pbw, vk = nm.vtPerKg;
+    var rd = function (v) { return kg < 6 ? v.toFixed(1) : String(Math.round(v)); };
+    return [
+      { k: '一回換気量', v: vk[0] + '〜' + vk[1] + ' mL/kg', sub: rd(kg * vk[0]) + '〜' + rd(kg * vk[1]) + ' mL' },
+      { k: '呼吸数', v: nm.rr[0] + '〜' + nm.rr[1] + ' /分', sub: nm.label + 'の正常' },
+      { k: 'プラトー圧', v: nm.platMax + ' 以下', sub: 'cmH₂O' },
+      { k: 'ドライビング圧', v: nm.dpMax + ' 以下', sub: 'cmH₂O' },
+      { k: 'SpO₂ 目標', v: nm.spo2[0] + '〜' + nm.spo2[1] + ' %', sub: '' },
+      { k: '平均血圧', v: nm.mapMin + ' 以上', sub: 'mmHg' }
+    ];
+  }
+
+  /* 鎮静の深さ。離脱の条件（0.4 以下で覚醒）と同じ境目で言葉にする。 */
+  function sedationLabel(x) {
+    return x > 0.75 ? '深い' : (x > 0.4 ? '中くらい' : '浅い（覚醒）');
+  }
+
+  var api = { SCENARIOS: SCENARIOS, weaningReadiness: weaningReadiness, spontOk: spontOk,
+    patientProfile: patientProfile, targetsFor: targetsFor, sedationLabel: sedationLabel };
   root.VentScenarios = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

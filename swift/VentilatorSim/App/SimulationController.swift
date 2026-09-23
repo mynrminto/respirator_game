@@ -665,6 +665,7 @@ final class SimulationController {
 
     /// 離脱の画面を開いた。レッスンの課題がこれを待っていることがある。
     func openedWeaning() { send(.openWeaning) }
+    func openedPatientInfo() { send(.openPatientInfo) }
 
     /// 抜管。SBT に通っていて離脱条件もほぼ揃っていれば成功、そうでなければ再挿管。
     @discardableResult
