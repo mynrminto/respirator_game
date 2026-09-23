@@ -519,7 +519,7 @@ final class SimulationController {
 
     private func finishStep(_ why: String) {
         guard let runtime = lessonRuntime else { return }
-        lessonFeedback = why
+        lessonFeedback = fillSay(why)      // 解説は通過した瞬間の値で固定する
         // 会話の場面には一言が付かない。空の解説画面を挟むと物語が途切れるので、そのまま次へ。
         lessonPhase = runtime.finished ? .done : (why.isEmpty ? .task : .feedback)
         if runtime.finished { celebrate(runtime.lesson) }
@@ -598,3 +598,39 @@ private final class DisplayLinkProxy: NSObject {
     @objc func handle(_ link: CADisplayLink) { callback(link) }
 }
 #endif
+
+// MARK: - セリフへの数値の差し込み
+
+extension SimulationController {
+    /// セリフの中の {PIP} や {FiO₂} を、そのときの計測値・設定値に置き換える。
+    /// セリフに数字を書き込むと画面の実測とずれる（「PIP は 22」と言いながら画面は 18）ので、
+    /// 登場人物が数値を口にするときは必ずここから差し込む。名前は計測値タイル（Readout.caption）か
+    /// 設定キー（VentilatorParameter.label）の見出しそのまま。Web 版 app.js の fillSay と同じ。
+    func fillSay(_ text: String) -> String {
+        guard text.contains("{") else { return text }
+        var out = ""
+        var rest = Substring(text)
+        while let open = rest.firstIndex(of: "{") {
+            out += rest[..<open]
+            let afterOpen = rest.index(after: open)
+            guard let close = rest[afterOpen...].firstIndex(of: "}") else {
+                out += rest[open...]
+                return out
+            }
+            let name = String(rest[afterOpen..<close])
+            out += lookupSay(name) ?? "{\(name)}"
+            rest = rest[rest.index(after: close)...]
+        }
+        out += rest
+        return out
+    }
+
+    private func lookupSay(_ name: String) -> String? {
+        if let readout = Readout.find(name) { return readout.value(engine) }
+        if let parameter = VentilatorParameter.all.first(where: { $0.label == name }) {
+            let value = parameter.read(settings)
+            return value.formatted(.number.precision(.fractionLength(parameter.digits)))
+        }
+        return nil
+    }
+}

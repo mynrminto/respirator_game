@@ -57,7 +57,7 @@
       + 'xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">' + inner + '</svg>';
   }
 
-  /* ===================== 指導医：みどり先生 =====================
+  /* ===================== 指導医：いぶき先生 =====================
    * レッスンを教える側。帯や解説で話す。 */
   function doctor(mood, opts) {
     opts = opts || {};

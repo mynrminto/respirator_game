@@ -222,7 +222,7 @@
   ];
 
   /* ===================== 舞台（機器のまわり） =====================
-   * 横に広い画面では、機器の左に患者、右にみどり先生を立たせる。
+   * 横に広い画面では、機器の左に患者、右にいぶき先生を立たせる。
    * 患者の顔色は SpO₂ で変わり、先生の表情と一言は学習帯と同じものを映す。
    * 生成画像（assets/）があればそれを、無ければ art.js の絵を使う。 */
   var RAIL = { tone: null, mood: null, say: null, caseId: null, dark: null };
@@ -309,7 +309,7 @@
     return Math.max(0, Math.min(1, (f * z - 0.5) / (z - 1))) * 100;
   }
 
-  /* みどり先生の絵。生成画像は全身の縦長なので、出す側（.cav / .tface）で上を
+  /* いぶき先生の絵。生成画像は全身の縦長なので、出す側（.cav / .tface）で上を
    * 正方形に切って顔だけ見せる。sad の絵は無いので think で代える。 */
   var DOC_ART = {
     normal: 'doctor_normal', happy: 'doctor_happy', think: 'doctor_think',
@@ -423,7 +423,7 @@
     items.push({ id: 'about', glyph: '?', title: 'この教材について', sub: '免責事項とモデルの説明' });
     return {
       done: d, total: n, items: items, next: next,
-      line: d === 0 ? 'はじめまして。小児科の みどり先生です。\nいっしょに こどもたちの呼吸を守りましょう。'
+      line: d === 0 ? 'はじめまして。小児科の いぶき先生です。\nいっしょに こどもたちの呼吸を守りましょう。'
           : (d >= n ? '全レッスン修了、おみごとです。\n症例で腕を試してみましょう。'
                     : 'おかえりなさい。ここまで ' + d + ' / ' + n + ' レッスン。\nつづきからどうぞ。')
     };
@@ -1768,7 +1768,7 @@
       else celebrate('レッスン修了！ 🎉');
     }
     else L.mode = (r.why ? 'feedback' : 'task');
-    L.fb = r.why || '';
+    L.fb = fillSay(r.why || '');       // 解説は通過した瞬間の値で固定する
     L.sig = '';
   }
 
@@ -1783,9 +1783,9 @@
     $('cQuit').onclick = function () { endLesson(false); };
   }
 
-  /* 話し手。ぷくぷくが学習者の代わりに「なんで？」と聞き、みどり先生が答える。
+  /* 話し手。ぷくぷくが学習者の代わりに「なんで？」と聞き、いぶき先生が答える。
    * 説明を一方的に読ませるより、この往復のほうが頭に残る。 */
-  var WHO_NAME = { doc: 'みどり先生', puku: 'ぷくぷく', pt: '患者・家族', scene: '' };
+  var WHO_NAME = { doc: 'いぶき先生', puku: 'ぷくぷく', pt: '患者・家族', scene: '' };
 
   function paintSpeaker(who, mood) {
     var av = $('cAv'), dark = currentTheme() === 'device';
@@ -1826,6 +1826,19 @@
     var a = S.eng.alarms || [];
     for (var i = 0; i < a.length; i++) if (a[i].sev === 2) return 'alert';
     return 'normal';
+  }
+
+  /* セリフの中の {PIP} や {FiO₂} を、そのときの計測値・設定値に置き換える。
+   * セリフに数字を書き込むと画面の実測とずれる（「PIP は 22」と言いながら画面は 18）ので、
+   * 登場人物が数値を口にするときは必ずここから差し込む。名前は計測値タイル（VALS.k）か
+   * 設定キー（P[].k）の見出しそのまま。知らない名前は {…} のまま残して、テストで止める。 */
+  function fillSay(text) {
+    if (!text || text.indexOf('{') < 0) return text;
+    return text.replace(/\{([^{}]+)\}/g, function (m, name) {
+      for (var i = 0; i < VALS.length; i++) if (VALS[i].k === name) return String(VALS[i].get(S.eng));
+      for (var k in P) if (P[k].k === name) return String(P[k].get(S.eng.s));
+      return m;
+    });
   }
 
   function paintCoach() {
@@ -1895,13 +1908,13 @@
         dots.appendChild(d);
       }
       var sayN = $('cSay');
-      sayN.textContent = say;
+      sayN.textContent = fillSay(say);
       sayN.className = 'csay' + (tone ? ' ' + tone : '');
       var wn = $('cWho');
       wn.textContent = WHO_NAME[who] || '';
       wn.className = 'cwho ' + (who || 'doc');
       wn.hidden = !wn.textContent;
-      var hn = $('cHint'); hn.textContent = hint; hn.hidden = !hint;
+      var hn = $('cHint'); hn.textContent = fillSay(hint); hn.hidden = !hint;
       paintChoices(choices);
     }
 
@@ -1986,7 +1999,7 @@
     var done = doneSet();
     modal('学習コース', function (b, close) {
       b.appendChild(el('p', '', 'PICU と NICU の 6 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。'
-        + 'みどり先生とぷくぷくの会話を追っていくと、そのつど実機を触ることになります。上から順に進めるのが基本です。'));
+        + 'いぶき先生とぷくぷくの会話を追っていくと、そのつど実機を触ることになります。上から順に進めるのが基本です。'));
       var n = LS.allLessons().length;
       var nDone = done.filter(function (id) { return LS.lessonById(id); }).length;
       var pct = Math.round(nDone / n * 100);

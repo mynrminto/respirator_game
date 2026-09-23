@@ -2,7 +2,7 @@ import Foundation
 
 /* 学習コース。web/lessons.js と同じ内容・同じ判定で、呼吸器の操作を 1 から学べるようにしたもの。
  * 方針は「物語を追ううちに手が動く」こと。場面（talk）で状況を作り、操作させ、
- * その結果にみどり先生が一言を添える。ぷくぷくが学習者の代わりに「なんで？」と聞く。
+ * その結果にいぶき先生が一言を添える。ぷくぷくが学習者の代わりに「なんで？」と聞く。
  * instruction は一息で読める指示だけにし、理屈は操作が終わったあとの explanation に回す。
  * 背景の解説（brief）は帯の「解説」からいつでも読めるが、読まなくても先に進める。
  * ここはデータと進行のロジックだけを持ち、描画は App 側の LessonCoachView が行う。 */
@@ -100,18 +100,18 @@ public struct LessonQuiz {
     }
 }
 
-/// 帯でしゃべる人。ぷくぷくが学習者の代わりに聞き、みどり先生が答える。
+/// 帯でしゃべる人。ぷくぷくが学習者の代わりに聞き、いぶき先生が答える。
 /// 説明を一方的に読ませるより、この往復のほうが頭に残る。
 public enum LessonSpeaker: String, Sendable {
     case scene      // ト書き。人のせりふではなく場面の説明。
-    case doctor     // みどり先生
+    case doctor     // いぶき先生
     case puku       // ぷくぷく
     case patient    // 患者・家族
 
     public var displayName: String {
         switch self {
         case .scene:   return ""
-        case .doctor:  return "みどり先生"
+        case .doctor:  return "いぶき先生"
         case .puku:    return "ぷくぷく"
         case .patient: return "患者・家族"
         }

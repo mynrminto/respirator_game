@@ -10,7 +10,7 @@ struct LessonCoachView: View {
     private var tint: Color {
         Chrome.chapterColor(controller.lessonChapter?.id ?? "ch1")
     }
-    /// みどり先生の表情。今の場面に合わせて変える。
+    /// いぶき先生の表情。今の場面に合わせて変える。
     private var mood: CharacterMood {
         switch controller.lessonPhase {
         case .done, .feedback:
@@ -23,7 +23,7 @@ struct LessonCoachView: View {
             return .normal
         }
     }
-    /// いまの話し手。会話の場面以外はみどり先生が進行役。
+    /// いまの話し手。会話の場面以外はいぶき先生が進行役。
     private var speaker: LessonSpeaker {
         guard controller.lessonPhase == .task,
               let who = controller.lessonRuntime?.task?.speaker else { return .doctor }
@@ -285,7 +285,7 @@ struct LessonCoachView: View {
     private func talkView(_ task: LessonTask) -> some View {
         let isScene = task.speaker == .scene
         return VStack(alignment: .leading, spacing: 8) {
-            Text(task.instruction(controller.lessonContext))
+            Text(controller.fillSay(task.instruction(controller.lessonContext)))
                 .font(.system(size: 12.5, weight: isScene ? .regular : .medium,
                               design: .default))
                 .italic(isScene)
@@ -303,9 +303,9 @@ struct LessonCoachView: View {
 
     private func stepView(_ task: LessonTask, runtime: LessonRuntime) -> some View {
         let context = controller.lessonContext
-        let hint = task.hint(context)
+        let hint = controller.fillSay(task.hint(context))
         return VStack(alignment: .leading, spacing: 4) {
-            Text(task.instruction(context))
+            Text(controller.fillSay(task.instruction(context)))
                 .font(.system(size: 12.5))
                 .foregroundStyle(Coach.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -334,7 +334,7 @@ struct LessonCoachView: View {
 
     private func quizView(_ quiz: LessonQuiz, runtime: LessonRuntime) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(quiz.question)
+            Text(controller.fillSay(quiz.question))
                 .font(.system(size: 12.5))
                 .foregroundStyle(Coach.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -449,7 +449,7 @@ struct LessonCourseView: View {
             List {
                 Section {
                     Text("PICU と NICU の 6 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。"
-                         + "みどり先生とぷくぷくの会話を追っていくと、そのつど実機を触ることになります。"
+                         + "いぶき先生とぷくぷくの会話を追っていくと、そのつど実機を触ることになります。"
                          + "上から順に進めるのが基本です。")
                         .font(.footnote).foregroundStyle(.secondary)
                     progressRow

@@ -6,7 +6,7 @@
  *
  * 課題 (task) は次のどれかで先に進む。
  *   talk: true    … 会話・ト書きの場面。「続ける」を押すと進む。who で話し手を決める。
- *                   who: 'scene'（ト書き）/ 'doc'（みどり先生）/ 'puku'（ぷくぷく）/ 'pt'（患者・家族）。
+ *                   who: 'scene'（ト書き）/ 'doc'（いぶき先生）/ 'puku'（ぷくぷく）/ 'pt'（患者・家族）。
  *   check(c)      … 毎フレーム判定する。hold を付けるとその秒数（シミュレーション内）満たし続ける必要がある。
  *   event: 'name' … 機器のキーが押されたなどの出来事で進む。
  *   quiz          … 選択肢に答えると進む。q は文字列でも関数（実測値から作る）でもよい。
@@ -122,11 +122,11 @@
         tasks: [
           {
             talk: true, who: 'scene',
-            say: 'ハルト君の設定はひとまず落ち着いた。みどり先生が、画面の圧の数字を指さす。'
+            say: 'ハルト君の設定はひとまず落ち着いた。いぶき先生が、画面の圧の数字を指さす。'
           },
           {
             talk: true, who: 'doc',
-            say: 'PIP は 22。でもこの数字だけでは、肺に何がかかっているかは分かりません。'
+            say: 'PIP は {PIP}。でもこの数字だけでは、肺に何がかかっているかは分かりません。'
           },
           {
             talk: true, who: 'puku',
@@ -812,7 +812,7 @@
         tasks: [
           {
             talk: true, who: 'scene',
-            say: '深夜 1 時。ハルト君の呼吸が少し浅い。みどり先生が採血の指示を出した。'
+            say: '深夜 1 時。ハルト君の呼吸が少し浅い。いぶき先生が採血の指示を出した。'
           },
           {
             talk: true, who: 'doc',
@@ -986,7 +986,7 @@
         tasks: [
           {
             talk: true, who: 'scene',
-            say: 'ミオちゃんの FiO₂ は 80%。それでも SpO₂ は 90% を切りそうだ。'
+            say: 'ミオちゃんの FiO₂ は {FiO₂}%。それでも SpO₂ は {SpO₂}% までしか上がらない。'
           },
           {
             talk: true, who: 'puku',
@@ -1398,7 +1398,15 @@
         tasks: [
           {
             talk: true, who: 'scene',
-            say: 'SpO₂ 98 → 93 → 89。モニタの音が高くなる。'
+            say: 'モニタの音が高くなった。ハルト君の SpO₂ は {SpO₂}%。まだ下がっていく。',
+            /* 病態はここで起こす。語っている最中に画面の数字が実際に落ちていくようにするため。 */
+            onStart: function (c) {
+              c.mem.c0 = c.e.C;
+              c.mem.sh0 = c.e.p.shunt0; c.mem.shMin0 = c.e.p.shuntMin;
+              c.e.C = c.mem.c0 * 0.42;
+              c.e.p.shunt0 = 0.30; c.e.p.shuntMin = 0.30;
+              c.e._raise('SpO₂ が低下しています');
+            }
           },
           {
             talk: true, who: 'doc',
@@ -1414,13 +1422,6 @@
           },
           {
             say: 'SpO₂ が下がりはじめました。最初の一手を打ってください。',
-            onStart: function (c) {
-              c.mem.c0 = c.e.C;
-              c.mem.sh0 = c.e.p.shunt0; c.mem.shMin0 = c.e.p.shuntMin;
-              c.e.C = c.mem.c0 * 0.42;
-              c.e.p.shunt0 = 0.30; c.e.p.shuntMin = 0.30;
-              c.e._raise('SpO₂ が低下しています');
-            },
             hint: '時間を稼いでから原因を探します。',
             spot: 'hard:kO2', watch: ['SpO₂', 'PIP', 'Pplat'],
             event: 'o2100',

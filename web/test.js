@@ -468,6 +468,39 @@ console.log('\n18b. 教材は読み物ではなく操作であること');
   // レッスンを始めた瞬間に操作へ入れること（解説ダイアログで足止めしない）
   ok('レッスン開始時に解説ダイアログを開かない',
     !/fitAll\(\);\s*\n\s*openBrief\(\);/.test(app));
+
+  // 登場人物が口にする数値は画面の実測から差し込むこと（{PIP} のように書く）。
+  // セリフに数字を書き込むと「PIP は 22」と言いながら画面は 18、というずれが起きる。
+  {
+    const captions = new Set([...app.matchAll(/\bk: '([^']+)'/g)].map(m => m[1]));
+    const swiftDir = path.join(__dirname, '..', 'swift', 'VentilatorSim', 'Sources', 'VentilatorCore');
+    const sources = { 'lessons.js': fs.readFileSync(path.join(__dirname, 'lessons.js'), 'utf8') };
+    for (const f of ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift']) {
+      const fp = path.join(swiftDir, f);
+      if (fs.existsSync(fp)) sources[f] = fs.readFileSync(fp, 'utf8');
+    }
+    const unknown = [], hard = [];
+    const measured = ['PIP', 'Pplat', 'PEEP tot', 'ΔP', 'Vte', 'MV', 'RR tot', 'Cstat', 'Raw',
+      'auto-PEEP', 'f/VT', 'SpO₂', 'etCO₂', 'HR', 'ABP mean'];
+    const hardRe = new RegExp('(?:' + measured.map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+      + ') (?:は|が|も) [0-9]');
+    for (const [name, src] of Object.entries(sources)) {
+      for (const m of src.matchAll(/\{([^{}\n]+)\}/g)) {
+        if (/^[ _a-zA-Z0-9]*$/.test(m[1]) || /^\s/.test(m[1])) continue;   // コードの波括弧
+        if (!captions.has(m[1])) unknown.push(`${name}:{${m[1]}}`);
+      }
+      // 会話の行（talk / .talk）に、実測値を数字で断言している文がないこと
+      for (const line of src.split('\n')) {
+        if (!/talk/.test(line) && !/^\s*say: '/.test(line)) continue;
+        if (hardRe.test(line)) hard.push(`${name}: ${line.trim().slice(0, 60)}`);
+      }
+    }
+    const placeholders = [...sources['lessons.js'].matchAll(/\{([^{}\n]+)\}/g)]
+      .filter(m => !/^[ _a-zA-Z0-9]*$/.test(m[1]) && !/^\s/.test(m[1]));
+    ok('セリフの差し込み名（{PIP} など）がすべて画面の見出しと一致する', unknown.length === 0, unknown.join(' '));
+    ok('セリフが実測値を数字で断言していない（差し込みを使う）', hard.length === 0, hard.join(' / '));
+    ok('差し込みを使っているセリフがある', placeholders.length >= 3, `${placeholders.length} 箇所`);
+  }
 }
 
 console.log('\n19. レッスンの進行');
@@ -618,9 +651,10 @@ console.log('\n20. レッスンの目標が到達可能か');
   const before = { pip: e53.m.pip, plat: e53.m.pplat, vte: e53.m.vte, spo2: e53.spo2 };
   const rt53 = new LS.Runtime(l53);
   const ctx53 = () => ({ e: e53, s: e53.s, m: e53.m, pbw: e53.p.pbw, abgs: [], lastAbg: null, sbt: null });
-  // 会話の場面を読み飛ばし、急変を起こす課題に入る
+  // 急変は最初のト書きに入った瞬間に起きる（語っている最中に画面の数字が落ちていくように）。
+  rt53.enter(ctx53());
   while (rt53.task() && rt53.task().talk) rt53.tap(ctx53());
-  rt53.enter(ctx53());                       // この課題の onStart で急変が起きる
+  rt53.enter(ctx53());
   run(e53, 300, 0.01);
   expPause(e53);
   ok('5-3 の急変で PIP も Pplat も上がる',

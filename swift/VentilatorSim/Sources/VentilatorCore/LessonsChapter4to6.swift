@@ -23,7 +23,7 @@ extension LessonLibrary {
                  "急性は PaCO₂ +10 で HCO₃⁻ +1、慢性は +3.5",
                  "正常値は年齢で違う。酸素化は P/F と OI で別に評価する"],
         tasks: [
-            .talk(.scene, "深夜 1 時。ハルト君の呼吸が少し浅い。みどり先生が採血の指示を出した。"),
+            .talk(.scene, "深夜 1 時。ハルト君の呼吸が少し浅い。いぶき先生が採血の指示を出した。"),
             .talk(.doctor, "血液ガスは 4 ステップで読みます。順番さえ守れば、迷いません。"),
             .talk(.puku, "4 つも覚えるの？"),
             .talk(.doctor, "pH → PaCO₂ → HCO₃⁻ → 代償。それだけです。まず採ってみましょう。"),
@@ -147,7 +147,7 @@ extension LessonLibrary {
                  "PEEP で肺胞を開いてから FiO₂ を下げる",
                  "PEEP を上げたら P/F・Pplat・血圧の 3 つを見る"],
         tasks: [
-            .talk(.scene, "ミオちゃんの FiO₂ は 80%。それでも SpO₂ は 90% を切りそうだ。"),
+            .talk(.scene, "ミオちゃんの FiO₂ は {FiO₂}%。それでも SpO₂ は {SpO₂}% までしか上がらない。"),
             .talk(.puku, "酸素をこんなに吸わせてるのに、どうして上がらないの？"),
             .talk(.doctor, "潰れた肺胞を、血が素通りしているからです。素通りする血には、濃い酸素は届きません。"),
             .key("まず採血して、いまの P/F 比を確かめてください。", event: .orderBloodGas)
@@ -426,14 +426,8 @@ extension LessonLibrary {
                  "まず FiO₂ 100%、次に患者を見る",
                  "圧と量の動き方の組み合わせで切り分ける"],
         tasks: [
-            .talk(.scene, "SpO₂ 98 → 93 → 89。モニタの音が高くなる。"),
-            .talk(.doctor, "DOPE。チューブのずれ、詰まり、気胸、機械の不具合。この 4 つを順に切ります。"),
-            .talk(.puku, "4 つも、あわてて思い出せないよ…"),
-            .talk(.doctor, "だから手が先です。まず酸素。考えるのはそのあとで間に合います。"),
-            .key("SpO₂ が下がりはじめました。最初の一手を打ってください。",
-                 hint: "時間を稼いでから原因を探します。",
-                 event: .oxygenFlush,
-                 why: "2 分間だけ FiO₂ 100% になり、そのあと自動で元に戻ります。そのあいだに原因を探します。")
+            // 病態はここで起こす。語っている最中に画面の数字が実際に落ちていくようにするため。
+            .talk(.scene, "モニタの音が高くなった。ハルト君の SpO₂ は {SpO₂}%。まだ下がっていく。")
                 .starting { c in
                     c.memory["c0"] = c.engine.lungCompliance
                     let s = c.engine.shuntSetting
@@ -441,7 +435,14 @@ extension LessonLibrary {
                     c.memory["shuntMin0"] = s.minimum
                     c.engine.setLungCompliance(c.engine.lungCompliance * 0.42)
                     c.engine.setShunt(low: 0.30, minimum: 0.30)
-                }
+                },
+            .talk(.doctor, "DOPE。チューブのずれ、詰まり、気胸、機械の不具合。この 4 つを順に切ります。"),
+            .talk(.puku, "4 つも、あわてて思い出せないよ…"),
+            .talk(.doctor, "だから手が先です。まず酸素。考えるのはそのあとで間に合います。"),
+            .key("SpO₂ が下がりはじめました。最初の一手を打ってください。",
+                 hint: "時間を稼いでから原因を探します。",
+                 event: .oxygenFlush,
+                 why: "2 分間だけ FiO₂ 100% になり、そのあと自動で元に戻ります。そのあいだに原因を探します。")
                 .spotting(["hard:kO2"]).watching(["SpO₂", "PIP", "Pplat"]),
             .key("「吸気ポーズ」で、圧がどちらの型かを確かめてください。", event: .inspiratoryHold)
                 .spotting(["hard:kInsp"]).watching(["PIP", "Pplat", "Vte"]),

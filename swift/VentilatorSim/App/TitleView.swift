@@ -164,7 +164,7 @@ struct TitleView: View {
 
     private var line: String {
         if done == 0 {
-            return "はじめまして。わたしは みどり先生。\nいっしょに呼吸器を動かしてみましょう。"
+            return "はじめまして。わたしは いぶき先生。\nいっしょに呼吸器を動かしてみましょう。"
         }
         if done >= total {
             return "全レッスン修了、おみごとです。\n症例で腕を試してみましょう。"

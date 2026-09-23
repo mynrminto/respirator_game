@@ -166,7 +166,7 @@ struct FaceArt<Fallback: View>: View {
 /// ここに並べた名前が全部そろっている必要はない。
 enum CharacterArt {
 
-    /// みどり先生。sad の絵は無いので think で代える。
+    /// いぶき先生。sad の絵は無いので think で代える。
     static func doctorNames(_ mood: CharacterMood) -> [String] {
         let first: String
         switch mood {

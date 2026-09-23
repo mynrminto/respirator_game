@@ -75,7 +75,7 @@ open swift/VentilatorSim.xcodeproj
 | 画面 | `VentilatorSim/App/` を Xcode 16 の同期フォルダとして丸ごと取り込む |
 | ロジック | `VentilatorSim/`（Package.swift）をローカルパッケージ `VentilatorCore` として参照 |
 | 画像 | `web/assets` をフォルダ参照で同梱（`Bundle.main/assets/`）。Web 版と同じ PNG |
-| アイコン | `App/Assets.xcassets`。みどり先生の仮アイコン（`logo.png` が来たら差し替える） |
+| アイコン | `App/Assets.xcassets`。いぶき先生の仮アイコン（`logo.png` が来たら差し替える） |
 
 `App/` にファイルを足したときプロジェクトを編集する必要はありません。同期フォルダなので
 Xcode が自動で拾います。
@@ -122,6 +122,6 @@ swift test
   それに学習の進み具合のバーを出します。免責事項は初回の開始時に一度だけ関門として出し、
   同意を UserDefaults の `ventsim.agreed.v1` に残します。
 - キャラクターは画像ファイルを持たず、`App/Characters.swift` の `Canvas` ですべて描いています
-  （指導医の みどり先生、肺のマスコット ぷくぷく、患者）。形と表情の出し分けは Web 版の
+  （指導医の いぶき先生、肺のマスコット ぷくぷく、患者）。形と表情の出し分けは Web 版の
   `web/characters.js` と同じ 120×120 の座標で書いてあるので、片方を直したらもう片方も直します。
   ぷくぷくの呼吸と紙吹雪は ReduceMotion のときは止まります。

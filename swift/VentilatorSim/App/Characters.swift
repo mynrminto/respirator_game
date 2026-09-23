@@ -141,7 +141,7 @@ private func drawBlush(_ ctx: inout GraphicsContext, _ pen: Pen,
     ctx.opacity = 1
 }
 
-/// 指導医「みどり先生」。レッスンで話す役。
+/// 指導医「いぶき先生」。レッスンで話す役。
 struct DoctorView: View {
     var mood: CharacterMood = .normal
     var disc: Color? = nil
