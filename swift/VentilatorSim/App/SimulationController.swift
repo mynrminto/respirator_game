@@ -195,7 +195,7 @@ final class SimulationController {
 
     var selectedParameter: VentilatorParameter? {
         guard let id = selectedParameterID else { return nil }
-        return VentilatorParameter.all.first { $0.id == id }
+        return VentilatorParameter.fitted(to: engine.limits).first { $0.id == id }
     }
     /// 確定していない変更があるか。
     var hasPendingChange: Bool {
@@ -339,7 +339,7 @@ final class SimulationController {
             return
         }
         selectedParameterID = parameterID
-        pendingValue = VentilatorParameter.all.first { $0.id == parameterID }?.read(engine.settings)
+        pendingValue = VentilatorParameter.fitted(to: engine.limits).first { $0.id == parameterID }?.read(engine.settings)
     }
 
     /// ダイヤルを 1 目盛り回す。確定するまで患者には届かない。
@@ -629,7 +629,7 @@ extension SimulationController {
 
     private func lookupSay(_ name: String) -> String? {
         if let readout = Readout.find(name) { return readout.value(engine) }
-        if let parameter = VentilatorParameter.all.first(where: { $0.label == name }) {
+        if let parameter = VentilatorParameter.fitted(to: engine.limits).first(where: { $0.label == name }) {
             let value = parameter.read(settings)
             return value.formatted(.number.precision(.fractionLength(parameter.digits)))
         }

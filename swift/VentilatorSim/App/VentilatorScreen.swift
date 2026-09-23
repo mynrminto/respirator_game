@@ -305,7 +305,8 @@ struct VentilatorScreen: View {
     private var parameterKeys: some View {
         FlowLayout(spacing: Chrome.isPop ? 6 : 4, lineSpacing: Chrome.isPop ? 6 : 4,
                    alignment: .top) {
-            ForEach(VentilatorParameter.applicable(to: controller.settings.mode)) { parameter in
+            ForEach(VentilatorParameter.applicable(to: controller.settings.mode,
+                                                   limits: controller.engine.limits)) { parameter in
                 parameterKey(parameter)
             }
             sedationKey

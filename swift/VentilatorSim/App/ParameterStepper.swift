@@ -60,27 +60,35 @@ struct VentilatorParameter: Identifiable {
     /// つまみの可動域は体重で 2 桁変わる（早産児の Vt は 5 mL、学童は 250 mL）。
     /// 症例の DialLimits で数値だけ差し替える。
     static func applicable(to mode: VentilationMode, limits: DialLimits) -> [VentilatorParameter] {
-        applicable(to: mode).map { p in
-            var p = p
-            let r: DialRange?
-            switch p.id {
-            case "vt":      r = limits.tidalVolume
-            case "rr":      r = limits.respiratoryRate
-            case "ti":      r = limits.inspiratoryTime
-            case "flow":    r = limits.inspiratoryFlow
-            case "pause":   r = limits.inspiratoryPause
-            case "trig":    r = limits.trigger
-            case "pinsp":   r = limits.inspiratoryPressure
-            case "ps":      r = limits.pressureSupport
-            default:        r = nil
-            }
-            if let r {
-                p.range = r.min...r.max
-                p.step = r.step
-                p.digits = r.decimals
-            }
-            return p
+        applicable(to: mode).map { $0.fitted(to: limits) }
+    }
+
+    /// 全項目を症例の可動域に合わせたもの。`all` の定義値は成人向けの仮の数字なので、
+    /// 実際にダイヤルを回すところは必ずこちらを通す（Web 版 app.js の applyLimits と同じ）。
+    static func fitted(to limits: DialLimits) -> [VentilatorParameter] {
+        all.map { $0.fitted(to: limits) }
+    }
+
+    func fitted(to limits: DialLimits) -> VentilatorParameter {
+        var p = self
+        let r: DialRange?
+        switch p.id {
+        case "vt":      r = limits.tidalVolume
+        case "rr":      r = limits.respiratoryRate
+        case "ti":      r = limits.inspiratoryTime
+        case "flow":    r = limits.inspiratoryFlow
+        case "pause":   r = limits.inspiratoryPause
+        case "trig":    r = limits.trigger
+        case "pinsp":   r = limits.inspiratoryPressure
+        case "ps":      r = limits.pressureSupport
+        default:        r = nil
         }
+        if let r {
+            p.range = r.min...r.max
+            p.step = r.step
+            p.digits = r.decimals
+        }
+        return p
     }
 }
 

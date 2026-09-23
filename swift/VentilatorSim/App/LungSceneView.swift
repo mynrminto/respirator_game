@@ -106,7 +106,7 @@ struct LungSceneView: View {
         return HStack(spacing: 8) {
             term("弾性 V/C", m.elastic, Chrome.volume)
             term("抵抗 R·V̇", m.resistive, Chrome.flow)
-            term("筋 −Pmus", m.muscular, Chrome.spo)
+            term("筋 −Pmus", m.muscular, Chrome.spo2)
             Text("＝").font(Chrome.label(11)).foregroundStyle(Chrome.screenDim)
             term("Paw", m.elastic + m.resistive + m.muscular, Chrome.pressure)
         }
