@@ -143,6 +143,12 @@
   .alarm{flex:1;min-width:0;display:flex;align-items:center;gap:7px;height:28px;padding:0 11px;border-radius:999px;
     background:var(--panel2);border:1.5px solid var(--br);font-size:12.5px;
     color:var(--dim);overflow:hidden;white-space:nowrap;font-weight:500}
+  #alarmTxt{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  /* 2 件目以降は件数だけ丸いバッジで出す。文を連ねると、狭い画面では 1 件目まで切れてしまう。 */
+  .amore{flex:none;margin-left:auto;min-width:22px;height:18px;padding:0 6px;border-radius:999px;
+    background:currentColor;display:grid;place-items:center;font-size:11px;font-weight:800;font-family:var(--num)}
+  .amore b{color:#fff;font-weight:800}
+  :root[data-theme="device"] .amore b{color:#0C1116}
   .alarm.s1{background:#FFF3DA;border-color:#FFC85C;color:#9A6400}
   .alarm.s2{background:#FFE7EC;border-color:#FF7A92;color:#C3123E;animation:beat 1s steps(1,end) infinite}
   :root[data-theme="device"] .alarm{background:#0C1116;border-color:#22303D;font-family:var(--num);letter-spacing:.04em}
@@ -351,6 +357,11 @@
   .pkey[aria-pressed="true"]{background:var(--key-on);border-color:var(--key-on-br);color:var(--key-on-ink)}
   .pkey[aria-pressed="true"] .k{color:var(--key-on-ink)}
   .pkey.pending .v{color:var(--paw);animation:blink 1s steps(1,end) infinite}
+  /* ポップの淡いピンクの地では黄色が溶けるので、選択中の新しい値は濃い橙にする。 */
+  :root:not([data-theme="device"]) .pkey.pending .v{color:#B85300}
+  /* 鎮静は人工呼吸器ではなくシミュレーターの操作。点線で囲んで区別する。 */
+  .pkey.sim{border-style:dashed;background:var(--panel2)}
+  :root[data-theme="device"] .pkey.sim{border-style:dashed;border-color:#3A4D8F}
   @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.35}}
   @media (prefers-reduced-motion:reduce){.pkey.pending .v{animation:none}}
   :root[data-theme="device"] .keys{gap:4px;padding:4px 6px;background:var(--body);border-top:1px solid #0A0E12}
@@ -385,6 +396,11 @@
   .knob:active{cursor:grabbing}
   .knob canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:50%}
   .dialbox{min-width:94px}
+  .dstep{flex:none;width:44px;height:44px;border-radius:50%;background:var(--key);border:2px solid var(--key-br);
+    box-shadow:0 3px 0 var(--key-lip);font-size:22px;font-weight:800;line-height:1;color:var(--key-ink);touch-action:none}
+  .dstep:active{transform:translateY(3px);box-shadow:none}
+  .dstep[disabled]{opacity:.3;pointer-events:none}
+  :root[data-theme="device"] .dstep{border-radius:4px;border-width:1px;box-shadow:none}
   .dialbox .k{font-size:10px;color:var(--dim);font-weight:700}
   .dialbox .v{font-family:var(--num);font-size:26px;font-weight:700;line-height:1.05;color:var(--ink)}
   .dialrow.pending .dialbox .v{color:var(--paw)}
@@ -684,6 +700,15 @@
     .hkey{flex:1 1 auto;text-align:center}
     .status{flex-wrap:wrap}
     .dialrow{position:sticky;bottom:0;z-index:6}
+    .dialrow .hint{display:none}
+    .dialrow .dial{justify-content:space-between;gap:6px}
+    .dialbox{min-width:0;flex:1}
+    /* 学習の帯はダイヤル行のすぐ上に貼り付ける。計測値の下に置いたままだと、開始直後に
+       何をすればいいかが画面の外になる。長い帯は中だけスクロールさせ、波形を覆いすぎない。 */
+    .coach{position:sticky;bottom:var(--dialh,70px);z-index:5;box-shadow:0 -6px 16px rgba(60,30,80,.14)}
+    .coach .cbody{max-height:38vh;overflow-y:auto;overscroll-behavior:contain}
+    .cchoices button{flex:1 1 44%;min-width:0}
+    .cbtn{min-height:34px;padding:6px 13px}
   }
 
   /* ============ 生成画像が入ったときの差し替え ============
@@ -753,7 +778,7 @@
     <div class="brand"><b>VentaSim</b><i>5000</i></div>
     <span class="led on" id="ledPwr" title="運転中"></span>
     <div class="pt" id="ptName">—</div>
-    <div class="alarm" id="alarm"><span class="led" id="ledAlarm"></span><span id="alarmTxt">起動中</span></div>
+    <div class="alarm" id="alarm"><span class="led" id="ledAlarm"></span><span id="alarmTxt">起動中</span><span class="amore" id="alarmMoreBox" hidden><b id="alarmMore"></b></span></div>
     <button class="chip" id="btnSil">消音 2分</button>
     <button class="chip theme" id="btnTheme" title="見た目を切り替える">ポップ</button>
     <div class="clk" id="clk">08:00</div>
@@ -824,8 +849,10 @@
         <div class="k" id="dialK">設定を選択</div>
         <div class="v"><span id="dialV">—</span><span class="u" id="dialU"></span></div>
       </div>
+      <button class="dstep" id="dialMinus" aria-label="1 目盛り下げる" disabled>−</button>
       <div class="knob" id="knob" role="slider" tabindex="0" aria-label="設定ダイヤル"
            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><canvas id="knobC"></canvas></div>
+      <button class="dstep" id="dialPlus" aria-label="1 目盛り上げる" disabled>＋</button>
       <button class="ok" id="btnOk" disabled>確定</button>
     </div>
   </div>

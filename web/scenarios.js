@@ -64,7 +64,7 @@
       history: '生後 4か月、体重 6.0 kg。3日前から鼻汁と咳、前日から哺乳不良。'
         + '高流量鼻カニュラでも陥没呼吸と無呼吸発作があり気管挿管。RSV 抗原陽性。'
         + '胸部X線は過膨張と右中葉の無気肺。',
-      findings: ['体温 38.2℃', '心拍 165 /分', '平均血圧 48 mmHg', '呼気延長と wheeze、痰が多い',
+      findings: ['体温 38.2℃', '心拍 165 /分', '平均血圧 52 mmHg', '呼気延長と wheeze、痰が多い',
         '気管チューブ：カフなし 3.5 mm、口角 10 cm'],
       teaching: ['時定数と呼気時間（乳児でも同じ考え方）', '呼気ポーズで総 PEEP を測る',
         '頻呼吸が auto-PEEP を作る', '痰づまりで気道内圧が上がる'],
@@ -74,7 +74,7 @@
         compliance: 0.0039, Rinsp: 80, Rexp: 170,
         shunt0: 0.34, shuntMin: 0.16, recruitP: 9, recruitK: 2.5, vdAlvFrac: 0.14,
         vco2: 36, hb: 10.5, hco3: 26, hco3Base: 24, paco2: 62, pao2: 62,
-        co: 1.1, hr: 158, map: 48, temp: 38.2,
+        co: 1.1, hr: 158, map: 52, temp: 38.2,
         sedation: 0.85, driveGain: 1.5, maxPmus: 14, co2Setpoint: 42,
         goals: { ph: [7.20, 7.42], paco2: [45, 75], pao2: [50, 90] }
       },
@@ -153,6 +153,7 @@
         vco2: 95, hb: 12.0, hco3: 26, hco3Base: 24, paco2: 50, pao2: 82,
         co: 2.9, hr: 95, map: 68, temp: 36.7,
         sedation: 0.20, driveGain: 1.2, maxPmus: 8, co2Setpoint: 40,
+        fatigueLoad: 0.2, fatigueTau: 170,      // 軽い負荷でも 15 分ほどで疲れてくる
         goals: { ph: [7.32, 7.46], paco2: [33, 48], pao2: [70, 120] }
       },
       suggested: { mode: 'VC-AC', vt: 160, rr: 16, peep: 5, fio2: 0.4,
@@ -160,21 +161,27 @@
     }
   ];
 
+  /* A/C では患者が吸った呼吸も強制換気として送られるので、自発はトリガの回数でも数える。 */
+  function spontOk(eng) {
+    var m = eng.m;
+    return m.rrSpont >= 4 || (m.rrTrig || 0) >= 4 || eng.pmusAmp > 2;
+  }
+
   /* 離脱の前提条件。小児では平均血圧の下限が年齢で変わるので、症例の基準値から取る。 */
   function weaningReadiness(eng) {
     var s = eng.s, m = eng.m, nm = eng.nm;
     return [
-      { label: 'FiO2 0.4 以下', ok: s.fio2 <= 0.41, val: Math.round(s.fio2 * 100) + '%' },
-      { label: 'PEEP 7 以下', ok: s.peep <= 7, val: s.peep + ' cmH2O' },
-      { label: 'PaO2/FiO2 200 以上', ok: (eng.pao2 / s.fio2) >= 200, val: Math.round(eng.pao2 / s.fio2) },
+      { label: 'FiO₂ 0.4 以下', ok: s.fio2 <= 0.41, val: Math.round(s.fio2 * 100) + '%' },
+      { label: 'PEEP 7 以下', ok: s.peep <= 7, val: s.peep + ' cmH₂O' },
+      { label: 'PaO₂/FiO₂ 200 以上', ok: (eng.pao2 / s.fio2) >= 200, val: Math.round(eng.pao2 / s.fio2) },
       { label: 'pH 7.30 以上', ok: eng.ph >= 7.30, val: eng.ph.toFixed(2) },
       { label: '循環が安定（平均血圧 ' + nm.mapMin + ' 以上）', ok: eng.map >= nm.mapMin, val: Math.round(eng.map) + ' mmHg' },
       { label: '覚醒している（鎮静 浅い）', ok: eng.sedation <= 0.4, val: eng.sedation <= 0.4 ? '覚醒' : '鎮静下' },
-      { label: '自発呼吸がある', ok: m.rrSpont >= 4 || eng.pmusAmp > 2, val: m.rrSpont >= 4 ? 'あり' : '乏しい' }
+      { label: '自発呼吸がある', ok: spontOk(eng), val: spontOk(eng) ? 'あり' : '乏しい' }
     ];
   }
 
-  var api = { SCENARIOS: SCENARIOS, weaningReadiness: weaningReadiness };
+  var api = { SCENARIOS: SCENARIOS, weaningReadiness: weaningReadiness, spontOk: spontOk };
   root.VentScenarios = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -70,6 +70,24 @@ final class SimulationController {
     private(set) var sbtFailureReason: String?
     private(set) var sbtFinished = false
     private(set) var sbtPassed = false
+    /// SBT 前の設定。失敗・中止のときにこれへ戻す（Web 版の S.sbtSaved）。
+    @ObservationIgnored private var sbtSaved: VentilatorSettings?
+    /// 中止基準に当てはまり始めた時刻。1 分続いたら失敗にする（一瞬の揺れでは止めない）。
+    @ObservationIgnored private var sbtBadSince: Double?
+
+    /// SBT が終わったときに出す結果画面（成功・失敗）。閉じると nil に戻る。
+    struct SBTOutcome: Identifiable {
+        let id: Int
+        let passed: Bool
+        let reason: String?
+        let rsbiPerKg: Double?
+        let respiratoryRate: Double
+    }
+    var sbtOutcome: SBTOutcome?
+    @ObservationIgnored private var sbtOutcomeCount = 0
+
+    /// 「自分で設定する」で始めたとき。最初に「確定」するまで、仮の設定だと知らせる。
+    private(set) var settingsAreProvisional = false
     /// 抜管後は換気を止める。nil なら挿管中。
     private(set) var extubation: ExtubationResult?
 
@@ -110,7 +128,8 @@ final class SimulationController {
                       sbt: SBTState(running: sbtElapsed != nil && !sbtFinished,
                                     finished: sbtFinished,
                                     passed: sbtPassed,
-                                    failureReason: sbtFailureReason),
+                                    failureReason: sbtFailureReason,
+                                    elapsed: sbtElapsed ?? 0),
                       extubated: extubation != nil,
                       memory: lessonRuntime?.memory ?? LessonMemory())
     }
@@ -119,6 +138,10 @@ final class SimulationController {
     /// 解説を読んでいるあいだは消す（もうその操作は終わっているので）。
     var lessonSpots: [String] {
         guard lessonPhase == .task, let task = lessonRuntime?.task, !task.isTalk else { return [] }
+        // 光っているキーを押したら、次に触るダイヤル（値を変えたら「確定」）へ光を移す。
+        if let selected = selectedParameterID, task.spot.contains("key:" + selected) {
+            return task.spot.filter { !$0.hasPrefix("key:") } + [hasPendingChange ? "confirm" : "dial"]
+        }
         return task.spot
     }
 
@@ -129,6 +152,8 @@ final class SimulationController {
      * 見出しの一覧ごと控えておく（index はもう次の課題を指している）。 */
     private(set) var lessonWatch: [String] = []
     private(set) var lessonWatchBefore: [String: String] = [:]
+    /// 解説を出した瞬間の値。解説を読んでいるあいだに「後」の数字が動かないよう、ここで止める。
+    private(set) var lessonWatchAfter: [String: String] = [:]
     private var lessonWatchIndex = -1
 
     /// 毎フレーム呼んでよい。課題が変わった瞬間だけ控えを取り直す。
@@ -195,12 +220,25 @@ final class SimulationController {
 
     var selectedParameter: VentilatorParameter? {
         guard let id = selectedParameterID else { return nil }
+        return parameter(id: id)
+    }
+    /// 設定キーの定義を、症例の可動域に合わせて返す。鎮静（"sed"）もここから引ける。
+    func parameter(id: String) -> VentilatorParameter? {
+        if id == VentilatorParameter.sedation.id { return .sedation }
         return VentilatorParameter.fitted(to: engine.limits).first { $0.id == id }
+    }
+    /// いま反映されている値。鎮静だけは設定ではなく engine が持っている。
+    func currentValue(_ parameter: VentilatorParameter) -> Double {
+        if parameter.isSimulatorControl {
+            _ = settingsVersion
+            return (engine.sedation * 100).rounded()
+        }
+        return parameter.read(settings)
     }
     /// 確定していない変更があるか。
     var hasPendingChange: Bool {
         guard let parameter = selectedParameter, let pending = pendingValue else { return false }
-        return abs(pending - parameter.read(engine.settings)) > 1e-9
+        return abs(pending - currentValue(parameter)) > 1e-9
     }
 
     /// 設定は engine が持っているが、SwiftUI から双方向に束縛できるようここを窓口にする。
@@ -235,11 +273,60 @@ final class SimulationController {
         return String(format: "%02d:%02d", Int(minutes / 60) % 24, Int(minutes.truncatingRemainder(dividingBy: 60)))
     }
 
-    init(scenario: Scenario, settings: VentilatorSettings) {
+    init(scenario: Scenario, settings: VentilatorSettings, provisional: Bool = false) {
         self.scenario = scenario
         self.engine = VentilatorEngine(patient: scenario.patient, settings: settings)
         engine.settle()
-        append("換気開始：\(settings.mode.rawValue)")
+        settingsAreProvisional = provisional
+        append("換気開始：\(settings.mode.uiLabel)")
+    }
+
+    /// 症例を読み込み直す（メニューの「症例を選ぶ」）。Web 版 loadScenario と同じく、経過もレッスンも捨てる。
+    func load(scenario: Scenario, settings: VentilatorSettings, provisional: Bool = false) {
+        endLesson()
+        resetRun(scenario: scenario, settings: settings, sedation: nil)
+        settingsAreProvisional = provisional
+        append("換気開始：\(settings.mode.uiLabel)")
+    }
+
+    /// 患者・設定・経過・機器の一時状態（消音、100% 酸素の戻し、早送り、SBT）をすべて入れ直す。
+    private func resetRun(scenario: Scenario, settings: VentilatorSettings, sedation: Double?) {
+        self.scenario = scenario
+        engine = VentilatorEngine(patient: scenario.patient, settings: settings)
+        if let sedation { engine.sedation = sedation }
+        engine.settle()                  // その設定で数呼吸ぶん進め、実測をそろえてから始める
+        settingsVersion &+= 1
+        bloodGases = []
+        pendingBloodGasAt = nil
+        trend = []
+        currentLoop = []
+        previousLoop = []
+        loopBuffer = []
+        loopBaseline = 0
+        lastPhase = .expiration
+        sampleAccumulator = 0
+        trendAccumulator = 4
+        trace.clear()
+        log = []
+        sbtElapsed = nil
+        sbtFailureReason = nil
+        sbtFinished = false
+        sbtPassed = false
+        sbtSaved = nil
+        sbtBadSince = nil
+        sbtOutcome = nil
+        extubation = nil
+        selectedParameterID = nil
+        pendingValue = nil
+        speed = .realtime
+        screen = .waveforms
+        waveformsFrozen = false
+        // 前の症例・レッスンの消音や「100% 酸素を 2 分後に戻す」を持ち越さない。
+        // 持ち越すと、FiO₂ 100% から始まるレッスンの設定を 2 分後に書き換えてしまう。
+        alarmSilencedUntil = -1
+        oxygenFlushUntil = nil
+        oxygenFlushRestore = nil
+        settingsAreProvisional = false
     }
 
     // MARK: - 駆動
@@ -270,7 +357,14 @@ final class SimulationController {
 
     /// テストやプレビューからも呼べるよう、実時間の差分を受け取る形にしてある。
     func advance(realSeconds: Double) {
-        guard speed != .paused, extubation == nil else { return }
+        guard speed != .paused else { return }
+        if extubation != nil {
+            // 抜管後は換気を止める。ただしレッスンの判定（「結果を確認してください」など）は続ける。
+            advanceLesson(simulated: realSeconds * speed.rawValue)
+            refreshLessonWatch()
+            syncDisplay(realSeconds)
+            return
+        }
         let simulated = realSeconds * speed.rawValue
         // 高速再生では刻みを粗くする。指数積分なので結果は変わらない。
         let nominal = speed == .realtime ? 0.005 : 0.01
@@ -309,7 +403,10 @@ final class SimulationController {
         updateTimers(simulated: simulated)
         advanceLesson(simulated: simulated)
         refreshLessonWatch()
+        syncDisplay(realSeconds)
+    }
 
+    private func syncDisplay(_ realSeconds: Double) {
         displaySync += realSeconds
         if displaySync >= 0.2 {          // 数値表示は 5 Hz で十分
             displaySync = 0
@@ -331,31 +428,37 @@ final class SimulationController {
 
     // MARK: - ダイヤル操作
 
-    /// 設定キーを押す。もう一度押すと選択を外す。
+    /// 設定キーを押す。選択中のキーをもう一度押しても外さない
+    /// （外すと、確定前に押し直した人が「押したのに選ばれていない」状態にはまる）。
     func select(parameterID: String) {
-        if selectedParameterID == parameterID {
-            selectedParameterID = nil
-            pendingValue = nil
-            return
-        }
+        guard selectedParameterID != parameterID, let key = self.parameter(id: parameterID) else { return }
         selectedParameterID = parameterID
-        pendingValue = VentilatorParameter.fitted(to: engine.limits).first { $0.id == parameterID }?.read(engine.settings)
+        pendingValue = currentValue(key)
     }
 
-    /// ダイヤルを 1 目盛り回す。確定するまで患者には届かない。
-    func nudge(_ direction: Double) {
+    /// ダイヤルを回す。steps は目盛りの数（速く回したときは 2 以上が来る）。確定するまで患者には届かない。
+    func nudge(_ steps: Double) {
         guard let parameter = selectedParameter else { return }
-        let current = pendingValue ?? parameter.read(engine.settings)
-        let stepped = ((current + direction * parameter.step) / parameter.step).rounded() * parameter.step
+        let current = pendingValue ?? currentValue(parameter)
+        let stepped = ((current + steps * parameter.step) / parameter.step).rounded() * parameter.step
         pendingValue = min(max(stepped, parameter.range.lowerBound), parameter.range.upperBound)
     }
 
+    /// 確定。反映したらキーの選択を外し、次の操作はキーを選ぶところから始める。
     func commitPending() {
         guard let parameter = selectedParameter, let pending = pendingValue, hasPendingChange else { return }
-        var updated = engine.settings
-        parameter.write(&updated, pending)
-        settings = updated
+        if parameter.isSimulatorControl {
+            engine.sedation = pending / 100
+            settingsVersion &+= 1
+        } else {
+            var updated = engine.settings
+            parameter.write(&updated, pending)
+            settings = updated
+        }
         append("\(parameter.label) を \(pending.formatted(.number.precision(.fractionLength(parameter.digits)))) \(parameter.unit) に変更")
+        settingsAreProvisional = false
+        selectedParameterID = nil
+        pendingValue = nil
     }
 
     func change(mode: VentilationMode) {
@@ -365,7 +468,7 @@ final class SimulationController {
         settings = updated
         selectedParameterID = nil
         pendingValue = nil
-        append("モードを \(mode.rawValue) に変更")
+        append("モードを \(mode.uiLabel) に変更")
         send(.mode(mode))
     }
 
@@ -380,7 +483,7 @@ final class SimulationController {
 
     /// 気管吸引。痰が取れて抵抗は下がるが、一時的に酸素化が落ちる。
     func performSuction() {
-        engine.performSuction()
+        engine.suction()
         append("気管吸引を実施")
         send(.suction)
     }
@@ -406,23 +509,34 @@ final class SimulationController {
             pendingBloodGasAt = nil
             let gas = engine.drawBloodGas()
             bloodGases.append(gas)
-            append(String(format: "血液ガス：pH %.2f / PaCO2 %.0f / PaO2 %.0f", gas.pH, gas.paco2, gas.pao2))
+            append(String(format: "血液ガス：pH %.2f / PaCO₂ %.0f / PaO₂ %.0f", gas.pH, gas.paco2, gas.pao2))
             speed = .realtime
         }
         if var elapsed = sbtElapsed, !sbtFinished {
             elapsed += simulated
             sbtElapsed = elapsed
-            if sbtFailureReason == nil,
-               let reason = Weaning.failureReason(for: engine, elapsed: elapsed) {
-                sbtFailureReason = reason
-                sbtFinished = true
-                speed = .realtime
-                append("SBT 中に異常：\(reason)")
-            } else if sbtFailureReason == nil, elapsed >= 1800 {
+            // Web 版 sbtTick と同じく、中止基準に 1 分当てはまり続けたら失敗にする。
+            if let reason = Weaning.failureReason(for: engine, elapsed: elapsed) {
+                let since = sbtBadSince ?? engine.clock
+                sbtBadSince = since
+                if engine.clock - since > 60 {
+                    sbtFinished = true
+                    sbtPassed = false
+                    sbtFailureReason = reason.subscripted
+                    restoreAfterSBT()
+                    speed = .realtime
+                    append("SBT 失敗：\(reason.subscripted)")
+                    presentSBTOutcome(passed: false)
+                }
+            } else {
+                sbtBadSince = nil
+            }
+            if !sbtFinished && elapsed >= 1800 {
                 sbtFinished = true
                 sbtPassed = true
                 speed = .realtime
                 append("SBT 完遂（30 分）")
+                presentSBTOutcome(passed: true)
             }
         }
         if let until = oxygenFlushUntil, engine.clock >= until {
@@ -438,38 +552,19 @@ final class SimulationController {
     // MARK: - 学習コースの進行
 
     /// レッスンを開始する。症例とレッスン用の設定を入れ直すので、これまでの経過は捨てる。
+    /// Web 版 startLesson と同じく、まず症例を読み込み（推奨設定・体重から作ったアラーム・患者）、
+    /// その上にレッスン自身の設定と鎮静を重ねる。成人の既定値（Vt 下限 250 mL など）は残さない。
     func startLesson(_ lesson: Lesson) {
         let scenario = lesson.scenario
-        var settings = VentilatorSettings()
+        var settings = scenario.initialSettings()
         lesson.prepare(&settings)
-        self.scenario = scenario
-        engine = VentilatorEngine(patient: scenario.patient, settings: settings)
-        if let sedation = lesson.sedation { engine.sedation = sedation }
-        engine.settle()                  // レッスンの設定で数呼吸ぶん進め、実測をそろえてから始める
-        settingsVersion &+= 1
-        bloodGases = []
-        pendingBloodGasAt = nil
-        trend = []
-        currentLoop = []
-        previousLoop = []
-        loopBuffer = []
-        trace.clear()
-        log = []
-        sbtElapsed = nil
-        sbtFailureReason = nil
-        sbtFinished = false
-        sbtPassed = false
-        extubation = nil
-        selectedParameterID = nil
-        pendingValue = nil
-        speed = .realtime
-        screen = .waveforms
-        waveformsFrozen = false
+        resetRun(scenario: scenario, settings: settings, sedation: lesson.sedation)
         lessonRuntime = LessonRuntime(lesson: lesson)
         lessonPhase = .task
         lessonFeedback = ""
         lessonWatch = []
         lessonWatchBefore = [:]
+        lessonWatchAfter = [:]
         lessonWatchIndex = -1
         lessonVersion &+= 1
         append("学習コース：\(lesson.title)")
@@ -481,14 +576,19 @@ final class SimulationController {
         lessonFeedback = ""
         lessonWatch = []
         lessonWatchBefore = [:]
+        lessonWatchAfter = [:]
         lessonWatchIndex = -1
         lessonVersion &+= 1
     }
 
-    /// 解説を読み終えて次の課題へ。
+    /// 解説を読み終えて「次へ」。最後の課題の解説だったら、ここで修了にする。
     func continueLesson() {
-        guard lessonPhase == .feedback else { return }
-        lessonPhase = .task
+        guard lessonPhase == .feedback, let runtime = lessonRuntime else { return }
+        if runtime.finished {
+            completeLesson(runtime.lesson)
+        } else {
+            lessonPhase = .task
+        }
         lessonVersion &+= 1
     }
 
@@ -522,9 +622,24 @@ final class SimulationController {
     private func finishStep(_ why: String) {
         guard let runtime = lessonRuntime else { return }
         lessonFeedback = fillSay(why)      // 解説は通過した瞬間の値で固定する
-        // 会話の場面には一言が付かない。空の解説画面を挟むと物語が途切れるので、そのまま次へ。
-        lessonPhase = runtime.finished ? .done : (why.isEmpty ? .task : .feedback)
-        if runtime.finished { celebrate(runtime.lesson) }
+        // 帯の「前 → 後」も、解説が出た瞬間の値で止める。
+        var after: [String: String] = [:]
+        for caption in lessonWatch { after[caption] = Readout.find(caption)?.value(engine) ?? "––" }
+        lessonWatchAfter = after
+        if !why.isEmpty {
+            // 最後の課題でも、解説があれば先に読ませる。「次へ」で修了になる。
+            lessonPhase = .feedback
+        } else if runtime.finished {
+            completeLesson(runtime.lesson)
+        } else {
+            // 会話の場面には一言が付かない。空の解説画面を挟むと物語が途切れるので、そのまま次へ。
+            lessonPhase = .task
+        }
+    }
+
+    private func completeLesson(_ lesson: Lesson) {
+        lessonPhase = .done
+        celebrate(lesson)
     }
 
     /// 修了の演出。通し番号を付けて、同じレッスンを繰り返しても必ず出るようにする。
@@ -554,36 +669,78 @@ final class SimulationController {
     /// 抜管。SBT に通っていて離脱条件もほぼ揃っていれば成功、そうでなければ再挿管。
     @discardableResult
     func extubate() -> ExtubationResult {
+        if let done = extubation { return done }
         let criteria = Weaning.readiness(for: engine)
         let met = criteria.filter(\.met).count
         let result = ExtubationResult(succeeded: sbtPassed && met >= criteria.count - 1,
                                       metCriteria: met, totalCriteria: criteria.count,
                                       passedSBT: sbtPassed)
         extubation = result
+        // sbtOutcome は消さない。SBT 結果の画面から抜管したとき、その画面に抜管の結果を続けて出す。
+        selectedParameterID = nil
+        pendingValue = nil
         append(result.succeeded ? "抜管（成功）" : "抜管（再挿管）")
         send(.extubate)
+        // 抜管すると換気（と毎フレームの進行）が止まるので、次の課題の判定をここで一度走らせる。
+        advanceLesson(simulated: 0)
+        refreshLessonWatch()
         return result
     }
 
-    func beginSBT(mode: VentilationMode) {
+    var isSBTRunning: Bool { sbtElapsed != nil && !sbtFinished }
+
+    /// SBT の開始。Web 版 startSBT と同じく、元の設定を控えてから
+    /// PSV・体重相応の PS（10 kg 未満 8、25 kg 未満 6、それ以上 5）・PEEP 5 以下・FiO₂ 40% 以下にし、鎮静を浅くする。
+    func beginSBT() {
+        guard extubation == nil, !isSBTRunning else { return }
+        sbtSaved = engine.settings
+        var s = engine.settings
+        let pbw = engine.patient.predictedBodyWeight
+        s.mode = .pressureSupport
+        s.pressureSupport = pbw < 10 ? 8 : (pbw < 25 ? 6 : 5)
+        s.peep = min(s.peep, 5)
+        s.fio2 = min(s.fio2, 0.4)
+        settings = s
+        engine.sedation = min(engine.sedation, 0.15)
+        sbtElapsed = 0
         sbtFinished = false
         sbtPassed = false
-        engine.settings.mode = mode
-        engine.settings.pressureSupport = mode == .pressureSupport ? 5 : 0
-        engine.settings.peep = 5
-        if engine.sedation > 0.3 { engine.sedation = 0.15 }
-        sbtElapsed = 0
         sbtFailureReason = nil
-        speed = .fast
-        append("SBT 開始")
+        sbtBadSince = nil
+        sbtOutcome = nil
+        selectedParameterID = nil
+        pendingValue = nil
+        append(String(format: "SBT 開始（PS %.0f / PEEP %.0f）", s.pressureSupport, s.peep))
         send(.startSBT)
     }
 
+    /// SBT を途中でやめる。設定は開始前に戻す。
     func endSBT() {
+        guard isSBTRunning else { return }
         sbtElapsed = nil
         sbtFailureReason = nil
+        sbtBadSince = nil
+        restoreAfterSBT()
         speed = .realtime
         append("SBT を中止")
+    }
+
+    /// 失敗・中止のあと、控えておいた設定に戻して呼吸筋を休ませる（Web 版 restoreSettings）。
+    private func restoreAfterSBT() {
+        guard let saved = sbtSaved else { return }
+        settings = saved
+        engine.sedation = min(0.5, engine.sedation + 0.25)
+        sbtSaved = nil
+        selectedParameterID = nil
+        pendingValue = nil
+    }
+
+    private func presentSBTOutcome(passed: Bool) {
+        sbtOutcomeCount &+= 1
+        sbtOutcome = SBTOutcome(id: sbtOutcomeCount, passed: passed,
+                                reason: passed ? nil : sbtFailureReason,
+                                rsbiPerKg: engine.measured.rsbiPerKg,
+                                respiratoryRate: engine.measured.respiratoryRateTotal)
     }
 
     func append(_ message: String) {
@@ -606,8 +763,8 @@ private final class DisplayLinkProxy: NSObject {
 extension SimulationController {
     /// セリフの中の {PIP} や {FiO₂} を、そのときの計測値・設定値に置き換える。
     /// セリフに数字を書き込むと画面の実測とずれる（「PIP は 22」と言いながら画面は 18）ので、
-    /// 登場人物が数値を口にするときは必ずここから差し込む。名前は計測値タイル（Readout.caption）か
-    /// 設定キー（VentilatorParameter.label）の見出しそのまま。Web 版 app.js の fillSay と同じ。
+    /// 登場人物が数値を口にするときは必ずここから差し込む。Web 版 app.js の fillSay と同じ名前を受ける
+    /// （{PIP} {Pplat} {PEEP tot} {auto-PEEP} {Vte} {RR tot} {MV} {SpO₂} {FiO₂} {ABP mean} {pH} {PaCO₂} など）。
     func fillSay(_ text: String) -> String {
         guard text.contains("{") else { return text }
         var out = ""
@@ -627,12 +784,29 @@ extension SimulationController {
         return out
     }
 
-    private func lookupSay(_ name: String) -> String? {
-        if let readout = Readout.find(name) { return readout.value(engine) }
-        if let parameter = VentilatorParameter.fitted(to: engine.limits).first(where: { $0.label == name }) {
-            let value = parameter.read(settings)
-            return value.formatted(.number.precision(.fractionLength(parameter.digits)))
+    /// 名前の決め方は Web 版 fillSay と同じ：計測値タイルの見出し（Readout.caption）→
+    /// 設定キーの見出し（VentilatorParameter.label、鎮静を含む）→ 血液ガスの項目。
+    /// "FiO2" のように下付きでない書き方も受ける。知らない名前は {…} のまま残す。
+    private func lookupSay(_ raw: String) -> String? {
+        let name = raw.trimmingCharacters(in: .whitespaces)
+        for candidate in [name, name.subscripted] {
+            if let readout = Readout.find(candidate) { return readout.value(engine) }
+            if let key = self.parameter(label: candidate) {
+                return currentValue(key).formatted(.number.precision(.fractionLength(key.digits)))
+            }
+            switch candidate {
+            case "pH":     return String(format: "%.2f", bloodGases.last?.pH ?? engine.pH)
+            case "PaCO₂":  return String(format: "%.0f", bloodGases.last?.paco2 ?? engine.paco2)
+            case "PaO₂":   return String(format: "%.0f", bloodGases.last?.pao2 ?? engine.pao2)
+            case "HCO₃", "HCO₃⁻": return String(format: "%.1f", bloodGases.last?.hco3 ?? engine.hco3)
+            default: break
+            }
         }
         return nil
+    }
+
+    private func parameter(label: String) -> VentilatorParameter? {
+        if label == VentilatorParameter.sedation.label { return .sedation }
+        return VentilatorParameter.fitted(to: engine.limits).first { $0.label == label }
     }
 }

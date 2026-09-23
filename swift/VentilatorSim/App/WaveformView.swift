@@ -119,6 +119,10 @@ struct ScopeView: View {
 struct LoopView: View {
     let current: [SimulationController.LoopPoint]
     let previous: [SimulationController.LoopPoint]
+    /// 容量軸の最小の上端（mL）。体重で決める。成人の 100 mL を早産児に使うとループが点になる。
+    var volumeFloor: Double = 100
+    /// 流量軸の最小の振れ幅（±L/min）。これも体重で決める。
+    var flowFloor: Double = 10
 
     var body: some View {
         GeometryReader { geometry in
@@ -167,14 +171,14 @@ struct LoopView: View {
                          at: CGPoint(x: plot.midX, y: plot.midY))
             return
         }
-        let volumeMax = max(100, (all.map(\.volume).max() ?? 100) * 1.08)
+        let volumeMax = max(volumeFloor, (all.map(\.volume).max() ?? volumeFloor) * 1.08)
         let values = all.map(value)
         var low = values.min() ?? 0
         var high = values.max() ?? 1
         if yLabel.hasPrefix("Paw") {
             low = min(-2, low); high = max(20, high * 1.08)
         } else {
-            let magnitude = max(abs(low), abs(high), 10) * 1.1
+            let magnitude = max(abs(low), abs(high), flowFloor) * 1.1
             low = -magnitude; high = magnitude
         }
         func point(_ p: SimulationController.LoopPoint) -> CGPoint {
@@ -195,6 +199,8 @@ struct LoopView: View {
 /// 直近の経過。実機のトレンド画面と同じく、圧・換気量・SpO₂ を縦に並べる。
 struct TrendView: View {
     let samples: [SimulationController.TrendSample]
+    /// Vte の軸の上端（mL）。体重で決め、はみ出したら広げる。
+    var volumeMax: Double = 800
 
     var body: some View {
         Canvas { context, size in
@@ -243,7 +249,9 @@ struct TrendView: View {
             }
 
             lane(0, "PIP  cmH₂O", Chrome.pressure, 0...50) { $0.peak }
-            lane(1, "Vte  mL", Chrome.volume, 0...800) { $0.tidal }
+            let tidalPeak = samples.map(\.tidal).filter(\.isFinite).max() ?? 0
+            let tidalTop = max(volumeMax, (tidalPeak * 1.2).rounded(.up))
+            lane(1, "Vte  mL", Chrome.volume, 0...tidalTop) { $0.tidal }
             lane(2, "SpO₂  %", Chrome.spo2, 80...100) { $0.spo2 }
 
             context.draw(Text("直近 \(Int(span / 60)) 分").font(.system(size: 9))
@@ -251,6 +259,6 @@ struct TrendView: View {
                          at: CGPoint(x: size.width / 2, y: size.height - 6))
         }
         .background(Chrome.screen)
-        .accessibilityLabel("気道内圧・一回換気量・SpO2 のトレンド")
+        .accessibilityLabel("気道内圧・一回換気量・SpO₂ のトレンド")
     }
 }

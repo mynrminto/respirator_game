@@ -167,7 +167,7 @@
     trig:  { k: 'トリガ',  u: 'L/min', min: 0.5, max: 8,  step: 0.5, dec: 1, get: function (s) { return s.trigFlow; }, set: function (s, v) { s.trigFlow = v; } },
     esens: { k: '呼気感度', u: '%',    min: 10,  max: 60,  step: 5,   get: function (s) { return Math.round(s.eSens * 100); }, set: function (s, v) { s.eSens = v / 100; } },
     rise:  { k: '立上り',  u: 's',     min: 0.05, max: 0.4, step: 0.05, dec: 2, get: function (s) { return s.rise; }, set: function (s, v) { s.rise = v; } },
-    sed:   { k: '鎮静',    u: '',      min: 0,   max: 100, step: 5, sim: true,
+    sed:   { k: '鎮静',    u: '%',     min: 0,   max: 100, step: 5, sim: true,
              get: function () { return Math.round(S.eng.sedation * 100); },
              set: function (s, v) { S.eng.sedation = v / 100; } }
   };
@@ -208,7 +208,11 @@
     { k: 'ΔP', u: 'cmH₂O', get: function (e) { return e.m.dp == null ? '––' : r0(e.m.dp); }, lim: function (e) { return '≤' + e.nm.dpMax; }, tone: function (e) { return e.m.dp > e.nm.dpMax ? 'hi' : ''; } },
     { k: 'Vte', u: 'mL', get: function (e) { return e.p.pbw < 6 ? r1(e.m.vte) : r0(e.m.vte); }, lim: function (e) { return r1(e.m.vte / e.p.pbw) + ' mL/kg'; }, tone: function (e) { return e.m.vte / e.p.pbw > e.nm.vtPerKg[1] + 1.5 ? 'hi' : ''; } },
     { k: 'MV', u: 'L/min', get: function (e) { return e.p.pbw < 10 ? e.m.mv.toFixed(2) : r1(e.m.mv); }, lim: function (e) { return r0(e.m.mv * 1000 / e.p.pbw) + ' mL/kg/分'; } },
-    { k: 'RR tot', u: '/min', get: function (e) { return r0(e.m.rrTotal); }, lim: function (e) { return '自発 ' + r0(e.m.rrSpont); }, tone: function (e) { return e.m.rrTotal > e.s.alarms.rrHigh ? 'hi' : ''; } },
+    { k: 'RR tot', u: '/min', get: function (e) { return r0(e.m.rrTotal); }, lim: function (e) {
+        /* A/C では患者が吸った呼吸も強制換気として送られるので、「自発」ではなく「トリガ」で数える。 */
+        var ac = e.s.mode === 'VC-AC' || e.s.mode === 'PC-AC';
+        return ac ? 'トリガ ' + r0(e.m.rrTrig) : '自発 ' + r0(e.m.rrSpont);
+      }, tone: function (e) { return e.m.rrTotal > e.s.alarms.rrHigh ? 'hi' : ''; } },
     { k: 'I:E', u: '', get: function (e) { return e.m.ie; } },
     { k: 'Cstat', u: 'mL/cmH₂O', get: function (e) { return e.m.cstat == null ? '––' : r0(e.m.cstat); } },
     { k: 'Raw', u: 'cmH₂O/L/s', get: function (e) { return e.m.raw == null ? '––' : r0(e.m.raw); } },
@@ -496,9 +500,9 @@
 
   /* 換気を始めた直後は PIP や Vte がまだ 0 のまま。数呼吸ぶん先に進めて、
    * 最初の 1 コマから実測のそろった画面を見せる（セリフに 0 が差し込まれるのも防ぐ）。 */
-  function settleEngine(e) {
-    var dt = 0.005, t = 0;
-    while (e.breaths.length < 2 && t < 12) { e.step(dt, false); t += dt; }
+  function settleEngine(e, extra) {
+    var dt = 0.005, t = 0, need = e.breaths.length < 2 ? 2 : e.breaths.length + (extra || 0);
+    while (e.breaths.length < need && t < 12) { e.step(dt, false); t += dt; }
   }
 
   function loadScenario(sc, showSetup, keepLesson) {
@@ -512,12 +516,14 @@
     applyLimits(S.eng);
     settleEngine(S.eng);
     S.abgs = []; S.abgPending = null; S.trend = []; S.sbt = null; S.sbtSaved = null; S.extubated = null;
-    S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1;
+    S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1; S.o2 = null;
+    S.provisional = false;
     S.loopCur = []; S.loopLast = null; S.banner = null; trendAcc = 4;
     W.paw.clear(); W.flow.clear(); W.vol.clear();
     $('ptName').textContent = sc.patient.name + '・' + sc.title;
     $('kFrz').classList.remove('on'); $('frz').hidden = true;
     $('kSpd').textContent = '× 1'; $('kSpd').classList.remove('on'); $('ff').hidden = true;
+    $('kO2').classList.remove('on');
     $('kAbg').textContent = '血液ガス'; $('kAbg').classList.remove('on');
     buildKeys(); syncTabs(); fitAll();
     if (showSetup) openSetup();
@@ -591,7 +597,7 @@
     var box = $('keys'); box.innerHTML = ''; keyNodes = {};
     (KEYS_BY_MODE[S.eng.s.mode] || []).forEach(function (id) {
       var p = P[id];
-      var b = el('button', 'pkey');
+      var b = el('button', 'pkey' + (p.sim ? ' sim' : ''));
       b.setAttribute('aria-pressed', 'false');
       var v = el('div', 'v'), vs = el('span'), u = el('span', 'u', p.u);
       v.appendChild(vs); v.appendChild(u);
@@ -614,24 +620,29 @@
       o.b.classList.toggle('pending', S.sel === id && S.pend != null && S.pend !== cur);
     }
   }
+  /* 同じキーをもう一度押しても選択は外さない。外すと、確定のあと同じ項目を続けて直そうとして
+   * ダイヤルが効かなくなる（初学者テストで 2 回踏んだ）。 */
   function selectKey(id) {
-    if (S.sel === id) { S.sel = null; S.pend = null; }
-    else { S.sel = id; S.pend = P[id].get(S.eng.s); }
-    paintKeys(); paintDial();
+    if (S.sel !== id) { S.sel = id; S.pend = P[id].get(S.eng.s); }
+    knobAcc.reset();
+    paintKeys(); paintDial(); spotFollow();
   }
   function commit() {
     if (!S.sel || S.pend == null) return;
     var p = P[S.sel];
     if (S.pend === p.get(S.eng.s)) return;
     p.set(S.eng.s, S.pend);
-    if (S.eng._note) S.eng._note('設定変更: ' + p.k + ' ' + fmtP(p, S.pend) + (p.u ? ' ' + p.u : ''));
-    S.pend = p.get(S.eng.s);
-    paintKeys(); paintDial();
+    S.eng._raise('設定変更: ' + p.k + ' ' + fmtP(p, S.pend) + (p.u ? ' ' + p.u : ''));
+    if (S.sel === 'sed') S.eng._recomputeDrive();
+    /* 確定したら選択を外す。実機と同じで、次の操作はまたキーを押すところから。 */
+    S.sel = null; S.pend = null;
+    if (S.provisional) { S.provisional = false; S.banner = null; }
+    paintKeys(); paintDial(); spotFollow(true);
   }
-  function nudge(dir) {
+  function nudge(dir, mult) {
     if (!S.sel) return;
     var p = P[S.sel];
-    var v = (S.pend == null ? p.get(S.eng.s) : S.pend) + dir * p.step;
+    var v = (S.pend == null ? p.get(S.eng.s) : S.pend) + dir * p.step * (mult || 1);
     v = Math.round(v / p.step) * p.step;
     S.pend = Math.max(p.min, Math.min(p.max, v));
     paintKeys(); paintDial();
@@ -640,6 +651,8 @@
   /* ===================== ダイヤル ===================== */
   function paintDial() {
     var kb = $('dialK'), vb = $('dialV'), ub = $('dialU');
+    var pm = $('dialMinus'), pp = $('dialPlus');
+    if (pm) { pm.disabled = !S.sel; pp.disabled = !S.sel; }
     if (!S.sel) {
       kb.textContent = '設定を選択'; vb.textContent = '—'; ub.textContent = '';
       $('btnOk').disabled = true;
@@ -685,6 +698,17 @@
     x.lineTo(cx + Math.cos(ap) * (R - 10), cy + Math.sin(ap) * (R - 10));
     x.stroke();
   }
+  /* 速く回すほど 1 目盛りで大きく動く。FiO₂ 100 → 40 を 2 周半回させないため。 */
+  var knobAcc = {
+    t: 0, n: 0,
+    reset: function () { this.t = 0; this.n = 0; },
+    mult: function () {
+      var now = Date.now();
+      this.n = now - this.t < 90 ? this.n + 1 : 0;
+      this.t = now;
+      return this.n > 10 ? 5 : (this.n > 4 ? 2 : 1);
+    }
+  };
   function bindKnob() {
     var kn = $('knob'), dragging = false, last = 0, acc = 0;
     function ang(ev) {
@@ -706,7 +730,7 @@
       var step = Math.PI / 12;
       var guard = 0;
       while (Math.abs(acc) >= step && guard++ < 40) {
-        nudge(acc > 0 ? 1 : -1);
+        nudge(acc > 0 ? 1 : -1, knobAcc.mult());
         acc -= (acc > 0 ? step : -step);
       }
     });
@@ -720,17 +744,34 @@
       else if (ev.key === 'Enter' || ev.key === ' ') { commit(); ev.preventDefault(); }
     });
     $('btnOk').onclick = commit;
+    /* ダイヤルの左右の −／＋。長押しで連続して動く。 */
+    [['dialMinus', -1], ['dialPlus', 1]].forEach(function (d) {
+      var b = $(d[0]), tm = null, n = 0;
+      if (!b) return;
+      function stop() { if (tm) { clearTimeout(tm); tm = null; } }
+      function tick() { n++; nudge(d[1], n > 12 ? 5 : (n > 5 ? 2 : 1)); tm = setTimeout(tick, n < 3 ? 260 : 90); }
+      b.addEventListener('pointerdown', function (ev) { if (!S.sel) return; ev.preventDefault(); n = 0; stop(); tick(); });
+      b.addEventListener('pointerup', stop);
+      b.addEventListener('pointerleave', stop);
+      b.addEventListener('pointercancel', stop);
+      b.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') { nudge(d[1]); ev.preventDefault(); ev.stopPropagation(); }   // Enter の「確定」に流さない
+      });
+    });
   }
 
   /* ===================== ハードキー ===================== */
   function bindHard() {
     $('kInsp').onclick = function () { S.eng.requestHold('insp'); lessonEvent('hold:insp'); };
     $('kExp').onclick = function () { S.eng.requestHold('exp'); lessonEvent('hold:exp'); };
+    /* 実機と同じく、FiO₂ 100% はシミュレーション内の 2 分間だけ。そのあと元の値に戻す。 */
     $('kO2').onclick = function () {
-      var s = S.eng.s, prev = s.fio2;
-      if (prev === 1.0) return;
-      s.fio2 = 1.0; paintKeys(); paintDial(); flash($('kO2')); lessonEvent('o2100');
-      setTimeout(function () { if (S.eng.s === s && s.fio2 === 1.0) { s.fio2 = prev; paintKeys(); paintDial(); } }, 6000);
+      var s = S.eng.s;
+      lessonEvent('o2100');
+      if (S.o2 && S.o2.s === s) { S.o2.until = S.eng.clock + 120; flash($('kO2')); return; }
+      if (s.fio2 >= 0.999) return;
+      S.o2 = { s: s, prev: s.fio2, until: S.eng.clock + 120 };
+      s.fio2 = 1.0; paintKeys(); paintDial(); flash($('kO2'));
     };
     $('kSuc').onclick = suction;
     $('kFrz').onclick = function () {
@@ -738,12 +779,7 @@
       $('kFrz').classList.toggle('on', S.frozen);
       $('frz').hidden = !S.frozen;
     };
-    $('kSpd').onclick = function () {
-      S.speed = S.speed === 1 ? 10 : (S.speed === 10 ? 60 : 1);
-      $('kSpd').textContent = '× ' + S.speed;
-      $('kSpd').classList.toggle('on', S.speed > 1);
-      $('ff').hidden = S.speed <= 1;
-    };
+    $('kSpd').onclick = function () { setSpeed(S.speed === 1 ? 10 : (S.speed === 10 ? 60 : 1)); };
     $('kAbg').onclick = abgKey;
     $('kWean').onclick = openWeaning;
     $('kLearn').onclick = openCourse;
@@ -753,16 +789,21 @@
     };
   }
   function flash(b) { b.classList.add('on'); setTimeout(function () { b.classList.remove('on'); }, 450); }
+  function o2Tick() {
+    var o = S.o2;
+    if (!o) return;
+    if (o.s !== S.eng.s) { S.o2 = null; return; }
+    $('kO2').classList.add('on');
+    if (S.eng.clock >= o.until) {
+      if (o.s.fio2 >= 0.999) o.s.fio2 = o.prev;          // 途中で自分で FiO₂ を変えていれば、それを優先する
+      S.o2 = null; $('kO2').classList.remove('on');
+      paintKeys(); paintDial();
+    }
+  }
 
   function suction() {
     var e = S.eng;
-    e.shunt = Math.min(0.9, e.shunt + 0.10);
-    e.pao2 = Math.max(35, e.pao2 - 22);
-    e.spo2 = E.satFromPO2(e.pao2) * 100;
-    e.p.Rinsp = Math.max(4, e.p.Rinsp * 0.88);
-    e.p.Rexp = Math.max(5, e.p.Rexp * 0.90);
-    if (e._recomputeMechanics) e._recomputeMechanics();
-    if (e._note) e._note('気管吸引を実施');
+    e.suction();
     lessonEvent('suction');
     S.banner = { t: e.clock, msg: '吸引後：一時的に酸素化が低下します' };
     flash($('kSuc'));
@@ -792,10 +833,11 @@
     e.s.peep = Math.min(e.s.peep, 5);
     e.s.fio2 = Math.min(e.s.fio2, 0.4);
     e.sedation = Math.min(e.sedation, 0.15);
-    S.sbt = { t0: e.clock, dur: 1800, badSince: -1, failMsg: null, done: null };
+    e._recomputeDrive();
+    S.sbt = { t0: e.clock, dur: 1800, badSince: -1, failMsg: null, done: null, tEnd: null };
     S.sel = null; S.pend = null;
     buildKeys(); syncTabs(); paintDial();
-    if (e._note) e._note('SBT 開始（PS 5 / PEEP 5）');
+    e._raise('SBT 開始（PS ' + e.s.ps + ' / PEEP ' + e.s.peep + '）');
     lessonEvent('sbt:start');
   }
   function restoreSettings() {
@@ -815,16 +857,22 @@
     else if (e.spo2 < nm.spo2[0]) bad = 'SpO₂ が ' + nm.spo2[0] + '% を下回りました';
     else if (e.m.rsbiKg != null && e.m.rsbiKg > 8) bad = 'f/VT が 8 を超えました（浅く速い呼吸）';
     else if (e.hr > hrCap) bad = '頻脈（' + hrCap + '/分超）';
-    else if (e.map < 65) bad = '血圧低下（平均 65 mmHg 未満）';
+    else if (e.map < nm.mapMin) bad = '血圧低下（平均 ' + nm.mapMin + ' mmHg 未満）';
     else if (e.ph < 7.30) bad = 'アシドーシスが進みました';
     if (bad) {
       if (b.badSince < 0) b.badSince = e.clock;
       if (e.clock - b.badSince > 60) {
-        b.done = 'fail'; b.failMsg = bad;
-        restoreSettings(); openSBTResult();
-      }
+        b.done = 'fail'; b.failMsg = bad; b.tEnd = e.clock;
+        restoreSettings(); setSpeed(1); openSBTResult();
+      } else if (S.speed > 1) setSpeed(1);          // 崩れはじめたら等速に戻して見せる
     } else b.badSince = -1;
-    if (!b.done && e.clock - b.t0 >= b.dur) { b.done = 'pass'; openSBTResult(); }
+    if (!b.done && e.clock - b.t0 >= b.dur) { b.done = 'pass'; b.tEnd = e.clock; setSpeed(1); openSBTResult(); }
+  }
+  function setSpeed(v) {
+    S.speed = v;
+    $('kSpd').textContent = '× ' + S.speed;
+    $('kSpd').classList.toggle('on', S.speed > 1);
+    $('ff').hidden = S.speed <= 1;
   }
 
   /* ===================== トレンド ===================== */
@@ -875,7 +923,9 @@
         S.lastPhase = e.phase;
       }
       trendTick(simSec);
-      abgTick(); sbtTick(); lessonTick(simSec);
+      abgTick(); sbtTick(); o2Tick(); lessonTick(simSec);
+    } else {
+      lessonTick(0);          // 抜管後も「結果を確認」の課題は判定を続ける（止めると 6-3 が終わらない）
     }
     paintVals(); paintStatus(); paintCoach();
     if (S.screen === 'wave') drawScope();
@@ -909,7 +959,7 @@
       alarmT++;
       if (alarmT > 100) { alarmT = 0; alarmIdx = (alarmIdx + 1) % a.length; }
       var pick = a[alarmIdx % a.length];
-      msg = pick.msg + (a.length > 1 ? '  ＋他 ' + (a.length - 1) + ' 件' : '');
+      msg = pick.msg;
     } else if (e.hold) {
       msg = e.hold.kind === 'insp' ? '吸気ポーズ中  Pplat を測定しています' : '呼気ポーズ中  total PEEP を測定しています';
     } else if (e.holdPending) {
@@ -917,12 +967,15 @@
     } else if (S.sbt && !S.sbt.done) {
       var left = Math.max(0, S.sbt.dur - (e.clock - S.sbt.t0));
       msg = 'SBT 実施中  残り ' + Math.floor(left / 60) + ':' + String(Math.floor(left % 60)).padStart(2, '0');
-    } else if (S.banner && e.clock - S.banner.t < 25) {
+    } else if (S.banner && (S.banner.keep || e.clock - S.banner.t < 25)) {
       msg = S.banner.msg;
     } else {
       msg = e.extubated ? '抜管済み' : '換気中  ' + e.s.mode;
     }
     if (txt.textContent !== msg) txt.textContent = msg;
+    var more = a.length > 1 ? '+' + (a.length - 1) : '';
+    var badge = $('alarmMore');
+    if (badge && badge.textContent !== more) { badge.textContent = more; $('alarmMoreBox').hidden = !more; }
     var cls = 'alarm' + (sev === 2 ? ' s2' : sev === 1 ? ' s1' : '') + (muted && sev ? ' muted' : '');
     if (box.className !== cls) box.className = cls;
     var lc = 'led' + (sev === 2 ? ' s2' : sev === 1 ? ' s1' : '');
@@ -938,6 +991,8 @@
     c.width = Math.round(w * d); c.height = Math.round(h * d);
     ctx = c.getContext('2d'); ctx.setTransform(d, 0, 0, d, 0, 0);
     cvW = w; cvH = h;
+    var dr = document.querySelector('.dialrow');
+    if (dr) document.documentElement.style.setProperty('--dialh', dr.offsetHeight + 'px');
     if (LUNG.view) LUNG.view.resize();
     paintDial();
   }
@@ -948,7 +1003,11 @@
     var vRef = Math.max(e.m.vte, e.s.vt, e.p.pbw * 6) * 1.5;
     var vStep = e.p.pbw < 6 ? 2 : (e.p.pbw < 20 ? 20 : 100);
     var vHi = Math.max(vStep * 2, Math.ceil(vRef / vStep) * vStep);
-    return [{ lo: -5, hi: pHi }, { lo: -80, hi: 80 }, { lo: 0, hi: vHi }];
+    /* 流量の目盛りも体重で変える。±80 L/分 固定だと、乳児の流量（数 L/分）は平らな線にしか見えない。 */
+    var fRef = Math.max(e.s.flow || 0, Math.abs(e.m.peakInsp || 0), Math.abs(e.m.peakExp || 0), e.p.pbw * 0.6) * 1.25;
+    var fStep = fRef <= 12 ? 2 : (fRef <= 40 ? 10 : 20);
+    var fHi = Math.max(fStep * 2, Math.ceil(fRef / fStep) * fStep);
+    return [{ lo: -5, hi: pHi }, { lo: -fHi, hi: fHi }, { lo: 0, hi: vHi }];
   }
 
   function drawScope() {
@@ -1367,7 +1426,12 @@
         buildKeys(); syncTabs(); paintDial(); close();
       };
       var c = el('button', 'mbtn', '自分で設定する');
-      c.onclick = close;
+      c.onclick = function () {
+        /* 換気は止められないので仮の設定で動いている。それを知らせてから任せる。 */
+        S.provisional = true;
+        S.banner = { t: e.clock, msg: 'いまは仮の設定です。キーを選んで決めてください', keep: true };
+        close();
+      };
       r.appendChild(a); r.appendChild(c); b.appendChild(r);
     });
   }
@@ -1378,10 +1442,11 @@
     function txt(r, u) { return r[0] + '–' + r[1] + (u ? ' ' + u : ''); }
     modal('血液ガス分析（' + (e.p.ageLabel || e.nm.label) + '）', function (b, close) {
       var t = el('table', 'abg');
-      [['pH', g.ph.toFixed(2), txt(ab.ph), rng(g.ph, go.ph || ab.ph)],
-       ['PaCO₂', g.paco2.toFixed(1), txt(ab.paco2, 'mmHg'), rng(g.paco2, go.paco2 || ab.paco2)],
-       ['PaO₂', String(Math.round(g.pao2)), txt(ab.pao2, 'mmHg'), rng(g.pao2, go.pao2 || ab.pao2)],
-       ['HCO₃⁻', g.hco3.toFixed(1), txt(ab.hco3, 'mEq/L'), ''],
+      /* 色は横に並べた基準値と同じ物差しで付ける（違う物差しだと、範囲外なのに緑になる）。 */
+      [['pH', g.ph.toFixed(2), txt(ab.ph), rng(g.ph, ab.ph)],
+       ['PaCO₂', g.paco2.toFixed(1), txt(ab.paco2, 'mmHg'), rng(g.paco2, ab.paco2)],
+       ['PaO₂', String(Math.round(g.pao2)), txt(ab.pao2, 'mmHg'), rng(g.pao2, ab.pao2)],
+       ['HCO₃⁻', g.hco3.toFixed(1), txt(ab.hco3, 'mEq/L'), rng(g.hco3, ab.hco3)],
        ['BE', g.be.toFixed(1), '−2〜+2', ''],
        ['SaO₂', g.sao2.toFixed(1) + ' %', e.nm.spo2[0] + '–' + e.nm.spo2[1] + ' %', ''],
        ['乳酸', g.lactate.toFixed(1), '< 2.0 mmol/L', g.lactate > 2 ? 'bad' : ''],
@@ -1394,7 +1459,9 @@
         t.appendChild(tr);
       });
       b.appendChild(t);
-      b.appendChild(interpret(g, e));
+      /* レッスン中は読み取りを学習者に任せる。自動の解釈を出すと、直後のクイズの答えになってしまう。 */
+      if (S.lesson) b.appendChild(el('p', 'note', 'レッスン中は自動の解釈を出しません。① pH → ② PaCO₂ → ③ HCO₃⁻ → ④ 代償 の順で読んでみてください。'));
+      else b.appendChild(interpret(g, e));
       var r2 = el('div', 'mrow');
       var c = el('button', 'mbtn go', '設定に戻る'); c.onclick = close;
       r2.appendChild(c); b.appendChild(r2);
@@ -1403,11 +1470,17 @@
 
   function interpret(g, e) {
     var msgs = [], ab = e.nm.abg, pm = e.nm.platMax;
-    if (g.ph < ab.ph[0] && g.paco2 > ab.paco2[1]) msgs.push('呼吸性アシドーシス。換気量が足りていません。分時換気量（Vt または RR）を上げることを検討します。ただし auto-PEEP と Pplat に注意。');
+    var lowMap = e.map < e.nm.mapMin;
+    if (g.ph < ab.ph[0] && g.paco2 > ab.paco2[1]) {
+      msgs.push(g.ph >= 7.25
+        ? '呼吸性アシドーシス。ただし pH ' + g.ph.toFixed(2) + ' は保たれています。肺保護（Vt 5〜6 mL/kg・Pplat の上限）のために高 CO₂ を許容している可能性もあります。まず RR で補えるかを考えます。'
+        : '呼吸性アシドーシス。換気量が足りていません。分時換気量（Vt または RR）を上げることを検討します。ただし auto-PEEP と Pplat に注意。');
+    }
     else if (g.ph > ab.ph[1] && g.paco2 < ab.paco2[0]) msgs.push('呼吸性アルカローシス。過換気です。RR か Vt を下げます。');
     else if (g.ph < ab.ph[0] && g.hco3 < ab.hco3[0]) msgs.push('代謝性アシドーシス。原因（循環不全・敗血症・腎不全など）の検索が要ります。呼吸での代償を妨げない設定に。');
-    else msgs.push('酸塩基は概ね目標域です。');
-    if (g.pf < 150) msgs.push('P/F 比 ' + Math.round(g.pf) + '。酸素化が悪く、PEEP を上げてリクルートメントを図る場面です。');
+    else if (!msgs.length) msgs.push('酸塩基は概ね目標域です。');
+    if (g.pf < 150 && lowMap) msgs.push('P/F 比 ' + Math.round(g.pf) + '。酸素化は悪いものの、平均血圧 ' + Math.round(e.map) + ' が下限 ' + e.nm.mapMin + ' を割っています。PEEP を上げる前に循環（輸液・強心薬）を立て直します。');
+    else if (g.pf < 150) msgs.push('P/F 比 ' + Math.round(g.pf) + '。酸素化が悪く、PEEP を上げてリクルートメントを図る場面です。');
     else if (g.fio2 > 0.5 && g.pao2 > ab.pao2[1]) msgs.push('PaO₂ に余裕があります。FiO₂ を下げて酸素毒性（未熟児網膜症や気管支肺異形成の一因）を避けます。');
     if (e.m.pplat != null && e.m.pplat > pm) msgs.push('Pplat ' + Math.round(e.m.pplat) + ' cmH₂O。この年齢の目安 ' + pm + ' を超えています。Vt を減らすか PEEP を見直してください。');
     if (e.m.autoPeep > 3) msgs.push('auto-PEEP ' + e.m.autoPeep.toFixed(1) + ' cmH₂O。呼気時間が不足しています。RR を下げるか吸気時間を短くします。');
@@ -1433,7 +1506,7 @@
       var nOk = list.filter(function (c) { return c.ok; }).length;
       var tip = el('div', 'tip' + (nOk === list.length ? '' : ' bad'));
       tip.textContent = nOk === list.length
-        ? '条件は揃っています。PS 5 / PEEP 5 で 30 分の SBT を行います。'
+        ? '条件は揃っています。PEEP 5 とチューブ抵抗ぶんの PS（' + (e.p.pbw < 10 ? 8 : (e.p.pbw < 25 ? 6 : 5)) + '）で 30 分の SBT を行います。'
         : (list.length - nOk) + ' 項目が未達です。このまま行うと失敗しやすくなります（学習のため実施は可能）。';
       b.appendChild(tip);
       var r2 = el('div', 'mrow');
@@ -1446,7 +1519,7 @@
         st.onclick = function () { close(); S.sbt = null; restoreSettings(); };
         r2.appendChild(st);
       }
-      if (S.sbt && S.sbt.done === 'pass') {
+      if (S.sbt && S.sbt.done === 'pass' && lessonAllowsExtubate()) {
         var ex = el('button', 'mbtn go', '抜管する');
         ex.onclick = function () { close(); doExtubate(); };
         r2.appendChild(ex);
@@ -1468,9 +1541,13 @@
           + '、呼吸回数 ' + Math.round(S.eng.m.rrTotal) + ' /分。';
         b.appendChild(t);
         var r = el('div', 'mrow');
-        var ex = el('button', 'mbtn go', '抜管する'); ex.onclick = function () { close(); doExtubate(); };
-        var wk = el('button', 'mbtn', 'もう少し様子を見る'); wk.onclick = close;
-        r.appendChild(ex); r.appendChild(wk); b.appendChild(r);
+        if (lessonAllowsExtubate()) {
+          var ex = el('button', 'mbtn go', '抜管する'); ex.onclick = function () { close(); doExtubate(); };
+          r.appendChild(ex);
+        }
+        var wk = el('button', 'mbtn' + (lessonAllowsExtubate() ? '' : ' go'), lessonAllowsExtubate() ? 'もう少し様子を見る' : 'レッスンに戻る');
+        wk.onclick = close;
+        r.appendChild(wk); b.appendChild(r);
       } else {
         b.appendChild(el('p', '', 'SBT を中断しました。設定は元に戻しています。'));
         var t2 = el('div', 'tip bad'); t2.textContent = '中断の理由：' + b2.failMsg;
@@ -1481,6 +1558,14 @@
         r2.appendChild(ok); b.appendChild(r2);
       }
     });
+  }
+
+  /* レッスン中は、抜管が課題になっている場面でだけ抜管ボタンを出す（6-3 はクイズのあとで抜く）。 */
+  function lessonAllowsExtubate() {
+    var L = S.lesson;
+    if (!L) return true;
+    var t = L.rt.task();
+    return !!(t && t.event === 'extubate' && L.mode === 'task');
   }
 
   function doExtubate() {
@@ -1659,6 +1744,7 @@
           if (b.dataset[key] === arg) out.push(b);
         });
       } else if (kind === 'dial') { n = $('knob'); if (n) out.push(n); }
+      else if (kind === 'ok') { n = $('btnOk'); if (n) out.push(n); }
       else if (kind === 'wave') { n = $('scopewrap'); if (n) out.push(n); }
     });
     return out;
@@ -1668,6 +1754,39 @@
     spotted.forEach(function (n) { n.classList.remove('spot'); delete n.dataset.spot; });
     spotted = spec ? spotEls(spec) : [];
     spotted.forEach(function (n) { n.classList.add('spot'); n.dataset.spot = '1'; });
+  }
+
+  /* 光らせたキーを押したら、光をダイヤルと「確定」に移す。確定したら元のキーに戻す。
+   * 次に触るところが常に 1 か所光っているようにするため。 */
+  function spotFollow(committed) {
+    var L = S.lesson;
+    if (!L || L.mode !== 'task' || !L.spot) return;
+    var list = Array.isArray(L.spot) ? L.spot : [L.spot];
+    if (S.sel && list.indexOf('key:' + S.sel) >= 0) applySpot(['dial', 'ok']);
+    else applySpot(L.spot);
+    /* 確定したら、次に見るもの（波形や計測値）のほうへ画面を戻す。 */
+    if (committed) setTimeout(function () { scrollToSpot(true); }, 60);
+  }
+
+  /* スマホでは画面が縦に長く、光らせた場所が画面の外にあることがある。
+   * 課題が変わったときに、いちばん上の光る場所が見えるところまでスクロールする。 */
+  function scrollToSpot(preferView) {
+    if (!window.matchMedia || !window.matchMedia('(max-width:860px)').matches) return;
+    var n = spotted[0];
+    if (preferView) {
+      n = null;
+      for (var i = 0; i < spotted.length; i++) {
+        if (!spotted[i].classList.contains('pkey') && spotted[i].id !== 'knob' && spotted[i].id !== 'btnOk') { n = spotted[i]; break; }
+      }
+    }
+    if (!n || !n.getBoundingClientRect) return;
+    var r = n.getBoundingClientRect(), vh = window.innerHeight;
+    var coach = $('coach'), dial = document.querySelector('.dialrow');
+    var bottom = vh - (dial ? dial.offsetHeight : 0) - (coach && !coach.hidden ? coach.offsetHeight : 0);
+    if (r.top >= 0 && r.bottom <= bottom) return;
+    var y = window.scrollY + r.top - Math.max(8, (bottom - r.height) / 2);
+    try { window.scrollTo({ top: Math.max(0, y), behavior: reducedMotion() ? 'auto' : 'smooth' }); }
+    catch (err) { window.scrollTo(0, Math.max(0, y)); }
   }
 
   /* ---- 課題に関係する計測値だけを帯にも出す ---- */
@@ -1700,7 +1819,8 @@
     var L = S.lesson, box = $('cWatch');
     if (!L) { box.hidden = true; return; }
     var fb = (L.mode === 'feedback' || L.mode === 'done');
-    var now = watchRead(L.curWatch);
+    /* 解説を読んでいるあいだは、解説の文と同じ瞬間の値で止める（文とチップの数字がずれないように）。 */
+    var now = fb && L.fbNow ? L.fbNow : watchRead(L.curWatch);
     if (!now) { if (!box.hidden) { box.hidden = true; box.innerHTML = ''; } return; }
     var h = watchHtml(now, fb ? L.snap : null);
     if (box._h !== h) { box._h = h; box.innerHTML = h; }
@@ -1725,7 +1845,7 @@
     for (var k in st) if (Object.prototype.hasOwnProperty.call(st, k)) S.eng.s[k] = st[k];
     if (lesson.sedation != null) S.eng.sedation = lesson.sedation;
     S.eng._recomputeDrive();
-    settleEngine(S.eng);                 // レッスンの設定で数呼吸ぶん進め、実測をそろえてから始める
+    settleEngine(S.eng, 2);              // レッスンの設定で 2 呼吸ぶん進め、実測をそろえてから始める
     setScreen('wave');
     S.lesson = {
       id: id, lesson: lesson, chap: LS.chapterOf(id),
@@ -1764,21 +1884,29 @@
     if (r) afterAdvance(r);
   }
 
+  /* 最後の課題にも解説がある。先に解説を見せ、その「次へ」で修了にする
+   * （いきなり修了にすると、いちばん大事なまとめが読めない）。 */
   function afterAdvance(r) {
     var L = S.lesson;
-    if (r.finished) {
-      var first = doneSet().indexOf(L.id) < 0;
-      markDone(L.id);
-      L.mode = 'done';
-      var n = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
-      var all = LS.allLessons().length;
-      if (n >= all) celebrate('全レッスン修了！おめでとう 🏆');
-      else if (first) celebrate('レッスン修了！ ' + n + ' / ' + all + ' 🎉');
-      else celebrate('レッスン修了！ 🎉');
-    }
-    else L.mode = (r.why ? 'feedback' : 'task');
     L.fb = fillSay(r.why || '');       // 解説は通過した瞬間の値で固定する
+    L.fbNow = watchRead(L.curWatch);
+    L.finishPending = !!(r.finished && r.why);
+    if (r.finished && !r.why) finishLesson();
+    else L.mode = (r.why ? 'feedback' : 'task');
     L.sig = '';
+  }
+
+  function finishLesson() {
+    var L = S.lesson;
+    var first = doneSet().indexOf(L.id) < 0;
+    markDone(L.id);
+    L.mode = 'done';
+    L.finishPending = false;
+    var n = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
+    var all = LS.allLessons().length;
+    if (n >= all) celebrate('全レッスン修了！おめでとう 🏆');
+    else if (first) celebrate('レッスン修了！ ' + n + ' / ' + all + ' 🎉');
+    else celebrate('レッスン修了！ 🎉');
   }
 
   function bindCoach() {
@@ -1864,6 +1992,8 @@
       L.snap = watchRead(L.curWatch);
       L.spot = t ? t.spot : null;
       applySpot(L.spot);
+      spotFollow();
+      if (L.spot) setTimeout(scrollToSpot, 60);
     } else if (L.mode !== 'task' && L.spot) {
       L.spot = null;
       applySpot(null);
@@ -1871,6 +2001,8 @@
 
     if (L.mode === 'done') {
       say = '🎉 このレッスンは終わりです。' + (rt.wrong ? '' : 'クイズは全問一度で正解でした。');
+      var pts = L.lesson.points || [];
+      if (pts.length) hint = 'このレッスンで覚えること：' + pts.join(' ／ ');
       tone = 'ok';
       choices = { kind: 'end' };
     } else if (L.mode === 'feedback') {
@@ -1891,6 +2023,8 @@
       } else {
         say = typeof t.say === 'function' ? t.say(rt.bind(lessonCtx())) : (t.say || '');
         hint = typeof t.hint === 'function' ? t.hint(rt.bind(lessonCtx())) : (t.hint || '');
+        /* 違うキーを押したときの一言。黙って無視すると、押せていないのかと迷う。 */
+        if (rt.feedback && rt.feedback.ok === false) hint = rt.feedback.text;
       }
     }
 
@@ -1901,7 +2035,7 @@
     var mood = coachMood(L, t);
     var sig = L.mode + '|' + rt.index + '|' + say + '|' + hint + '|' + tone + '|' + who
       + '|' + (choices ? choices.kind + (choices.list ? choices.list.length : '') : '-')
-      + '|' + rt.answered + '|' + mood;
+      + '|' + rt.answered + '|' + mood + '|' + (L.finishPending ? 1 : 0);
     if (sig !== L.sig) {
       L.sig = sig;
       if (L.mood !== mood || L.who !== who) {
@@ -1963,9 +2097,13 @@
       };
       box.appendChild(tb);
     } else if (choices.kind === 'next') {
-      var n = el('button', 'cbtn go', '次へ');
+      var n = el('button', 'cbtn go', L.finishPending ? 'レッスンを終える' : '次へ');
       n.style.flex = '0 0 auto';
-      n.onclick = function () { L.mode = 'task'; L.sig = ''; };
+      n.onclick = function () {
+        if (L.finishPending) finishLesson();
+        else L.mode = 'task';
+        L.sig = '';
+      };
       box.appendChild(n);
     } else {
       var nid = LS.nextLessonId(L.id);

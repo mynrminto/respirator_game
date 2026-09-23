@@ -1,7 +1,9 @@
 import SwiftUI
 
 /// 実機のロータリーダイヤル。回しても値は確定するまで患者に届かない。
-/// 指の回転角を積算し、15° ごとに 1 目盛り送る。
+/// 指の回転角を積算し、15° ごとに 1 目盛り送る。速く回したときは 1 回で 2〜5 目盛り送る
+/// （FiO₂ 100 → 40% のような大きな変更を、何周も回さずに済ませるため）。
+/// onStep には送る目盛りの数（符号つき）が来る。
 struct KnobView: View {
     /// 0…1。目盛りの位置。
     let fraction: Double
@@ -13,7 +15,10 @@ struct KnobView: View {
     var onCommit: () -> Void
 
     @State private var lastAngle: Double?
+    @State private var lastTime: Date?
     @State private var accumulated: Double = 0
+    /// 回す速さ（rad/s）をならしたもの。1 回の指の揺れで倍率が跳ねないようにする。
+    @State private var angularSpeed: Double = 0
 
     private let sweep = Double.pi * 1.5          // 270°
     private let start = Double.pi * 0.75
@@ -40,20 +45,27 @@ struct KnobView: View {
                 .onChanged { drag in
                     guard isEnabled else { return }
                     let angle = atan2(drag.location.y - 29, drag.location.x - 29)
-                    defer { lastAngle = angle }
+                    defer { lastAngle = angle; lastTime = drag.time }
                     guard let previous = lastAngle else { return }
                     var delta = angle - previous
                     while delta > .pi { delta -= 2 * .pi }
                     while delta < -.pi { delta += 2 * .pi }
+                    if let before = lastTime {
+                        let dt = max(drag.time.timeIntervalSince(before), 0.004)
+                        angularSpeed = angularSpeed * 0.6 + abs(delta) / dt * 0.4
+                    }
                     accumulated += delta
                     var guardCount = 0
                     while abs(accumulated) >= stepAngle && guardCount < 40 {
-                        onStep(accumulated > 0 ? 1 : -1)
-                        accumulated -= accumulated > 0 ? stepAngle : -stepAngle
+                        let direction: Double = accumulated > 0 ? 1 : -1
+                        onStep(direction * multiplier)
+                        accumulated -= direction * stepAngle
                         guardCount += 1
                     }
                 }
-                .onEnded { _ in lastAngle = nil; accumulated = 0 }
+                .onEnded { _ in
+                    lastAngle = nil; lastTime = nil; accumulated = 0; angularSpeed = 0
+                }
         )
         .accessibilityElement()
         .accessibilityLabel("設定ダイヤル")
@@ -66,6 +78,15 @@ struct KnobView: View {
             }
         }
         .accessibilityAction(named: "確定") { onCommit() }
+    }
+
+    /// ゆっくり（1 秒に半周まで）なら 1 目盛りずつ、速いほど大きく送る。
+    private var multiplier: Double {
+        switch angularSpeed {
+        case ..<4.5: return 1
+        case ..<8:   return 2
+        default:     return 5
+        }
     }
 
     private func draw(_ context: inout GraphicsContext, _ size: CGSize) {

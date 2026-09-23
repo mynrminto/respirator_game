@@ -27,7 +27,9 @@ public final class VentilatorEngine {
         public var highFiO2: Double = 0
     }
 
-    struct BreathRecord { let time: Double; let volume: Double; let spontaneous: Bool }
+    struct BreathRecord {
+        let time: Double; let volume: Double; let spontaneous: Bool; let trigger: TriggerSource
+    }
 
     // MARK: - 公開状態
 
@@ -85,8 +87,18 @@ public final class VentilatorEngine {
     private var volumeEndExp: Double = 0
     private var volumeEndInsp: Double = 0
     private var previousInspStart: Double?
+    private var inspirationStart: Double?
     private var lastInspiratoryTime: Double = 1
-    private var lastCycleTime: Double = 0
+    /// I:E の表示は数呼吸でならす（患者トリガで間隔が揺れるため）。
+    private var smoothedIERatio: Double?
+    /// 量規定の最後の送気流量（L/s）と、吸気終末の気道内圧。Raw の計算に使う。
+    private var lastVolumeControlFlow: Double?
+    private var endInspiratoryPressure: Double?
+    /// 1 呼吸の最大吸気流量・最大呼気流量（L/s、呼気は負）。
+    private var peakInspFlowThisBreath: Double = 0
+    private var peakExpFlowThisBreath: Double = 0
+    /// 吸引の陰圧で潰れた肺胞の分のシャント。数分かけて開き直す。
+    private var suctionShunt: Double = 0
     private var hold: (kind: HoldKind, elapsed: Double)?
     private var pendingHold: HoldKind?
 
@@ -95,6 +107,7 @@ public final class VentilatorEngine {
     /// 次の吸気末／呼気末に実行されるのを待っているポーズ。
     public var awaitingHold: HoldKind? { pendingHold }
     private var lastBreathWasSpontaneous = false
+    private var lastBreathTrigger: TriggerSource = .timer
 
     private var neuralTime: Double = 0
     private var neuralCycle: Double = 60 / 14
@@ -148,6 +161,14 @@ public final class VentilatorEngine {
         shunt = patient.shuntAtLowPEEP
         hold = nil
         pendingHold = nil
+        previousInspStart = nil
+        inspirationStart = nil
+        smoothedIERatio = nil
+        lastVolumeControlFlow = nil
+        endInspiratoryPressure = nil
+        peakInspFlowThisBreath = 0
+        peakExpFlowThisBreath = 0
+        suctionShunt = 0
         measured = MeasuredValues()
         measured.totalPEEP = settings.peep
         measured.meanAirwayPressure = settings.peep
@@ -176,14 +197,19 @@ public final class VentilatorEngine {
         patient.resistanceExp = max(1, expiratory)
     }
 
-    /// 気管吸引。痰が取れて抵抗は下がるが、陰圧で肺胞が潰れるので一時的に酸素化が落ちる。
-    public func performSuction() {
-        shunt = min(0.9, shunt + 0.10)
-        pao2 = max(35, pao2 - 22)
-        spo2 = Physiology.saturation(po2: pao2) * 100
-        setAirwayResistance(inspiratory: patient.resistanceInsp * 0.88,
-                            expiratory: patient.resistanceExp * 0.90)
+    /// 気管吸引。吸引のあいだは換気が止まり、陰圧で肺胞が潰れる。SpO₂ はその場で数 % 落ち、
+    /// 潰れた肺胞が開き直すまでの数分はシャントが増える。痰が取れたぶん抵抗は下がる。
+    public func suction() {
+        suctionShunt = 0.15
+        let drop = settings.fio2 >= 0.99 ? 4.0 : 7.0      // 先に 100% で貯金していれば落ち込みは小さい
+        spo2 = max(40, spo2 - drop)
+        pao2 = min(pao2, Physiology.po2(fromSaturation: spo2 / 100))
+        patient.resistanceInsp = max(4, patient.resistanceInsp * 0.88)
+        patient.resistanceExp = max(5, patient.resistanceExp * 0.90)
     }
+
+    /// 呼吸筋の努力の大きさ（cmH2O）。離脱の条件「自発呼吸がある」の判定に使う。
+    public var inspiratoryEffortAmplitude: Double { muscleAmplitude }
 
     public func drawBloodGas() -> BloodGas {
         let jitter = { (scale: Double) in (Double.random(in: 0...1) - 0.5) * scale }
@@ -235,6 +261,13 @@ public final class VentilatorEngine {
         case .inspiration: stepInspiration(dt: dt)
         case .pause:       stepPause(dt: dt)
         case .expiration:  stepExpiration(dt: dt)
+        }
+
+        // 1 呼吸の最大吸気流量・最大呼気流量（波形の目盛りを体重に合わせるのに使う）
+        if phase == .inspiration {
+            if flow > peakInspFlowThisBreath { peakInspFlowThisBreath = flow }
+        } else if flow < peakExpFlowThisBreath {
+            peakExpFlowThisBreath = flow
         }
 
         pressureSum += airwayPressure * dt
@@ -315,9 +348,19 @@ public final class VentilatorEngine {
             : 0
     }
 
+    /// 疲れはじめる負荷と疲れる速さは症例で変えられる。
     private func updateFatigue(dt: Double) {
-        if muscleLoad > 0.62 {
-            fatigue += (muscleLoad - 0.62) * dt / 95
+        var load = muscleLoad
+        // A/C では送気の大半を機械が担うので、呼吸筋は休んでいる。SIMV はその中間。
+        switch settings.mode {
+        case .volumeAssistControl, .pressureAssistControl: load *= 0.4
+        case .simvVolume: load *= 0.7
+        default: break
+        }
+        let threshold = patient.fatigueLoad ?? 0.62
+        let tau = patient.fatigueTau ?? 95
+        if load > threshold {
+            fatigue += (load - threshold) * dt / tau
         } else {
             fatigue -= dt / 420
         }
@@ -339,6 +382,9 @@ public final class VentilatorEngine {
             measured.plateauPressure = volume / compliance
         }
         if h.elapsed > 2.2 {
+            /* ポーズのあいだは次の呼吸の時計を止めておく。止めないと、ポーズ明けの呼気が
+             * 短く切られて吐ききれず、見かけの auto-PEEP が赤く出る。 */
+            sinceMandatory = max(0, sinceMandatory - h.elapsed)
             if h.kind == .expiratory {
                 measured.autoPEEP = max(0, measured.totalPEEP - settings.peep)
             } else {
@@ -364,9 +410,11 @@ public final class VentilatorEngine {
             var dV = q * dt
             if inspiredVolume + dV > targetVolume { dV = max(0, targetVolume - inspiredVolume) }
             flow = q
+            lastVolumeControlFlow = q
             volume += dV
             inspiredVolume += dV
             airwayPressure = volume / compliance + patient.resistanceInsp * q - musclePressure
+            endInspiratoryPressure = airwayPressure
 
             if inspiredVolume >= targetVolume - 1e-9 {
                 if settings.inspiratoryPause > 0 { beginPause() } else { endInspiration() }
@@ -405,14 +453,18 @@ public final class VentilatorEngine {
         flow = 0
         airwayPressure = volume / compliance - musclePressure * 0.35
         measured.plateauPressure = volume / compliance
+        /* 先に呼吸を締めてから計算する。逆にすると vEI と PIP が 1 つ前の呼吸の値のままで、
+         * Cstat と Raw が呼吸ごとに跳ねる。 */
         if phaseTime >= settings.inspiratoryPause {
-            recomputeMechanics()
             endInspiration()
+            recomputeMechanics()
         }
     }
 
     private func stepExpiration(dt: Double) {
-        airwayPressure = settings.peep
+        /* 患者が吸おうとすると、回路の圧は PEEP より少しだけ下がる。
+         * 機械が応えなかった努力（トリガを鈍くしたとき）は、この小さな切れ込みとして圧波形に残る。 */
+        airwayPressure = settings.peep - 0.5 * musclePressure
         let tau = patient.resistanceExp * compliance
         let equilibrium = compliance * (settings.peep + musclePressure)
         let newVolume = equilibrium + (volume - equilibrium) * exp(-dt / tau)
@@ -429,7 +481,11 @@ public final class VentilatorEngine {
                 beginBreath(.spontaneous, trigger: .patient)
             } else if settings.mode == .simvVolume {
                 let inWindow = sinceMandatory >= mandatoryInterval - 0.6
+                let grid = sinceMandatory - mandatoryInterval
                 beginBreath(inWindow ? .mandatory : .spontaneous, trigger: .patient)
+                /* 窓の中で同期した強制換気は、時計の刻みを保つ（早めた分だけ次を遅らせる）。
+                 * 0 に戻すと、同期するたびに強制換気の回数が設定より増えていく。 */
+                if inWindow { sinceMandatory = grid }
             } else {
                 beginBreath(.mandatory, trigger: .patient)   // A/C
             }
@@ -451,11 +507,16 @@ public final class VentilatorEngine {
             measured.totalPEEP = volume / compliance
             return
         }
+        measured.peakExpiratoryFlow = -peakExpFlowThisBreath * 60
+        peakExpFlowThisBreath = 0
         volumeEndExp = volume
-        measured.totalPEEP = max(settings.peep, volume / compliance)
-        measured.autoPEEP = max(0, volume / compliance - settings.peep)
-        lastCycleTime = previousInspStart.map { clock - $0 } ?? 0
+        /* 肺胞の圧は弾性圧（V/C）から患者の吸気努力を引いたもの。努力で引き込んだ分まで
+         * auto-PEEP に数えると、自発のある子で 0.2〜1 cmH₂O の見かけの値が出続ける。 */
+        let alveolarEndExp = volume / compliance - musclePressure
+        measured.totalPEEP = max(settings.peep, alveolarEndExp)
+        measured.autoPEEP = max(0, alveolarEndExp - settings.peep)
         previousInspStart = clock
+        inspirationStart = clock
 
         phase = .inspiration
         phaseTime = 0
@@ -465,12 +526,18 @@ public final class VentilatorEngine {
         peakPressureThisBreath = 0
         peakFlowThisBreath = 0
         sinceBreath = 0
-        sinceMandatory = 0
+        /* 強制換気の時計は強制換気でだけ戻す。SIMV の自発呼吸で戻すと、
+         * 自発が多いほど強制換気が減り、設定 RR が守られなくなる。 */
+        if type == .mandatory { sinceMandatory = 0 }
         lastBreathWasSpontaneous = (type == .spontaneous)
+        lastBreathTrigger = trigger
     }
 
     private func endInspiration() {
-        lastInspiratoryTime = phaseTime
+        measured.peakInspiratoryFlow = peakInspFlowThisBreath * 60
+        peakInspFlowThisBreath = 0
+        // ポーズも吸気時間に含める
+        lastInspiratoryTime = inspirationStart.map { clock - $0 } ?? phaseTime
         volumeEndInsp = volume
         measured.peakPressure = peakPressureThisBreath
         let tidal = (volumeEndInsp - volumeEndExp) * 1000
@@ -478,7 +545,8 @@ public final class VentilatorEngine {
         if lastBreathWasSpontaneous { lastSpontaneousTidal = tidal / 1000 }
         phase = .expiration
         phaseTime = 0
-        breaths.append(BreathRecord(time: clock, volume: tidal, spontaneous: lastBreathWasSpontaneous))
+        breaths.append(BreathRecord(time: clock, volume: tidal, spontaneous: lastBreathWasSpontaneous,
+                                    trigger: lastBreathTrigger))
         if breaths.count > 200 { breaths.removeFirst() }
         recomputeRates()
         if pendingHold == .inspiratory {
@@ -492,55 +560,92 @@ public final class VentilatorEngine {
         guard let plateau = measured.plateauPressure else { return }
         let tidal = volumeEndInsp - volumeEndExp
         guard tidal > 0.0005 else { return }
-        let driving = plateau - measured.totalPEEP
+        let driving = plateau - max(settings.peep, volumeEndExp / compliance)
         measured.drivingPressure = driving
         measured.staticCompliance = driving > 0.5 ? (tidal * 1000) / driving : nil
-        if settings.mode.isVolumeTargeted {
-            let endFlow = settings.inspiratoryFlow / 60
-            measured.airwayResistance = endFlow > 0.004
-                ? (measured.peakPressure - plateau) / endFlow : nil
+        let endFlow = lastVolumeControlFlow ?? settings.inspiratoryFlow / 60
+        /* 患者トリガの呼吸は吸気努力のぶん PIP が低く出るので、Raw の計算に使わない。 */
+        if settings.mode.isVolumeTargeted, lastBreathTrigger != .patient {
+            /* 吸気終末の圧と流量で割る。漸減波では PIP と終末流量が同じ瞬間ではないので、PIP は使わない。 */
+            let endPressure = endInspiratoryPressure ?? measured.peakPressure
+            let raw: Double? = endFlow > 0.004 ? (endPressure - plateau) / endFlow : nil
+            if let raw, raw >= 0 { measured.airwayResistance = raw } else { measured.airwayResistance = nil }
         }
     }
 
+    /* 呼吸回数は「直近 20 秒の呼吸の間隔」から出す（少なくとも 3 間隔）。60 秒の窓で数えると、
+     * 設定を変えてから表示が追いつくまで 1 分近くかかり、窓の端の数え方で設定より 1〜3 回多く出る。
+     * 自発・トリガの割合だけは 60 秒で見る。混ざった呼吸では短い窓だと割合が大きく揺れるため。 */
     private func recomputeRates() {
-        let window = 60.0
-        var total = 0, spontaneous = 0
-        var volumeSum = 0.0, spontaneousVolumeSum = 0.0
-        for record in breaths.reversed() {
-            if clock - record.time > window { break }
-            total += 1
-            volumeSum += record.volume
-            if record.spontaneous {
-                spontaneous += 1
-                spontaneousVolumeSum += record.volume
+        let now = clock
+        let records = breaths
+        let last = records.count - 1
+        var first = -1
+        var i = last
+        while i >= 0 {
+            if now - records[i].time > 60 { break }
+            if now - records[i].time <= 20 || last - i <= 3 { first = i }
+            i -= 1
+        }
+        let n = first >= 0 ? last - first : 0       // 間隔の数。最初の呼吸は起点にだけ使う
+        var volumeSum = 0.0, spontaneousShort = 0, spontaneousVolumeSum = 0.0
+        if n > 0 {
+            for record in records[(first + 1)...] {
+                volumeSum += record.volume
+                if record.spontaneous {
+                    spontaneousShort += 1
+                    spontaneousVolumeSum += record.volume
+                }
             }
         }
-        let span = min(window, max(5, clock))
-        measured.respiratoryRateTotal = Double(total) * 60 / span
-        measured.respiratoryRateSpontaneous = Double(spontaneous) * 60 / span
-        measured.minuteVolume = volumeSum / 1000 * 60 / span
+        var countAll = 0, spontaneous = 0, triggered = 0
+        i = last
+        while i >= 0, now - records[i].time <= 60 {
+            countAll += 1
+            if records[i].spontaneous { spontaneous += 1 }
+            if records[i].trigger == .patient { triggered += 1 }
+            i -= 1
+        }
+        if n >= 1 {
+            let rate = Double(n) * 60 / max(0.5, records[last].time - records[first].time)
+            measured.respiratoryRateTotal = rate
+            measured.respiratoryRateSpontaneous = countAll > 0 ? rate * Double(spontaneous) / Double(countAll) : 0
+            measured.respiratoryRateTriggered = countAll > 0 ? rate * Double(triggered) / Double(countAll) : 0
+            measured.minuteVolume = (volumeSum / Double(n)) / 1000 * rate
+        } else {
+            measured.respiratoryRateTotal = 0
+            measured.respiratoryRateSpontaneous = 0
+            measured.respiratoryRateTriggered = 0
+            measured.minuteVolume = 0
+        }
 
         /* 成人の RSBI（f/VT[L] < 105）は小児では常に桁外れになる。
-         * 小児では f ÷ (一回換気量 mL/kg) で見て、8 未満を目安にする。 */
+         * 小児では f ÷ (一回換気量 mL/kg) で見て、8 未満を目安にする。
+         * f はモードを切り替えた直後でも正しく出るよう、短い窓の自発の割合から出す。 */
         var meanTidal: Double? = nil
-        if spontaneous >= 2 {
-            meanTidal = spontaneousVolumeSum / Double(spontaneous)
-        } else if measured.respiratoryRateSpontaneous > 0, measured.tidalVolumeExp > 0 {
-            meanTidal = measured.tidalVolumeExp
-        }
+        if spontaneousShort >= 2 { meanTidal = spontaneousVolumeSum / Double(spontaneousShort) }
         if let vt = meanTidal, vt > 0.2 {
-            let f = max(measured.respiratoryRateSpontaneous, 1)
+            let f = max(n >= 1 ? measured.respiratoryRateTotal * Double(spontaneousShort) / Double(n) : 0, 1)
             measured.rsbi = min(3000, f / (vt / 1000))
             measured.rsbiPerKg = min(60, f / (vt / patient.predictedBodyWeight))
-        } else if measured.respiratoryRateSpontaneous > 0 {
+        } else if spontaneousShort >= 2 {
             measured.rsbi = 3000
             measured.rsbiPerKg = 60
+        } else if spontaneous == 0 {
+            measured.rsbi = nil                     // 自発がなければ出さない
+            measured.rsbiPerKg = nil
         }
 
-        let ti = lastInspiratoryTime
-        let ttot = lastCycleTime > 0.3 ? lastCycleTime : 60 / max(1, settings.respiratoryRate)
+        /* I:E は 1 呼吸の吸気時間（ポーズ込み）と、呼吸の間隔の平均から出す。
+         * 患者トリガで間隔が揺れるので、数呼吸でならして表示する。 */
+        let ti = lastInspiratoryTime > 0 ? lastInspiratoryTime : settings.inspiratoryTime
+        let ttot = measured.respiratoryRateTotal > 0.5
+            ? 60 / measured.respiratoryRateTotal
+            : 60 / max(1, settings.respiratoryRate)
         let ratio = max(0.2, (ttot - ti) / max(0.1, ti))
-        measured.ieRatio = String(format: "1:%.1f", ratio)
+        let smoothed = smoothedIERatio.map { $0 + 0.4 * (ratio - $0) } ?? ratio
+        smoothedIERatio = smoothed
+        measured.ieRatio = String(format: "1:%.1f", smoothed)
     }
 
     // MARK: - ガス交換・循環
@@ -580,6 +685,10 @@ public final class VentilatorEngine {
             + (patient.shuntAtLowPEEP - patient.shuntMinimum) * recruitable
         if plateau > norms.plateauMax { currentShunt += (plateau - norms.plateauMax) * 0.006 }
         if patient.prone { currentShunt *= 0.75 }
+        if suctionShunt > 0.001 {           // 吸引の陰圧で潰れた肺胞は数分かけて開き直す
+            currentShunt += suctionShunt
+            suctionShunt *= exp(-d / 50)
+        }
         shunt = Physiology.clamp(currentShunt, 0.02, 0.65)
 
         // 平均気道内圧が高いほど静脈還流が落ちる
@@ -686,6 +795,14 @@ public final class VentilatorEngine {
     }
 
     public func restoreShunt(to value: Double) { patient.shuntAtLowPEEP = value }
+
+    /// 急変の途中から場面を始めるとき、SpO₂ をその値まで先に落としておく（PaO₂ も上限で切る）。
+    /// すでに低ければ何もしない。
+    public func lowerOxygenation(spo2 maxSpO2: Double, pao2 maxPaO2: Double) {
+        guard spo2 > maxSpO2 else { return }
+        spo2 = maxSpO2
+        pao2 = min(pao2, maxPaO2)
+    }
 
     /// 肺の硬さ。レッスンが気胸や片肺挿管を起こすときに、元の値を控えてから差し替える。
     public var lungCompliance: Double { patient.compliance }

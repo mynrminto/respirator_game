@@ -29,6 +29,18 @@ public enum Physiology {
         return (low + high) / 2
     }
 
+    /// 飽和度（0...1）から PO2 を逆算する（二分法）。
+    public static func po2(fromSaturation sat: Double) -> Double {
+        guard sat > 0 else { return 0 }
+        if sat >= 0.9999 { return 700 }
+        var low = 0.0, high = 700.0
+        for _ in 0..<60 {
+            let mid = (low + high) / 2
+            if saturation(po2: mid) < sat { low = mid } else { high = mid }
+        }
+        return (low + high) / 2
+    }
+
     /// 肺胞気酸素分圧。
     public static func alveolarPO2(fio2: Double, paco2: Double) -> Double {
         fio2 * (barometric - waterVapor) - paco2 / respiratoryQuotient

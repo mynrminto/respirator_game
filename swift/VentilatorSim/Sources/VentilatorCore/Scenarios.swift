@@ -113,7 +113,7 @@ public enum ScenarioLibrary {
         id: "bronchiolitis", title: "RSV 細気管支炎", tag: "auto-PEEP",
         oneLine: "気道が細く痰が多い。呼吸数を上げると息が吐けなくなる乳児の典型。",
         history: "生後 4か月、体重 6.0 kg。3日前から鼻汁と咳、前日から哺乳不良。高流量鼻カニュラでも陥没呼吸と無呼吸発作があり気管挿管。RSV 抗原陽性。胸部X線は過膨張と右中葉の無気肺。",
-        findings: ["体温 38.2℃", "心拍 158 /分", "平均血圧 48 mmHg",
+        findings: ["体温 38.2℃", "心拍 158 /分", "平均血圧 52 mmHg",
                    "呼気延長と wheeze、痰が多い", "気管チューブ：カフなし 3.5 mm、口角 10 cm"],
         teachingPoints: ["時定数と呼気時間（乳児でも同じ考え方）", "呼気ポーズで総 PEEP を測る",
                          "頻呼吸が auto-PEEP を作る", "痰づまりで気道内圧が上がる"],
@@ -125,7 +125,7 @@ public enum ScenarioLibrary {
             shuntAtLowPEEP: 0.34, shuntMinimum: 0.16, recruitmentP50: 9, recruitmentK: 2.5,
             alveolarDeadSpaceFraction: 0.14, vco2: 36, hemoglobin: 10.5,
             paco2: 62, pao2: 62, hco3: 26, hco3Base: 24,
-            cardiacOutput: 1.1, heartRate: 158, meanArterialPressure: 48, temperature: 38.2,
+            cardiacOutput: 1.1, heartRate: 158, meanArterialPressure: 52, temperature: 38.2,
             sedation: 0.85, driveGain: 1.5, maxInspiratoryPressure: 14, co2Setpoint: 42,
             goals: .init(pH: 7.20...7.42, paco2: 45...75, pao2: 50...90)),
         suggested: .init(mode: .volumeAssistControl, tidalVolume: 45, respiratoryRate: 25,
@@ -201,6 +201,7 @@ public enum ScenarioLibrary {
             paco2: 50, pao2: 82, hco3: 26, hco3Base: 24,
             cardiacOutput: 2.9, heartRate: 95, meanArterialPressure: 68, temperature: 36.7,
             sedation: 0.20, driveGain: 1.2, maxInspiratoryPressure: 8, co2Setpoint: 40,
+            fatigueLoad: 0.2, fatigueTau: 170,      // 軽い負荷でも 15 分ほどで疲れてくる
             goals: .init(pH: 7.32...7.46, paco2: 33...48, pao2: 70...120)),
         suggested: .init(mode: .volumeAssistControl, tidalVolume: 160, respiratoryRate: 16,
                          peep: 5, fio2: 0.4, inspiratoryPressure: 12, inspiratoryTime: 0.7,
@@ -216,6 +217,13 @@ public struct WeaningCriterion: Identifiable {
 }
 
 public enum Weaning {
+    /// A/C では患者が吸った呼吸も強制換気として送られるので、自発はトリガの回数でも数える。
+    public static func hasSpontaneousBreathing(_ engine: VentilatorEngine) -> Bool {
+        let m = engine.measured
+        return m.respiratoryRateSpontaneous >= 4 || m.respiratoryRateTriggered >= 4
+            || engine.inspiratoryEffortAmplitude > 2
+    }
+
     /// 小児では平均血圧の下限が年齢で変わるので、症例の基準値から取る。
     /// PEEP と P/F の条件も成人よりやや厳しい（再挿管の負担が大きいため）。
     public static func readiness(for engine: VentilatorEngine) -> [WeaningCriterion] {
@@ -223,17 +231,17 @@ public enum Weaning {
         let pf = engine.pao2 / s.fio2
         let mapMin = engine.norms.meanArterialPressureMin
         return [
-            .init(label: "FiO2 0.4 以下", met: s.fio2 <= 0.41, value: "\(Int(s.fio2 * 100))%"),
-            .init(label: "PEEP 7 以下", met: s.peep <= 7, value: "\(Int(s.peep)) cmH2O"),
-            .init(label: "PaO2/FiO2 200 以上", met: pf >= 200, value: String(format: "%.0f", pf)),
+            .init(label: "FiO₂ 0.4 以下", met: s.fio2 <= 0.41, value: "\(Int((s.fio2 * 100).rounded()))%"),
+            .init(label: "PEEP 7 以下", met: s.peep <= 7, value: "\(Int(s.peep)) cmH₂O"),
+            .init(label: "PaO₂/FiO₂ 200 以上", met: pf >= 200, value: String(format: "%.0f", pf)),
             .init(label: "pH 7.30 以上", met: engine.pH >= 7.30, value: String(format: "%.2f", engine.pH)),
             .init(label: "循環が安定（平均血圧 \(Int(mapMin)) 以上）",
                   met: engine.meanArterialPressure >= mapMin,
                   value: String(format: "%.0f mmHg", engine.meanArterialPressure)),
             .init(label: "覚醒している", met: engine.sedation <= 0.4,
                   value: engine.sedation <= 0.4 ? "覚醒" : "鎮静下"),
-            .init(label: "自発呼吸がある", met: engine.measured.respiratoryRateSpontaneous >= 4,
-                  value: engine.measured.respiratoryRateSpontaneous >= 4 ? "あり" : "乏しい")
+            .init(label: "自発呼吸がある", met: hasSpontaneousBreathing(engine),
+                  value: hasSpontaneousBreathing(engine) ? "あり" : "乏しい")
         ]
     }
 

@@ -275,7 +275,8 @@ struct DeviceKey: View {
                 .font(Chrome.label(12, weight: Chrome.isPop ? .bold : .regular))
                 .padding(.horizontal, Chrome.isPop ? 13 : 11)
                 .padding(.vertical, 8)
-                .frame(minWidth: 44)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(DeviceKeyStyle(tint: tint, isOn: isOn))
     }
@@ -316,7 +317,7 @@ struct DeviceKeyStyle: ButtonStyle {
     }
 }
 
-/// 状態バーの小さな丸ボタン（消音・見た目の切り替え）。
+/// 状態バーの小さな丸ボタン（消音など）。見た目は小さいが、押せる範囲は 44pt 四方とる。
 struct ChipButton: View {
     let title: String
     var isOn: Bool = false
@@ -326,10 +327,12 @@ struct ChipButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(Chrome.label(11, weight: Chrome.isPop ? .bold : .regular))
+                .font(Chrome.label(12, weight: Chrome.isPop ? .bold : .regular))
                 .foregroundStyle(isOn ? Chrome.warning : (tint ?? Chrome.dim))
+                .lineLimit(1)
+                .fixedSize()
                 .padding(.horizontal, Chrome.isPop ? 10 : 9)
-                .padding(.vertical, 4)
+                .padding(.vertical, 5)
                 .background(
                     RoundedRectangle(cornerRadius: Chrome.isPop ? 999 : 3)
                         .fill(Chrome.isPop ? Chrome.panel2 : Color.clear)
@@ -339,6 +342,8 @@ struct ChipButton: View {
                                         lineWidth: Chrome.isPop ? 1.5 : 1)
                         )
                 )
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -388,8 +393,17 @@ struct Readout: Identifiable {
                     ? String(format: "%.2f", $0.measured.minuteVolume) : one($0.measured.minuteVolume) },
                 limit: { String(format: "%.0f mL/kg/分",
                                 $0.measured.minuteVolume * 1000 / $0.patient.predictedBodyWeight) }),
+        // 下の小さな数字は患者が起こした呼吸の回数。A/C では患者が吸った呼吸も強制換気として
+        // 送られるので「トリガ」（respiratoryRateTriggered）で数え、PSV・CPAP・SIMV では「自発」で数える。
+        // Web 版 app.js の VALS と同じ。
         Readout(caption: "RR tot", unit: "/min", value: { whole($0.measured.respiratoryRateTotal) },
-                limit: { "自発 \(Int($0.measured.respiratoryRateSpontaneous))" }),
+                limit: { e in
+                    e.settings.mode.isAssistControl
+                        ? "トリガ " + whole(Double(e.measured.respiratoryRateTriggered))
+                        : "自発 " + whole(e.measured.respiratoryRateSpontaneous)
+                },
+                tone: { $0.measured.respiratoryRateTotal > $0.settings.alarms.respiratoryRateHigh
+                    ? Chrome.critical : Chrome.screenInk }),
         Readout(caption: "I:E", unit: "", value: { $0.measured.ieRatio }),
         Readout(caption: "Cstat", unit: "mL/cmH₂O", value: { wholeOpt($0.measured.staticCompliance) }),
         Readout(caption: "Raw", unit: "cmH₂O/L/s", value: { wholeOpt($0.measured.airwayResistance) }),
@@ -456,24 +470,39 @@ struct ValueTile: View {
     var limit: String? = nil
     var tone: Color? = nil
 
+    /// 見出しは 11pt から。Dynamic Type で大きくするが、タイルの最小幅 108pt に収まる範囲で頭打ちにする。
+    @ScaledMetric(relativeTo: .caption) private var captionSize: CGFloat = 11
+    @ScaledMetric(relativeTo: .caption2) private var smallSize: CGFloat = 10
+    @ScaledMetric(relativeTo: .title2) private var valueSize: CGFloat = 22
+
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            HStack(alignment: .top, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(caption)
-                    .font(Chrome.label(9.5, weight: Chrome.isPop ? .bold : .regular))
+                    .font(Chrome.label(min(captionSize, 14), weight: Chrome.isPop ? .bold : .regular))
                     .foregroundStyle(Chrome.screenDim)
+                    .lineLimit(1)
+                    .layoutPriority(1)
                 Spacer(minLength: 0)
                 if let limit {
-                    Text(limit).font(.system(size: 8.5)).foregroundStyle(Chrome.screenDim.opacity(0.8))
+                    Text(limit)
+                        .font(Chrome.label(min(smallSize, 13)))
+                        .foregroundStyle(Chrome.screenDim.opacity(0.85))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
             }
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value)
-                    .font(Chrome.digits(22, weight: .bold))
+                    .font(Chrome.digits(min(valueSize, 28), weight: .bold))
                     .foregroundStyle(tone ?? Chrome.screenInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Text(unit)
-                    .font(.system(size: 8.5))
+                    .font(Chrome.label(min(smallSize, 13)))
                     .foregroundStyle(Chrome.screenDim.opacity(0.85))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
         }
         .padding(.horizontal, 7)

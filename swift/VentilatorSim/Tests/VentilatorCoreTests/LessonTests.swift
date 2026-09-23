@@ -81,6 +81,9 @@ struct LessonStructureTests {
                 #expect(quiz.answer >= 0 && quiz.answer < quiz.choices.count, "\(lesson.id)")
                 #expect(Set(quiz.choices).count == quiz.choices.count, "\(lesson.id) 選択肢の重複")
                 #expect(!quiz.explanation.isEmpty, "\(lesson.id) 解説なし")
+                // 誤答の一言は選択肢と同じ数だけあり、正解の位置だけが空
+                #expect(quiz.miss.count == quiz.choices.count, "\(lesson.id) miss の数")
+                #expect(quiz.missText(quiz.answer) == nil, "\(lesson.id) 正解に miss がある")
             }
         }
     }
@@ -167,6 +170,10 @@ struct LessonRuntimeTests {
         #expect(bad.correct == false)
         #expect(runtime.index == atQuiz)
         #expect(runtime.lastAnswerWasWrong)
+        // 誤答には、その選択肢がなぜ違うかの一言が付く
+        #expect(runtime.feedback?.ok == false)
+        #expect(runtime.feedback?.text.hasSuffix("もう一度考えてみてください。") == true)
+        #expect(runtime.feedback?.text.hasPrefix(quiz!.miss[wrong] ?? "") == true)
 
         let good = runtime.answer(quiz!.answer, ctx())
         #expect(good.correct)
@@ -358,10 +365,17 @@ struct LessonScenarioTests {
         let basePlateau = runtime.memory["plat0"] ?? 0
         #expect(basePeak > 0)
 
-        skipTalk(runtime, ctx)
+        // アラームの場面の onStart で痰づまりが起きる。読み飛ばしても必ず起きること。
         let before = engine.airwayResistance.inspiratory
-        runtime.poll(ctx(), seconds: 1)                 // 2 番目に入ると onStart が発火する
+        skipTalk(runtime, ctx)
         #expect(engine.airwayResistance.inspiratory > before * 4)
+
+        // 違うキー（気管吸引）を先に押すと、進まずに一言が返る
+        let atKey = runtime.index
+        #expect(runtime.fire(.suction, ctx()) == nil)
+        #expect(runtime.index == atKey)
+        #expect(runtime.feedback?.ok == false)
+        #expect(runtime.feedback?.text.isEmpty == false)
 
         advance(engine, seconds: 30)
         #expect(engine.measured.peakPressure > basePeak + 8)
@@ -448,22 +462,24 @@ struct LessonScenarioTests {
         let tidal0 = engine.measured.tidalVolumeExp
         let spo20 = engine.spo2
 
-        skipTalk(runtime, ctx)
-        runtime.enter(ctx())                     // 1 番目の onStart で急変が起きる
+        skipTalk(runtime, ctx)                   // 冒頭の場面の onStart で急変が起きる（読み飛ばしても起きる）
+        #expect(engine.spo2 <= 93)               // 気づいた時点で、もう下がりはじめている
         advance(engine, seconds: 300, dt: 0.01)
         #expect(engine.measured.peakPressure > peak0 + 8)
         #expect((engine.measured.plateauPressure ?? 0) > plateau0 + 8)
         #expect(abs(engine.measured.tidalVolumeExp - tidal0) < tidal0 * 0.1)
         #expect(engine.spo2 < spo20 - 3)
 
-        // 課題を順に通し、ドレーンが入る課題（5 番目）に着いたら元に戻ること
+        // 課題を順に通し、ドレーンが入る課題に着いたら元に戻ること
         runtime.fire(.oxygenFlush, ctx())
         engine.requestHold(.inspiratory)
         advance(engine, seconds: 14, dt: 0.005)
         runtime.fire(.inspiratoryHold, ctx())
         runtime.poll(ctx(), seconds: 1)
+        skipTalk(runtime, ctx)
         if let quiz = runtime.task?.quiz { runtime.answer(quiz.answer, ctx()) }
-        runtime.enter(ctx())                     // 5 番目の onStart で肺が戻る
+        skipTalk(runtime, ctx)                   // X 線で気胸が分かる場面
+        runtime.enter(ctx())                     // ドレーンの課題の onStart で肺が戻る
         advance(engine, seconds: 600, dt: 0.01)
         #expect(engine.measured.peakPressure < peak0 + 3)
         #expect(engine.spo2 > spo20 - 2)

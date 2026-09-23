@@ -34,13 +34,17 @@ public struct SBTState: Sendable, Equatable {
     public var finished: Bool
     public var passed: Bool
     public var failureReason: String?
+    /// 開始からの秒数。終わったあとは終わった時点の値で止まる（web の tEnd − t0）。
+    public var elapsed: Double
 
     public init(running: Bool = false, finished: Bool = false,
-                passed: Bool = false, failureReason: String? = nil) {
+                passed: Bool = false, failureReason: String? = nil,
+                elapsed: Double = 0) {
         self.running = running
         self.finished = finished
         self.passed = passed
         self.failureReason = failureReason
+        self.elapsed = elapsed
     }
 }
 
@@ -87,16 +91,42 @@ public struct LessonContext {
 // MARK: - 課題
 
 public struct LessonQuiz {
+    /// 設問の文。実測値から作る設問では、値がそろう前の見出しとして使う。
     public var question: String
     public var choices: [String]
     public var answer: Int
     public var explanation: String
+    /// 選択肢ごとの「なぜ違うか」の一言。正解の位置は nil。
+    public var miss: [String?]
+    /// 実測値や血液ガスの結果から設問・解説を作るとき。
+    public var dynamicQuestion: ((LessonContext) -> String)?
+    public var dynamicExplanation: ((LessonContext) -> String)?
 
-    public init(question: String, choices: [String], answer: Int, explanation: String) {
+    public init(question: String, choices: [String], answer: Int, explanation: String,
+                miss: [String?] = [],
+                dynamicQuestion: ((LessonContext) -> String)? = nil,
+                dynamicExplanation: ((LessonContext) -> String)? = nil) {
         self.question = question
         self.choices = choices
         self.answer = answer
         self.explanation = explanation
+        self.miss = miss
+        self.dynamicQuestion = dynamicQuestion
+        self.dynamicExplanation = dynamicExplanation
+    }
+
+    /// 画面に出す設問。
+    public func questionText(_ context: LessonContext) -> String {
+        dynamicQuestion?(context) ?? question
+    }
+    /// 正解したときの解説。
+    public func explanationText(_ context: LessonContext) -> String {
+        dynamicExplanation?(context) ?? explanation
+    }
+    /// 誤答したときの一言。
+    public func missText(_ choice: Int) -> String? {
+        guard miss.indices.contains(choice) else { return nil }
+        return miss[choice]
     }
 }
 
@@ -144,6 +174,8 @@ public struct LessonTask {
     public var spot: [String]
     public var onStart: ((LessonContext) -> Void)?
     public var onPass: ((LessonContext) -> Void)?
+    /// event の課題で、違うキーを押したときに返す一言。
+    public var missEvents: [LessonEvent: String] = [:]
 
     public init(advance: Advance,
                 holdSeconds: Double = 0,
@@ -198,10 +230,20 @@ public extension LessonTask {
         LessonTask(advance: .talk(who), instruction: { _ in say })
     }
 
-    /// 選択肢に答えて進む課題。
-    static func quiz(_ question: String, _ choices: [String], answer: Int, why: String) -> LessonTask {
+    /// 選択肢に答えて進む課題。miss は選択肢ごとの「なぜ違うか」（正解の位置は nil）。
+    static func quiz(_ question: String, _ choices: [String], answer: Int,
+                     miss: [String?] = [], why: String) -> LessonTask {
         LessonTask(advance: .quiz(LessonQuiz(question: question, choices: choices,
-                                             answer: answer, explanation: why)))
+                                             answer: answer, explanation: why, miss: miss)))
+    }
+
+    /// 設問を実測値や血液ガスの結果から作るクイズ。question は値がそろう前の見出し。
+    static func quiz(_ question: String, asking ask: @escaping (LessonContext) -> String,
+                     _ choices: [String], answer: Int,
+                     miss: [String?] = [], why: String) -> LessonTask {
+        LessonTask(advance: .quiz(LessonQuiz(question: question, choices: choices,
+                                             answer: answer, explanation: why, miss: miss,
+                                             dynamicQuestion: ask)))
     }
 
     /// 課題のあいだ、帯にもこの計測値を出す。操作の前後を「前 → 後」で見せるのに使う。
@@ -212,9 +254,20 @@ public extension LessonTask {
     func spotting(_ specs: [String]) -> LessonTask {
         var copy = self; copy.spot = specs; return copy
     }
-    /// 解説を、そのときの計測値から組み立てたいとき。
+    /// 解説を、そのときの計測値から組み立てたいとき。クイズなら正解したときの解説になる。
     func explaining(_ body: @escaping (LessonContext) -> String) -> LessonTask {
-        var copy = self; copy.explanation = body; return copy
+        var copy = self
+        if case .quiz(var q) = advance {
+            q.dynamicExplanation = body
+            copy.advance = .quiz(q)
+        } else {
+            copy.explanation = body
+        }
+        return copy
+    }
+    /// 違うキーを押したときの一言。黙って無視すると、押せていないのかと迷う。
+    func missing(_ events: [LessonEvent: String]) -> LessonTask {
+        var copy = self; copy.missEvents = events; return copy
     }
     /// ヒントに予測体重などの計算結果を出したいとき。
     func hinting(_ body: @escaping (LessonContext) -> String) -> LessonTask {
@@ -286,6 +339,13 @@ public final class LessonRuntime {
     public private(set) var lastAnswer: Int?
     public private(set) var lastAnswerWasWrong = false
 
+    /// 直前の結果。ok が false のときは、誤答や違うキーへの一言（帯のヒントの位置に出す）。
+    public struct Feedback: Equatable {
+        public let text: String
+        public let ok: Bool
+    }
+    public private(set) var feedback: Feedback?
+
     private var enteredIndex = -1
 
     public init(lesson: Lesson) { self.lesson = lesson }
@@ -311,6 +371,7 @@ public final class LessonRuntime {
         held = 0
         lastAnswer = nil
         lastAnswerWasWrong = false
+        feedback = nil
         lesson.tasks[index].onStart?(context)
     }
 
@@ -330,11 +391,16 @@ public final class LessonRuntime {
     }
 
     /// 機器のキー操作を伝える。合っていれば進む。
+    /// 違うキーなら、その課題に一言があれば feedback に入れる（ok は false）。
     @discardableResult
     public func fire(_ event: LessonEvent, _ context: LessonContext) -> String? {
         guard let task else { return nil }
         enter(context)
-        guard case .event(let wanted) = task.advance, wanted == event else { return nil }
+        guard case .event(let wanted) = task.advance else { return nil }
+        guard wanted == event else {
+            if let miss = task.missEvents[event] { feedback = Feedback(text: miss, ok: false) }
+            return nil
+        }
         return advance(context)
     }
 
@@ -347,6 +413,8 @@ public final class LessonRuntime {
         guard choice == quiz.answer else {
             wrongAnswers += 1
             lastAnswerWasWrong = true
+            let miss = quiz.missText(choice).map { $0 + " " } ?? ""
+            feedback = Feedback(text: miss + "もう一度考えてみてください。", ok: false)
             return (false, nil)
         }
         lastAnswerWasWrong = false
@@ -370,12 +438,13 @@ public final class LessonRuntime {
     private func advance(_ context: LessonContext) -> String {
         let task = lesson.tasks[index]
         task.onPass?(context)
-        let why = task.quiz?.explanation ?? task.explanation(context)
+        let why = task.quiz?.explanationText(context) ?? task.explanation(context)
         index += 1
         held = 0
         lastAnswer = nil
         lastAnswerWasWrong = false
         if index >= lesson.tasks.count { finished = true }
+        feedback = Feedback(text: why, ok: true)
         return why
     }
 }
@@ -425,6 +494,11 @@ public enum LessonLibrary {
     /// 体重が 1 kg から 35 kg まで動くので、早産児では小数第 1 位まで見せる。
     static func protectiveTidal(_ pbw: Double, _ perKg: Double = 6) -> Double {
         pbw * perKg
+    }
+
+    /// 設定値を JS の数値表記と同じ形で出す（整数なら小数点なし、そうでなければ最短の小数）。
+    static func number(_ v: Double) -> String {
+        v == v.rounded() ? String(Int(v)) : String(v)
     }
 
     /// 同じ値を画面に出すときの表記。6 kg 未満は 0.1 mL の桁まで。

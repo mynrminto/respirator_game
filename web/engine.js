@@ -208,10 +208,12 @@
     // 計測値
     this.m = {
       pip: 0, pplat: null, pmean: s.peep, peepTot: s.peep,
-      vte: 0, vti: 0, mv: 0, rrTotal: 0, rrSpont: 0,
-      cstat: null, raw: null, dp: null, ie: '1:2', rsbi: null, autoPeep: 0
+      vte: 0, vti: 0, mv: 0, rrTotal: 0, rrSpont: 0, rrTrig: 0,
+      cstat: null, raw: null, dp: null, ie: '1:2', rsbi: null, autoPeep: 0,
+      peakInsp: 0, peakExp: 0
     };
-    this.breaths = [];              // {t, vte, spont}
+    this._fIn = 0; this._fEx = 0;
+    this.breaths = [];              // {t, vte, spont, trig}
     this.waveform = { paw: [], flow: [], vol: [], n: 0 };
     this.wfCap = 1500;
     this.alarms = [];
@@ -219,6 +221,7 @@
     this.apneaT = 0;
     this.events = [];
     this.extubated = false;
+    this.suctionShunt = 0;
     this.sbt = null;
     this.timeInTarget = { total: 0, ok: 0 };
     this.harm = { highPlat: 0, highVt: 0, autoPeep: 0, hypoxia: 0, hypotension: 0, highFio2: 0 };
@@ -286,9 +289,17 @@
       : 0;
   };
 
+  /* 疲れはじめる負荷と疲れる速さは症例で変えられる。神経筋疾患の子は、軽い負荷でも
+   * 数十分かけて少しずつ疲れていく（SBT の後半で崩れる）。 */
   Engine.prototype._updateFatigue = function (dt) {
     var load = this.muscleLoad || 0;
-    if (load > 0.62) this.fatigue += (load - 0.62) * dt / 95;
+    /* A/C では送気の大半を機械が担うので、呼吸筋は休んでいる。SIMV はその中間。 */
+    var md = this.s.mode;
+    if (md === 'VC-AC' || md === 'PC-AC') load *= 0.4;
+    else if (md === 'SIMV-VC') load *= 0.7;
+    var th = this.p.fatigueLoad != null ? this.p.fatigueLoad : 0.62;
+    var tau = this.p.fatigueTau != null ? this.p.fatigueTau : 95;
+    if (load > th) this.fatigue += (load - th) * dt / tau;
     else this.fatigue -= dt / 420;
     this.fatigue = clamp(this.fatigue, 0, 1);
   };
@@ -319,6 +330,9 @@
       if (this.hold.kind === 'exp') this.m.peepTot = this.V / this.C;
       else this.m.pplat = this.V / this.C;
       if (this.hold.t > 2.2) {
+        /* ポーズのあいだは次の呼吸の時計を止めておく。止めないと、ポーズ明けの呼気が
+         * 短く切られて吐ききれず、見かけの auto-PEEP が赤く出る。 */
+        this.sinceMand = Math.max(0, this.sinceMand - this.hold.t);
         if (this.hold.kind === 'exp') {
           this.m.autoPeep = Math.max(0, this.m.peepTot - s.peep);
         } else {
@@ -351,9 +365,11 @@
         var dV = q * dt;
         if (this.vtInsp + dV > target0) dV = Math.max(0, target0 - this.vtInsp);  // 行き過ぎない
         this.flow = q;
+        this._qLast = q;
         this.V += dV;
         this.vtInsp += dV;
         this.paw = this.V / this.C + p.Rinsp * q - this.pmus;
+        this._pawEnd = this.paw;
         if (this.vtInsp >= target0 - 1e-9) {
           if (s.pause > 0) { this.phase = 'pause'; this.phaseT = 0; }
           else { this._endInsp(); }
@@ -389,11 +405,15 @@
       this.flow = 0;
       this.paw = this.V / this.C - this.pmus * 0.35;
       this.m.pplat = this.V / this.C;
-      if (this.phaseT >= s.pause) { this._recomputeMechanics(); this._endInsp(); }
+      /* 先に呼吸を締めてから計算する。逆にすると vEI と PIP が 1 つ前の呼吸の値のままで、
+       * Cstat と Raw が呼吸ごとに跳ねる。 */
+      if (this.phaseT >= s.pause) { this._endInsp(); this._recomputeMechanics(); }
     }
     /* --------- 呼気相 --------- */
     else {
-      this.paw = s.peep;
+      /* 患者が吸おうとすると、回路の圧は PEEP より少しだけ下がる。
+       * 機械が応えなかった努力（トリガを鈍くしたとき）は、この小さな切れ込みとして圧波形に残る。 */
+      this.paw = s.peep - 0.5 * this.pmus;
       var tauE = p.Rexp * this.C;
       var veqE = this.C * (s.peep + this.pmus);
       var vNewE = veqE + (this.V - veqE) * Math.exp(-dt / tauE);
@@ -407,7 +427,11 @@
         if (spontMode) this._startBreath('spont', 'patient');
         else if (simv) {
           var inWindow = this.sinceMand >= mandInterval - 0.6;
+          var grid = this.sinceMand - mandInterval;
           this._startBreath(inWindow ? 'mand' : 'spont', 'patient');
+          /* 窓の中で同期した強制換気は、時計の刻みを保つ（早めた分だけ次を遅らせる）。
+           * 0 に戻すと、同期するたびに強制換気の回数が設定より増えていく。 */
+          if (inWindow) this.sinceMand = grid;
         } else this._startBreath('mand', 'patient');   // A/C：全部強制換気
       } else if (!spontMode && this.sinceMand >= mandInterval && this.phaseT > this.nm.trigLock * 1.2) {
         this._startBreath('mand', 'timer');
@@ -416,6 +440,10 @@
         this._startBreath('mand', 'backup');
       }
     }
+
+    /* 1 呼吸の最大吸気流量・最大呼気流量（波形の目盛りを体重に合わせるのに使う） */
+    if (this.phase === 'insp') { if (this.flow > this._fIn) this._fIn = this.flow; }
+    else if (this.flow < this._fEx) this._fEx = this.flow;
 
     this._sample(dt, sampleWave);
     this._gas(dt);
@@ -429,11 +457,16 @@
       this.m.peepTot = this.V / this.C;
       return;
     }
+    this.m.peakExp = -this._fEx * 60; this._fEx = 0;
     this.vEE = this.V;
-    this.m.peepTot = Math.max(s.peep, this.V / this.C);
-    this.m.autoPeep = Math.max(0, this.V / this.C - s.peep);
+    /* 肺胞の圧は弾性圧（V/C）から患者の吸気努力を引いたもの。努力で引き込んだ分まで
+     * auto-PEEP に数えると、自発のある子で 0.2〜1 cmH₂O の見かけの値が出続ける。 */
+    var palvEE = this.V / this.C - this.pmus;
+    this.m.peepTot = Math.max(s.peep, palvEE);
+    this.m.autoPeep = Math.max(0, palvEE - s.peep);
     this.m._ttot = this._prevInspStart != null ? (this.clock - this._prevInspStart) : 0;
     this._prevInspStart = this.clock;
+    this._inspStart = this.clock;
     this.phase = 'insp'; this.phaseT = 0;
     this.breathType = type;
     this.lastTrigger = trig;
@@ -441,14 +474,16 @@
     this.pipThis = 0;
     this.peakFlowThisBreath = 0;
     this.sinceBreath = 0;
-    if (type === 'mand' || trig === 'patient') this.sinceMand = 0;
-    if (type === 'mand' && trig !== 'patient') this.sinceMand = 0;
+    /* 強制換気の時計は強制換気でだけ戻す。SIMV の自発呼吸で戻すと、
+     * 自発が多いほど強制換気が減り、設定 RR が守られなくなる。 */
+    if (type === 'mand') this.sinceMand = 0;
     this._lastBreathSpont = (type === 'spont');
     this._lastBreathTrig = trig;
   };
 
   Engine.prototype._endInsp = function () {
-    this._lastTi = this.phaseT;
+    this.m.peakInsp = this._fIn * 60; this._fIn = 0;
+    this._lastTi = this._inspStart != null ? this.clock - this._inspStart : this.phaseT;   // ポーズも吸気時間に含める
     this.vEI = this.V;
     this.m.pip = this.pipThis;
     this.m.vti = (this.vEI - this.vEE) * 1000;
@@ -469,46 +504,73 @@
   Engine.prototype._recomputeMechanics = function () {
     var vt = (this.vEI - this.vEE);
     if (this.m.pplat != null && vt > 0.0005) {
-      var dp = this.m.pplat - this.m.peepTot;
+      var dp = this.m.pplat - Math.max(this.s.peep, this.vEE / this.C);
       this.m.dp = dp;
       this.m.cstat = dp > 0.5 ? (vt * 1000) / dp : null;
       var peak = this.m.pip;
-      var qEnd = this.s.flow / 60;
-      if (this.s.mode === 'VC-AC' || this.s.mode === 'SIMV-VC') {
-        var raw = qEnd > 0.004 ? (peak - this.m.pplat) / qEnd : null;
+      var qEnd = this._qLast || this.s.flow / 60;
+      /* 患者トリガの呼吸は吸気努力のぶん PIP が低く出るので、Raw の計算に使わない。 */
+      if ((this.s.mode === 'VC-AC' || this.s.mode === 'SIMV-VC') && this._lastBreathTrig !== 'patient') {
+        /* 吸気終末の圧と流量で割る。漸減波では PIP と終末流量が同じ瞬間ではないので、PIP は使わない。 */
+        var pEnd = this._pawEnd != null ? this._pawEnd : peak;
+        var raw = qEnd > 0.004 ? (pEnd - this.m.pplat) / qEnd : null;
         this.m.raw = (raw != null && raw >= 0) ? raw : null;
       }
     }
   };
 
+  /* 呼吸回数は「直近 20 秒の呼吸の間隔」から出す（少なくとも 3 間隔）。60 秒の窓で数えると、
+   * 設定を変えてから表示が追いつくまで 1 分近くかかり、窓の端の数え方で設定より 1〜3 回多く出る。
+   * 自発・トリガの割合だけは 60 秒で見る。混ざった呼吸では短い窓だと割合が大きく揺れるため。 */
   Engine.prototype._recomputeRates = function () {
-    var win = 60, now = this.clock, n = 0, ns = 0, vteSum = 0, vtSpontSum = 0;
-    for (var i = this.breaths.length - 1; i >= 0; i--) {
-      var b = this.breaths[i];
-      if (now - b.t > win) break;
-      n++; vteSum += b.vte;
-      if (b.spont) { ns++; vtSpontSum += b.vte; }
+    var now = this.clock, B = this.breaths, first = -1, i;
+    for (i = B.length - 1; i >= 0; i--) {
+      if (now - B[i].t > 60) break;
+      if (now - B[i].t <= 20 || B.length - 1 - i <= 3) first = i;
     }
-    var span = Math.min(win, Math.max(5, now));
-    this.m.rrTotal = n * 60 / span;
-    this.m.rrSpont = ns * 60 / span;
-    this.m.mv = vteSum / 1000 * 60 / span;
+    var n = first >= 0 ? B.length - 1 - first : 0;     // 間隔の数。最初の呼吸は起点にだけ使う
+    var vteSum = 0, nsShort = 0, vtSpontSum = 0;
+    for (i = first + 1; n > 0 && i < B.length; i++) {
+      vteSum += B[i].vte;
+      if (B[i].spont) { nsShort++; vtSpontSum += B[i].vte; }
+    }
+    var nAll = 0, ns = 0, nt = 0;
+    for (i = B.length - 1; i >= 0 && now - B[i].t <= 60; i--) {
+      nAll++;
+      if (B[i].spont) ns++;
+      if (B[i].trig === 'patient') nt++;
+    }
+    if (n >= 1) {
+      var rate = n * 60 / Math.max(0.5, B[B.length - 1].t - B[first].t);
+      this.m.rrTotal = rate;
+      this.m.rrSpont = nAll ? rate * ns / nAll : 0;
+      this.m.rrTrig = nAll ? rate * nt / nAll : 0;
+      this.m.mv = (vteSum / n) / 1000 * rate;
+    } else {
+      this.m.rrTotal = 0; this.m.rrSpont = 0; this.m.rrTrig = 0;
+      this.m.mv = 0;
+    }
     /* 成人の RSBI（f/VT[L] < 105）は小児では常に桁外れになる。
-     * 小児では f ÷ (一回換気量 mL/kg) で見て、8 未満を目安にする。 */
+     * 小児では f ÷ (一回換気量 mL/kg) で見て、8 未満を目安にする。
+     * f はモードを切り替えた直後でも正しく出るよう、短い窓の自発の割合から出す。 */
     var vtMean = null;
-    if (ns >= 2) vtMean = vtSpontSum / ns;
-    else if (this.m.rrSpont > 0 && this.m.vte > 0) vtMean = this.m.vte;
+    if (nsShort >= 2) vtMean = vtSpontSum / nsShort;
     if (vtMean != null && vtMean > 0.2) {
-      var fSpont = Math.max(this.m.rrSpont, 1);
+      var fSpont = Math.max(n >= 1 ? this.m.rrTotal * nsShort / n : 0, 1);
       this.m.rsbi = Math.min(3000, fSpont / (vtMean / 1000));
       this.m.rsbiKg = Math.min(60, fSpont / (vtMean / this.p.pbw));
-    } else if (this.m.rrSpont > 0) {
+    } else if (nsShort >= 2) {
       this.m.rsbi = 3000; this.m.rsbiKg = 60;
+    } else if (ns === 0) {
+      this.m.rsbi = null; this.m.rsbiKg = null;       // 自発がなければ出さない
     }
+    /* I:E は 1 呼吸の吸気時間（ポーズ込み）と、呼吸の間隔の平均から出す。
+     * 患者トリガで間隔が揺れるので、数呼吸でならして表示する。 */
     var ti = this._lastTi || this.s.ti;
-    var ttot = this.m._ttot > 0.3 ? this.m._ttot : 60 / Math.max(1, this.s.rr);
+    var ttot = this.m.rrTotal > 0.5 ? 60 / this.m.rrTotal : 60 / Math.max(1, this.s.rr);
     var ratio = Math.max(0.2, (ttot - ti) / Math.max(0.1, ti));
-    this.m.ie = '1:' + ratio.toFixed(1);
+    this._ieRatio = this._ieRatio == null ? ratio : this._ieRatio + 0.4 * (ratio - this._ieRatio);
+    this.m.ie = '1:' + this._ieRatio.toFixed(1);
   };
 
   /* ポーズは押した瞬間ではなく、次の吸気末（吸気ポーズ）／呼気末（呼気ポーズ）で実行する。
@@ -565,6 +627,10 @@
     var shunt = (p.shuntMin || 0.05) + ((p.shunt0 || 0.1) - (p.shuntMin || 0.05)) * recr;
     if (plat > nm.platMax) shunt += (plat - nm.platMax) * 0.006;   // 過膨張で悪化
     if (p.prone) shunt *= 0.75;
+    if (this.suctionShunt > 0.001) {              // 吸引の陰圧で潰れた肺胞は数分かけて開き直す
+      shunt += this.suctionShunt;
+      this.suctionShunt *= Math.exp(-d / 50);
+    }
     this.shunt = clamp(shunt, 0.02, 0.65);
 
     // 循環：平均気道内圧で静脈還流が落ちる
@@ -651,6 +717,19 @@
     if (m.autoPeep > 5) a.push({ k: 'ap', msg: 'auto-PEEP', sev: 1 });
     if (this.map < this.nm.mapMin) a.push({ k: 'map', msg: '血圧低下', sev: 2 });
     this.alarms = a;
+  };
+
+  /* ---------- 気管吸引 ----------
+   * 吸引のあいだは換気が止まり、陰圧で肺胞が潰れる。SpO₂ はその場で数 % 落ち、
+   * 潰れた肺胞が開き直すまでの数分はシャントが増える。痰が取れたぶん抵抗は下がる。 */
+  Engine.prototype.suction = function () {
+    this.suctionShunt = 0.15;
+    var drop = this.s.fio2 >= 0.99 ? 4 : 7;       // 先に 100% で貯金していれば落ち込みは小さい
+    this.spo2 = Math.max(40, this.spo2 - drop);
+    this.pao2 = Math.min(this.pao2, po2FromSat(this.spo2 / 100));
+    this.p.Rinsp = Math.max(4, this.p.Rinsp * 0.88);
+    this.p.Rexp = Math.max(5, this.p.Rexp * 0.90);
+    this._raise('気管吸引を実施');
   };
 
   /* ---------- 血液ガス採取 ---------- */

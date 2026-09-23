@@ -61,6 +61,10 @@ public struct Patient: Codable, Equatable {
 
     public var volumeDepleted: Bool = false
     public var prone: Bool = false
+    /// 疲れはじめる呼吸筋の負荷と、疲れる速さ（秒）。nil なら 0.62 と 95。
+    /// 神経筋疾患の子は、軽い負荷でも数十分かけて少しずつ疲れていく（SBT の後半で崩れる）。
+    public var fatigueLoad: Double? = nil
+    public var fatigueTau: Double? = nil
     public var goals: Goals
 
     /// 小児では身長からの予測体重ではなく実体重を使う。

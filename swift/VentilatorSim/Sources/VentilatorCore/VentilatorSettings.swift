@@ -54,6 +54,8 @@ public struct MeasuredValues: Equatable, Sendable {
     public var minuteVolume: Double = 0
     public var respiratoryRateTotal: Double = 0
     public var respiratoryRateSpontaneous: Double = 0
+    /// 患者がトリガした呼吸の回数（/分）。A/C では自発も強制換気として送られるので、自発はこれで数える。
+    public var respiratoryRateTriggered: Double = 0
     public var staticCompliance: Double?
     public var airwayResistance: Double?
     public var drivingPressure: Double?
@@ -61,6 +63,9 @@ public struct MeasuredValues: Equatable, Sendable {
     public var rsbi: Double?
     /// 小児の f/VT ＝ 呼吸回数 ÷ 一回換気量(mL/kg)。8 未満が離脱の目安。
     public var rsbiPerKg: Double?
+    /// 1 呼吸の最大吸気流量・最大呼気流量（L/min、どちらも正の値）。波形の目盛りを体重に合わせるのに使う。
+    public var peakInspiratoryFlow: Double = 0
+    public var peakExpiratoryFlow: Double = 0
 }
 
 public struct BloodGas: Equatable, Sendable, Identifiable {

@@ -26,18 +26,21 @@ extension LessonLibrary {
             .talk(.scene, "午後 8 時、PICU。虫垂炎の手術を終えたハルト君（8歳）が、挿管されたまま運ばれてきた。"),
             .talk(.doctor, "今夜の担当はあなたです。まずは、この機械が何を言っているのかを読めるようにしましょう。"),
             .talk(.puku, "うわ、波形が 3 つもある…。どれが何なの？"),
-            .talk(.doctor, "上から 気道内圧、流量、換気量。どれがどれかは、動き方で見分けられます。"),
-            .quiz("真ん中の緑の波形だけがゼロ線をまたいで上下しています。これは何ですか。",
+            .talk(.doctor, "3 つとも呼吸に合わせて動きます。どれが何かは、名前ではなく動き方で見分けられます。"),
+            .quiz("3 つのうち、ゼロ線をまたいで上にも下にも振れるのはどれですか。",
                   ["気道内圧",
                    "流量",
                    "換気量",
                    "二酸化炭素濃度"], answer: 1,
+                  miss: ["気道内圧は PEEP より下がりません。ずっとゼロより上です。", nil,
+                         "換気量は吸うと増え、吐くと 0 に戻るだけ。マイナスにはなりません。",
+                         "CO₂ はこの画面の波形にはありません。"],
                   why: "流量です。上が吸気、下が呼気。上下するのは流量だけなので、これが見分けの目印になります。")
                 .spotting(["wave"]),
             .talk(.doctor, "読めましたね。次は触ってみましょう。実機は 3 段階です。キーを押す、ダイヤルを回す、確定。"),
             .step("Vt を 180 mL にして確定してください。",
                   hint: "キーを押す → ダイヤルを回す → 確定。この 3 段階が実機の操作です。",
-                  why: "確定を押すまで患者には反映されません。実機の誤操作防止と同じです。",
+                  why: "確定を押すまで患者には反映されません。実機の誤操作防止と同じです。 VC-AC は「量（Volume）を決めて（Control）、毎回すべて機械が送る（Assist/Control）」モードです。",
                   check: { abs($0.settings.tidalVolume - 180) < 1 })
                 .spotting(["key:vt"]).watching(["Vte"]),
             .step("Vte が設定に追いつくまで待ちます。",
@@ -51,6 +54,9 @@ extension LessonLibrary {
                    "気管チューブ周囲のリーク",
                    "鎮静が浅い",
                    "FiO₂ が低い"], answer: 1,
+                  miss: ["3 割も減るのは正常ではありません。入れた量がどこかへ逃げています。", nil,
+                         "鎮静は吸う力に効きますが、機械が入れた量は減らしません。",
+                         "FiO₂ は酸素の濃さで、量には関係しません。"],
                   why: "入れた量より戻る量が少なければリークです。カフなしチューブの年齢では日常的に起こります。カフ圧・回路の接続・チューブの深さを確認し、20% を超えるなら 1 サイズ太いチューブを考えます。")
         ])
 
@@ -59,7 +65,7 @@ extension LessonLibrary {
         prepare: { s in
             s.mode = .volumeAssistControl
             s.tidalVolume = 180; s.respiratoryRate = 20; s.peep = 5; s.fio2 = 0.4
-            s.inspiratoryFlow = 30; s.inspiratoryPause = 0
+            s.inspiratoryFlow = 30; s.flowPattern = .square; s.inspiratoryPause = 0
         },
         brief: [
             "PIP ＝ ガスを気道に押し流す圧（流量 × 抵抗）＋ 肺を膨らませる圧（換気量 ÷ コンプライアンス）。",
@@ -88,6 +94,8 @@ extension LessonLibrary {
                    "Pplat − PEEP",
                    "PIP − PEEP",
                    "PEEP そのもの"], answer: 0,
+                  miss: [nil, "それは流れが止まったあとに肺胞にかかる圧（ΔP）です。",
+                         "それは抵抗の分と肺の分を合わせた全部です。", "PEEP は呼気のあいだも保っている土台の圧です。"],
                   why: "PIP と Pplat の差が抵抗成分です。ここが大きいときは痰・チューブの屈曲・気管支攣縮を考えます。")
                 .watching(["PIP", "Pplat", "PEEP tot"]),
             .quiz("では、肺胞が 1 回の呼吸で引き伸ばされる圧（ΔP）はどれですか。",
@@ -95,26 +103,35 @@ extension LessonLibrary {
                    "Pplat − PEEP",
                    "PIP − PEEP",
                    "Vte ÷ Pplat"], answer: 1,
+                  miss: ["それはさっきの抵抗の分です。流れが止まれば消えます。", nil,
+                         "PIP には抵抗の分が混ざっています。肺胞の伸びだけを見たいのです。",
+                         "割り算は Cstat の考え方に近く、圧ではありません。"],
                   why: "ΔP ＝ Pplat − PEEP。予後との関連がいちばん強い圧で、画面にもタイルで出ています。")
                 .watching(["Pplat", "PEEP tot", "ΔP"]),
             .talk(.puku, "じゃあ PIP が高いとき、どうすれば下げられるの？"),
             .talk(.doctor, "流れを押す分を減らせばいい。速さを落としてみましょう。"),
             .step("吸気流量を 15 L/分 に下げて確定してください。",
-                  hint: "この 8歳の児で 15〜30 L/分、乳児なら 5〜10 L/分が目安です。",
+                  hint: "この 8歳の児で 15〜30 L/分、乳児なら 5〜10 L/分が目安です。", hold: 4,
                   why: "ゆっくり押し込むぶん、抵抗にとられる圧が減ります。",
                   check: { $0.settings.inspiratoryFlow <= 15 })
+                .starting { c in c.memory["pip30"] = c.measured.peakPressure }
                 .spotting(["key:flow"]).watching(["PIP", "Pplat"]),
             .key("もう一度「吸気ポーズ」を押して測り直してください。", event: .inspiratoryHold)
                 .spotting(["hard:kInsp"]),
             .step("測り終わるのを待ちます。PIP と Pplat を見比べてください。",
-                  why: "PIP は下がったのに、Pplat はほとんど動いていません。流量を変えても肺の硬さは変わらないからです。",
                   check: { $0.measured.plateauPressure != nil && $0.holdSettled })
-                .watching(["PIP", "Pplat", "ΔP"]),
+                .explaining { c in
+                    "PIP は \(Int((c.memory["pip30"] ?? 0).rounded())) → {PIP} と下がったのに、Pplat は {Pplat} とほとんど動いていません。流量を変えても肺の硬さは変わらないからです。"
+                }
+                .watching(["Pplat", "ΔP"]),
             .quiz("この結果から言えることは何ですか。",
                   ["PIP が高い＝肺を傷めている、とは限らない",
                    "流量を下げれば肺は守られる",
                    "PIP と Pplat は同じものである",
                    "流量を下げると換気量も減る"], answer: 0,
+                  miss: [nil, "肺胞にかかる Pplat は変わっていません。守られたのは数字の見た目だけです。",
+                         "流量で PIP だけが動きました。同じものなら一緒に動くはずです。",
+                         "VC なので量は設定どおり。ゆっくり入れても同じ量が入ります。"],
                   why: "PIP が高くても Pplat が正常なら、高いのは抵抗の分だけです。「圧アラームが鳴ったら、まず吸気ポーズで Pplat を測る」のはこのためです。")
         ])
 
@@ -145,7 +162,7 @@ extension LessonLibrary {
                            (c.measured.staticCompliance ?? 0) / c.pbw)
                 }
                 .spotting(["val:Cstat", "val:Raw"]).watching(["Cstat", "Raw"]),
-            .step("一回換気量を 120 mL に下げて確定し、3 つの数字を見比べてください。",
+            .step("一回換気量を 120 mL に下げて確定し、3 つの数字を見比べてください。", hold: 6,
                   why: "Vte と ΔP は一緒に減り、Cstat はほとんど動きません。Cstat は設定ではなく肺そのものの性質だからです。",
                   check: { $0.settings.tidalVolume <= 120 })
                 .spotting(["key:vt"]).watching(["Vte", "ΔP", "Cstat"]),
@@ -155,12 +172,16 @@ extension LessonLibrary {
                    "肺が硬くなった",
                    "鎮静が深くなった",
                    "回路がリークしている"], answer: 1,
+                  miss: ["気道が細くなると上がるのは Raw です。Cstat は肺そのものの値です。", nil,
+                         "鎮静は肺の柔らかさを変えません。", "リークなら Vte が減りますが、Cstat の低下とは形が違います。"],
                   why: "肺が硬くなっています。無気肺、肺水腫、肺炎、気胸。小児で見落としやすいのが腹部膨満で、乳児は腹式呼吸なので胃の空気だけでも換気が悪くなります。"),
             .quiz("別の児で PIP だけが 25 → 38 に上がり、Pplat は 18 のままです。原因は？",
                   ["肺が硬くなった",
                    "気道抵抗が上がった",
                    "PEEP が高すぎる",
                    "一回換気量が大きすぎる"], answer: 1,
+                  miss: ["肺が硬くなれば Pplat も上がるはずです。Pplat は動いていません。", nil,
+                         "PEEP が高ければ Pplat も一緒に上がります。", "量が多ければ Pplat も上がります。"],
                   why: "差が開いた＝抵抗の増加です。痰、チューブの屈曲や閉塞、気管支攣縮を探します。小児はチューブが細いぶん、わずかな分泌物でも抵抗がはっきり上がります。"),
             .talk(.puku, "吸気ポーズがあるなら、呼気ポーズもあるの？"),
             .talk(.doctor, "あります。こちらは吐ききれているかを見るためのもの。第 5 章で主役になります。"),
@@ -190,20 +211,26 @@ extension LessonLibrary {
                  "6〜8 mL/kg、ARDS では 5〜6、新生児は 4〜6",
                  "肥満児だけは身長相当の標準体重で"],
         tasks: [
-            .talk(.scene, "朝の回診。ハルト君の設定は、手術室から運ばれてきたときのままだった。"),
+            .talk(.scene, "翌朝の回診。夜中にアラームが続いたらしく、一回換気量が 300 mL に上げられていた。"),
             .talk(.doctor, "ここからは自分で決めます。最初に決めるのは一回換気量。基準は体重です。"),
             .talk(.puku, "体重？ 身長じゃなくて？"),
             .talk(.doctor, "小児では体重 1 kg あたり 6〜8 mL。まず、いまの値がいくつなのか確かめましょう。"),
-            .step("いまの Vte を mL/kg で確かめてください。",
-                  hint: "タイルの下に mL/kg が出ています。",
-                  check: { $0.measured.tidalVolumeExp > 260 })
+            .quiz("いまの Vte は体重 1 kg あたり何 mL ですか。Vte のタイルで確かめてください。",
+                  ["約 6 mL/kg",
+                   "約 8 mL/kg",
+                   "約 12 mL/kg",
+                   "約 20 mL/kg"], answer: 2,
+                  miss: ["6 mL/kg なら約 150 mL のはず。タイルの右上の数字を見てください。",
+                         "8 mL/kg なら約 200 mL のはず。タイルの右上の数字を見てください。", nil,
+                         "20 mL/kg なら 500 mL。そこまでは入っていません。"],
+                  why: "体重に対して明らかに入れすぎです。")
                 .explaining { c in
                     String(format: "約 %.1f mL/kg。体重 %.0f kg に対して明らかに入れすぎです。",
                            c.tidalPerKg, c.pbw)
                 }
                 .spotting(["val:Vte"]).watching(["Vte", "Pplat", "ΔP"]),
-            .step("一回換気量を 6 mL/kg に合わせて確定してください。",
-                  why: "肺保護の基本設定になりました。圧も一緒に下がっています。",
+            .step("一回換気量を 6 mL/kg に合わせて確定してください。", hold: 6,
+                  why: "肺保護の基本設定になりました。Pplat と ΔP も一緒に下がっています。",
                   check: { abs($0.settings.tidalVolume - $0.pbw * 6) <= 25 })
                 .hinting { c in
                     String(format: "体重 %.1f kg × 6 ＝ 約 %@ mL です。", c.pbw, LessonLibrary.mlkg(c.pbw, 6))
@@ -216,12 +243,17 @@ extension LessonLibrary {
                    "36 mL",
                    "60 mL",
                    "体重では決められない"], answer: 1,
+                  miss: ["6 × 6 を計算し直してください。", nil, "それは 10 mL/kg。入れすぎです。",
+                         "小児こそ体重で決めます。1 kg から 35 kg まで幅があるからです。"],
                   why: "36 mL です。成人の感覚で「少なすぎる」と増やしてしまうのが、小児でいちばん多い間違い。回路の伸びやリークで実測がぶれるので、Vte は必ず mL/kg で読みます。"),
             .quiz("10歳、身長 138 cm（標準体重 32 kg）、実体重 58 kg の肥満児。基準はどれですか。",
                   ["実体重 58 kg",
                    "身長相当の標準体重 32 kg",
                    "2 つの平均",
                    "身長だけで決める"], answer: 1,
+                  miss: ["脂肪がついても肺は大きくなりません。実体重では入れすぎです。", nil,
+                         "平均でも入れすぎです。肺の大きさは身長で決まります。",
+                         "身長から出した標準体重を使う、が正確な言い方です。"],
                   why: "標準体重 32 kg で計算します。ただし腹圧で横隔膜が押し上げられるため、PEEP は高めが要ることがあります。")
         ])
 
@@ -232,6 +264,7 @@ extension LessonLibrary {
             s.tidalVolume = 150; s.respiratoryRate = 10; s.peep = 5; s.fio2 = 0.4
             s.inspiratoryFlow = 20; s.inspiratoryPause = 0.3
         },
+        sedation: 0.95,                  // 自発を止めておき、RR tot が設定 RR どおりに動くのを見せる
         brief: [
             "MV ＝ Vt × RR。ただし効くのは、死腔を引いた肺胞換気量。",
             "死腔は 1 呼吸ごとに引かれる。小児ほどその割合が大きく、浅く速い換気は効率が悪い。",
@@ -247,19 +280,26 @@ extension LessonLibrary {
             .step("呼吸回数を上げて MV を 3.0〜4.2 L/分 に入れ、30 秒保ってください。",
                   hint: "Vt 150 mL なら RR 20〜28 のあたりです。", hold: 30,
                   why: "体重 25 kg では 120〜170 mL/kg/分 が安静時の目安です。乳児はもっと多く要ります（200 mL/kg/分 前後）。代謝が体重あたりで大きいからです。",
-                  check: { $0.measured.minuteVolume >= 3.0 && $0.measured.minuteVolume <= 4.2 })
+                  check: { $0.settings.respiratoryRate > 10
+                      && $0.measured.minuteVolume >= 3.0 && $0.measured.minuteVolume <= 4.2 })
                 .spotting(["key:rr"]).watching(["MV", "RR tot"]),
             .quiz("RR を 20 から 30 に上げました。1 回の呼吸に使える時間はどうなりますか。",
                   ["3.0 秒 → 2.0 秒に短くなる",
                    "変わらない",
                    "2.0 秒 → 3.0 秒に長くなる",
                    "吸気時間だけが伸びる"], answer: 0,
+                  miss: [nil, "1 分は 60 秒のまま。回数が増えれば 1 回に使える時間は減ります。",
+                         "逆です。60 ÷ 20 ＝ 3 秒、60 ÷ 30 ＝ 2 秒。", "吸気時間は設定で決まっていて、削られるのは呼気のほうです。"],
                   why: "60 ÷ RR が 1 呼吸の長さです。吸気時間が同じなら、短くなった分はすべて呼気時間から削られます。"),
+            .talk(.puku, "タウ（τ）って何？"),
+            .talk(.doctor, "吐くときの速さの目安です。τ ＝ Raw × Cstat。1τ で 6 割、3τ でほぼ全部（95%）吐き出せます。"),
             .quiz("τ が 0.7 秒の乳児。吐ききるのに必要な呼気時間はおよそ何秒ですか。",
                   ["0.2 秒",
                    "2 秒",
                    "6 秒",
                    "10 秒"], answer: 1,
+                  miss: ["1τ にも足りません。3 割も吐けないうちに次が来ます。", nil,
+                         "3τ で 95% 出ます。9τ 近くも待つ必要はありません。", "長すぎます。3τ で考えます。"],
                   why: "3τ ＝ 約 2 秒。吸気 0.5 秒を足すと 1 呼吸 2.5 秒、つまり RR 24 が上限です。細気管支炎で「呼吸数を上げたのに CO₂ が下がらない」のはこれが理由です。"),
             .talk(.doctor, "いま上げた回数で、この子が吐ききれているかどうか。測れば分かります。"),
             .key("「呼気ポーズ」で、空気が残っていないか確かめてください。", event: .expiratoryHold)
@@ -302,16 +342,18 @@ extension LessonLibrary {
                    "FiO₂ を下げる",
                    "PEEP を上げる",
                    "一回換気量を増やす"], answer: 1,
+                  miss: ["100% は余裕の量を教えてくれません。高い酸素そのものが害になります。", nil,
+                         "酸素化は足りています。PEEP を上げる理由がありません。", "換気量は CO₂ のつまみです。"],
                   why: "SpO₂ 100% は「PaO₂ が 100 以上のどこか」という意味しかなく、余裕の量は見えません。高い FiO₂ を続ける理由がないので下げます。"),
-            .talk(.doctor, "もう 1 つのつまみ、PEEP。上げると酸素化は良くなりますが、ただではありません。"),
+            .talk(.doctor, "もう 1 つのつまみ、PEEP。この子の肺はほぼ正常なので、上げても酸素化はほとんど変わりません。見るのは別のところです。"),
             .step("PEEP を 12 cmH₂O まで上げて確定してください。",
                   check: { $0.settings.peep >= 12 })
                 .spotting(["key:peep"]).watching(["ABP mean", "Pplat", "SpO₂"]),
             .step("そのまま 45 秒、平均動脈圧を見てください。", hold: 45,
                   check: { $0.settings.peep >= 12 })
                 .explaining { c in
-                    String(format: "平均動脈圧 %.0f mmHg（この年齢の下限は %.0f）。胸腔内圧が上がって静脈還流が減り、心拍出量が落ちました。",
-                           c.engine.meanArterialPressure, c.engine.norms.meanArterialPressureMin)
+                    String(format: "平均動脈圧 {ABP mean} mmHg（この年齢の下限は %.0f）。SpO₂ はほとんど変わっていません。胸腔内圧が上がって静脈還流が減り、心拍出量が落ちました。",
+                           c.engine.norms.meanArterialPressureMin)
                 }
                 .spotting(["val:ABP mean"]).watching(["ABP mean", "SpO₂", "Pplat"]),
             .step("PEEP を 5 cmH₂O に戻してください。",
@@ -346,14 +388,15 @@ extension LessonLibrary {
                 .spotting(["wave"]).watching(["PIP", "Pplat", "Vte"]),
             .talk(.puku, "モードって、いっぱいあって覚えられない…"),
             .talk(.doctor, "覚えるのは 1 つだけ。何を機械が保証して、何を患者に預けるか。切り替えて見比べましょう。"),
-            .key("上のタブで「PC-AC」に切り替えてください。", event: .modePressureAC,
-                 why: "圧波形が四角い台形になりました。設定した圧まで一気に上げ、吸気のあいだ保っています。")
+            .key("モードを「PC-AC」に切り替えてください。", event: .modePressureAC,
+                 why: "次の呼吸から、圧波形が四角い台形に変わります。設定した圧まで一気に上げ、吸気のあいだ保つからです。")
                 .spotting(["mode:A/C PC"]),
             .step("P insp を動かして Vte を 6 mL/kg 前後にし、20 秒保ってください。", hold: 20,
                   why: "同じ換気量を、今度は圧で作りました。VC と PC はゴールが同じで、道順が違うだけです。",
                   check: { abs($0.tidalPerKg - 6) <= 1 })
                 .hinting { c in
                     "体重 \(Int(c.pbw)) kg なので目標は \(LessonLibrary.mlkg(c.pbw, 6)) mL 前後です。"
+                        + "P insp は PEEP への上乗せで、PIP ≒ PEEP ＋ P insp になります。"
                 }
                 .spotting(["key:pinsp"]).watching(["Vte", "PIP", "Pplat"]),
             .talk(.doctor, "では、この子の肺がもっと硬くなったとき。どちらが危ないでしょうか。"),
@@ -362,12 +405,16 @@ extension LessonLibrary {
                    "一回換気量が減る",
                    "呼吸回数が上がる",
                    "何も変わらない"], answer: 1,
+                  miss: ["PC では圧は設定どおりに保たれます。動くのは別のものです。", nil,
+                         "回数は設定で決まっていて、肺の硬さでは変わりません。", "圧が同じで肺が硬ければ、入る量が変わります。"],
                   why: "圧は設定どおりなので、そのかわり入る量が減ります。PC は「静かに換気量が減っていく」のが危険な形で、Vte と MV のアラームが命綱になります。"),
             .quiz("同じことが VC で起きたら何が起きますか。",
                   ["気道内圧が上がる",
                    "一回換気量が減る",
                    "呼吸回数が上がる",
                    "何も変わらない"], answer: 0,
+                  miss: [nil, "VC は量を約束するモードです。量は守られます。",
+                         "回数は設定で決まっていて、肺の硬さでは変わりません。", "同じ量を硬い肺に入れれば、何かが変わります。"],
                   why: "量は守られ、そのぶん圧が上がります。上限圧に当たると吸気が途中で切られ、結局は換気量も落ちます。")
         ])
 
@@ -390,32 +437,35 @@ extension LessonLibrary {
         tasks: [
             .talk(.scene, "ハルト君の麻酔が覚めてきた。胸が、機械より先に動きはじめている。"),
             .talk(.doctor, "ここから患者が呼吸に参加します。その「吸いたい」を機械がどう受け取るかが、トリガです。"),
-            .step("「鎮静」を 20% まで下げて確定してください。",
-                  hint: "鎮静はシミュレーター側の操作なので、キーの色が違います。",
+            .step("「鎮静」を 40% まで下げて確定してください。",
+                  hint: "鎮静は人工呼吸器ではなくシミュレーターの操作なので、キーが点線で囲まれています。",
                   why: "呼吸中枢が働きはじめます。",
-                  check: { $0.engine.sedation <= 0.22 })
+                  check: { $0.engine.sedation <= 0.42 })
                 .spotting(["key:sed"]).watching(["RR tot"]),
-            .step("自発呼吸が 4 回/分 以上になるまで待ちます。",
-                  hint: "「× 10」で早送りできます。",
-                  why: "A/C なので、患者が吸うたびに設定どおりの換気が 1 回送られます。",
-                  check: { $0.measured.respiratoryRateSpontaneous >= 4 })
+            .step("患者が吸った回数（トリガ）が 4 回/分 以上になるまで待ちます。",
+                  hint: "RR tot のタイルの下に「トリガ」の回数が出ます。「× 10」で早送りもできます。",
+                  why: "A/C なので、患者が吸うたびに設定どおりの換気が 1 回送られます。だから RR tot は設定 RR より多くなり、その差が患者のトリガです。",
+                  check: { $0.measured.respiratoryRateTriggered >= 4 })
                 .spotting(["val:RR tot"]).watching(["RR tot"]),
             .talk(.puku, "感度を鈍くしたら、どうなるの？"),
-            .talk(.doctor, "やってみましょう。数字ではなく、圧波形に出ます。"),
-            .step("トリガ感度を 5 L/分 にして確定し、圧波形を 25 秒見てください。", hold: 25,
-                  why: "立ち上がりの前に、小さな下向きの切れ込みが出ています。この児は吸っているのに、機械が応えていません。",
-                  check: { $0.settings.triggerFlow >= 4.5 })
+            .talk(.doctor, "やってみましょう。いちばん鈍くします。見るのは数字より圧波形です。"),
+            .step("トリガ感度を 8 L/分 にして確定し、圧波形を 25 秒見てください。", hold: 25,
+                  why: "送気の合間に、圧波形が小さく下へ沈んでいます（流量にも小さな山）。この子は吸おうとしているのに、機械が応えていません。",
+                  check: { $0.settings.triggerFlow >= 7.5 })
                 .spotting(["key:trig", "wave"]).watching(["RR tot"]),
             .quiz("この状態の子どもは、どう感じていますか。",
                   ["楽になっている（呼吸の手間が減る）",
                    "吸っても空気が来ず、苦しい",
                    "何も感じない",
                    "過換気になる"], answer: 1,
+                  miss: ["手間は減っていません。吸っても空気が来ないので、むしろ増えています。", nil,
+                         "覚醒してきた子です。吸おうとして来ないのは、はっきり苦しい。",
+                         "機械は応えていないので、換気はむしろ足りなくなります。"],
                   why: "呼吸仕事量が増え、不穏の原因になります。「人工呼吸器と合わない」ときに鎮静を足す前に、トリガと auto-PEEP を疑うのが順序です。"),
             .talk(.patient, "（ハルト君が顔をしかめ、胸だけが大きく動いている）"),
             .talk(.doctor, "吸おうとしても機械が来ない。患者にとっていちばん苦しい設定です。戻しましょう。"),
-            .step("トリガ感度を 1 L/分 に戻してください。",
-                  why: "切れ込みが消え、この児の吸気に機械がついてくるようになりました。",
+            .step("トリガ感度を 1 L/分 に戻してください。", hold: 4,
+                  why: "沈み込むたびに送気が始まるようになりました。この子の吸気に、機械がついてきています。",
                   check: { $0.settings.triggerFlow <= 1.5 })
                 .spotting(["key:trig"]).watching(["RR tot"]),
             .quiz("逆に敏感にしすぎたり、チューブ周囲のリークが大きいと何が起こりますか。",
@@ -423,6 +473,8 @@ extension LessonLibrary {
                    "換気量が減る",
                    "患者が吸っていないのに送気される",
                    "呼気時間が伸びる"], answer: 2,
+                  miss: ["敏感すぎると、吸っていない揺れまで「吸った」と数えます。",
+                         "送気はむしろ増えます。", nil, "送気が増えるぶん、呼気時間は短くなります。"],
                   why: "オートトリガです。心拍の振動、回路の水の揺れ、小児ではリークを吸気と誤認します。リークが原因のときは、感度をいじるよりチューブのサイズや位置を見直すのが本筋です。")
         ])
 
@@ -444,14 +496,16 @@ extension LessonLibrary {
                  "PSV は始めるのも止めるのも患者"],
         tasks: [
             .talk(.doctor, "手伝い方には段階があります。全部やるか、足りない分だけ足すか、本人にまかせるか。"),
-            .key("上のタブで「SIMV」に切り替えてください。", event: .modeSIMV,
+            .key("モードを「SIMV」に切り替えてください。", event: .modeSIMV,
                  why: "強制換気は設定 RR の回数だけになり、その合間の自発呼吸は PS で手伝われます。")
                 .spotting(["mode:SIMV+PS"]),
             .step("30 秒待って、実測の呼吸回数と自発の回数を見比べてください。", hold: 30,
                   check: { _ in true })
                 .explaining { c in
-                    String(format: "実測 %.0f 回/分、うち自発 %.0f 回/分。差の分だけ患者が自分で呼吸しています。",
-                           c.measured.respiratoryRateTotal, c.measured.respiratoryRateSpontaneous)
+                    let total = Int(c.measured.respiratoryRateTotal.rounded())
+                    let spont = Int(c.measured.respiratoryRateSpontaneous.rounded())
+                    let mand = max(0, total - spont)
+                    return "実測 \(total) 回/分のうち、強制換気が \(mand)（設定 RR \(LessonLibrary.number(c.settings.respiratoryRate))）、自発が \(spont)。設定を超えた分だけ、患者が自分で呼吸しています。"
                 }
                 .spotting(["val:RR tot"]).watching(["RR tot", "Vte", "MV"]),
             .quiz("SIMV で設定 RR 10、実測 RR 18 でした。差の 8 回は何ですか。",
@@ -459,6 +513,9 @@ extension LessonLibrary {
                    "患者自身の自発呼吸",
                    "オートトリガ",
                    "無呼吸バックアップ"], answer: 1,
+                  miss: ["SIMV では設定を超える分があるのが普通です。", nil,
+                         "オートトリガもありえますが、まず考えるのは患者の呼吸です。",
+                         "バックアップは呼吸が止まったときの仕組みです。"],
                   why: "患者の自発呼吸です。2 種類の呼吸が混ざるので、波形も大きい山と小さい山が交互に出ます。"),
             .talk(.puku, "SIMV と PSV って、どう違うの？"),
             .talk(.doctor, "SIMV は決めた回数だけ必ず送ります。PSV は 1 回も送りません。押せば分かります。"),
@@ -475,9 +532,12 @@ extension LessonLibrary {
             .talk(.doctor, "では、その「1 回も送らない」の怖いところを。"),
             .quiz("PSV 中に患者が鎮静で呼吸を止めたらどうなりますか。",
                   ["設定 RR で換気が続く",
-                   "何も起こらず、無呼吸アラームとバックアップ換気が作動する",
+                   "機械からは送られず、無呼吸アラームが鳴ってバックアップ換気が始まる",
                    "自動的に A/C に切り替わって終わり",
                    "PS が自動で上がる"], answer: 1,
+                  miss: ["PSV には設定 RR がありません。患者が吸わなければ送りません。", nil,
+                         "モードが勝手に変わって終わり、にはなりません。一時的な救済だけです。",
+                         "PS は吸ったときに手伝う圧で、吸わなければ出番がありません。"],
                   why: "PSV には自前の換気回数がありません。深い鎮静や意識障害の患者には使えず、使うなら無呼吸バックアップの設定を必ず確認します（新生児 10 秒、乳児 15 秒が目安）。")
         ])
 }

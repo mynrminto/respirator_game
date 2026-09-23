@@ -16,7 +16,8 @@ struct RootView: View {
     var body: some View {
         Group {
             if let controller {
-                VentilatorScreen(controller: controller)
+                VentilatorScreen(controller: controller,
+                                 onGoToTitle: { self.controller = nil })
             } else {
                 TitleView(onStartLesson: { start(lesson: $0) },
                           onOpenCourse: { showingCourse = true },
@@ -25,9 +26,10 @@ struct RootView: View {
                         LessonCourseView { start(lesson: $0) }
                     }
                     .sheet(isPresented: $showingCases) {
-                        ScenarioListView(onStart: { scenario, settings in
+                        ScenarioListView(onStart: { scenario, settings, provisional in
                             showingCases = false
-                            controller = SimulationController(scenario: scenario, settings: settings)
+                            controller = SimulationController(scenario: scenario, settings: settings,
+                                                              provisional: provisional)
                         })
                     }
             }
@@ -38,8 +40,9 @@ struct RootView: View {
 
     private func start(lesson: Lesson) {
         showingCourse = false
+        // startLesson が症例の推奨設定・アラームとレッスンの設定を入れ直す。
         let created = SimulationController(scenario: lesson.scenario,
-                                           settings: VentilatorSettings())
+                                           settings: lesson.scenario.initialSettings())
         created.startLesson(lesson)
         controller = created
     }
@@ -48,7 +51,8 @@ struct RootView: View {
 /// 症例を選び、予測体重から初期設定を決めるところまで。
 /// タイトル画面から「症例で練習」で開く。
 struct ScenarioListView: View {
-    var onStart: (Scenario, VentilatorSettings) -> Void
+    /// 3 つ目は「自分で設定する」で始めたか（仮の設定のまま始まったことを画面で知らせる）。
+    var onStart: (Scenario, VentilatorSettings, Bool) -> Void
     @State private var selected: Scenario?
     @Environment(\.dismiss) private var dismiss
 
@@ -87,7 +91,7 @@ struct ScenarioListView: View {
                                         .background { if Chrome.isPop { Capsule().fill(Chrome.accent) } }
                                     Text(scenario.title)
                                         .font(Chrome.label(16, weight: .bold))
-                                    Text(scenario.oneLine)
+                                    Text(scenario.oneLine.subscripted)
                                         .font(.caption).foregroundStyle(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
@@ -105,9 +109,9 @@ struct ScenarioListView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
             }
             .sheet(item: $selected) { scenario in
-                SetupView(scenario: scenario) { settings in
+                SetupView(scenario: scenario) { settings, provisional in
                     selected = nil
-                    onStart(scenario, settings)
+                    onStart(scenario, settings, provisional)
                 }
             }
         }
@@ -116,7 +120,8 @@ struct ScenarioListView: View {
 
 struct SetupView: View {
     let scenario: Scenario
-    var onStart: (VentilatorSettings) -> Void
+    /// 2 つ目は「自分で設定する」を選んだか。
+    var onStart: (VentilatorSettings, Bool) -> Void
     @State private var settings = VentilatorSettings()
     @Environment(\.dismiss) private var dismiss
 
@@ -133,8 +138,8 @@ struct SetupView: View {
         NavigationStack {
             List {
                 Section("病歴") {
-                    Text(scenario.history).font(.callout)
-                    ForEach(scenario.findings, id: \.self) { Text($0).font(.caption) }
+                    Text(scenario.history.subscripted).font(.callout)
+                    ForEach(scenario.findings, id: \.self) { Text($0.subscripted).font(.caption) }
                 }
                 Section("体重と年齢の目安") {
                     LabeledContent("体重", value: String(format: "%.1f kg", pbw))
@@ -157,8 +162,12 @@ struct SetupView: View {
                 }
                 Section("目安") { Text(advice).font(.caption) }
                 Section {
-                    Button("この設定で換気を開始") { onStart(settings) }
+                    Button("この設定で換気を開始") { onStart(settings, false) }
                     Button("推奨設定を入れる") { applySuggested() }
+                    // Web 版の「自分で設定する」。推奨値のまま始め、機器のキーとダイヤルで決めていく。
+                    Button("自分で設定する") { onStart(scenario.initialSettings(), true) }
+                } footer: {
+                    Text("「自分で設定する」は、機器の画面で設定キーを選び、ダイヤルを回して「確定」で決めていきます。")
                 }
             }
             .navigationTitle(scenario.title)
