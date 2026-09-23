@@ -202,6 +202,22 @@ struct GasExchangeTests {
         #expect(e.pao2 > roomAir + 150)
     }
 
+    @Test("肺胞 PO2 は釣り合えば肺胞気式に一致し、換気が落ちると SpO2 が CO2 より先に動く")
+    func alveolarOxygenStore() {
+        let e = makeEngine("postop", sedation: 1.0) {
+            $0.tidalVolume = 180; $0.respiratoryRate = 20; $0.peep = 5
+            $0.fio2 = 0.21; $0.inspiratoryFlow = 24
+        }
+        run(e, seconds: 60 * 15, dt: 0.01)
+        let equation = Physiology.alveolarPO2(fio2: 0.21, paco2: e.paco2)
+        #expect(abs(e.alveolarPO2 - equation) < 3)
+        let spo2Before = e.spo2, paco2Before = e.paco2
+        e.settings.tidalVolume = 50; e.settings.respiratoryRate = 10
+        run(e, seconds: 60, dt: 0.01)
+        #expect(e.spo2 < spo2Before - 8)
+        #expect(e.paco2 - paco2Before < 20 && e.paco2 - paco2Before > 5)
+    }
+
     @Test("血液ガスは Henderson-Hasselbalch を満たす")
     func bloodGasConsistency() {
         let e = makeEngine("ards", sedation: 1.0) { $0.peep = 12; $0.fio2 = 0.7 }

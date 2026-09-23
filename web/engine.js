@@ -7,6 +7,11 @@
   'use strict';
 
   var PB = 760, PH2O = 47, RQ = 0.8;
+  /* 酸素と CO2 の貯え。値の出どころは _gas と _o2Capacity のコメントを参照。 */
+  var FRC_PER_KG = 25;           // mL/kg  鎮静・仰臥位の機能的残気量（PEEP 0 のとき）
+  var BLOOD_PER_KG = 75;         // mL/kg  循環血液量
+  var CO2_STORE_PER_KG = 0.33;   // mL/kg/mmHg  速く平衡する CO2 の貯え
+  var PA_O2_FLOOR = 12;          // mmHg
 
   /* ---------- 酸素解離曲線 (Severinghaus) ---------- */
   function satFromPO2(p) {
@@ -198,6 +203,7 @@
     this.hco3 = p.hco3 != null ? p.hco3 : 24;
     this.pao2 = p.pao2 != null ? p.pao2 : 80;
     this.spo2 = satFromPO2(this.pao2) * 100;
+    this.pAO2 = Math.max(PA_O2_FLOOR, s.fio2 * (PB - PH2O) - this.paco2 / RQ);   // 肺胞 PO2
     this.co = p.co || 5.0;
     this.hr = p.hr || 88;
     this.map = p.map || 80;
@@ -617,9 +623,18 @@
     var plat = this.m.pplat != null ? this.m.pplat : (this.V / this.C);
     if (plat > nm.platMax - 2) va *= clamp(1 - (plat - (nm.platMax - 2)) * 0.02, 0.6, 1);
 
+    /* 呼吸が測れるまで（開始直後の数秒）は換気量が 0 に見えるので、ガスを動かさない。 */
+    var measured = this.m.rrTotal > 0 || this.clock > 20;
+
+    /* CO2：普段は 3 分ほどの時定数で動く。ただし換気がほとんど無いときの上がり方は
+     * 体の CO2 の貯え（速く平衡する分 ≈ 0.33 mL/kg/mmHg）で頭打ちになり、
+     * 無呼吸でも 1 分に十数 mmHg までしか上がらない。 */
     var paco2ss = clamp(0.863 * vco2 / va, 8, 160);
     var tau = paco2ss > this.paco2 ? 190 : 130;
-    this.paco2 = approach(this.paco2, paco2ss, d, tau);
+    var tauStore = 60 * 0.863 * (CO2_STORE_PER_KG * p.pbw) / va;   // s
+    if (!measured) { /* そのまま */ }
+    else if (tauStore > tau) this.paco2 = clamp(approach(this.paco2, 0.863 * vco2 / va, d, tauStore), 8, 160);
+    else this.paco2 = approach(this.paco2, paco2ss, d, tau);
 
     // リクルートメント：総 PEEP でシャントが減る
     var peepTot = this.m.peepTot || s.peep;
@@ -639,13 +654,23 @@
     this.co = approach(this.co, Math.max(0.35 * (p.co || 5.0), coTarget), d, 25);
 
     // 酸素化
-    var pao2Alv = s.fio2 * (PB - PH2O) - this.paco2 / RQ;
-    var ccO2 = o2Content(Math.max(20, pao2Alv), p.hb);
+    /* 肺胞の O2 は CO2 から逆算せず、O2 そのものの出入りで動かす。
+     * 入る量 = 肺胞換気量 ×（吸入 − 肺胞）、出る量 = 酸素消費量。貯えは
+     * 肺に残っているガス（FRC）と、血液のヘモグロビンが手放せる分。
+     * 換気が止まると FRC の O2 は 1 分もたずに使い切られ、CO2 より先に SpO2 が落ちる。
+     * 釣り合った状態では肺胞気式 PAO2 = PIO2 − PaCO2 / R と同じ値になる。 */
+    var pio2 = s.fio2 * (PB - PH2O);
+    if (measured) {
+      var pAss = pio2 - 0.863 * vo2 / va;
+      var cap = this._o2Capacity();                               // mL/mmHg
+      this.pAO2 = clamp(approach(this.pAO2, pAss, d, 60 * 0.863 * cap / va), PA_O2_FLOOR, pio2);
+    }
+    var ccO2 = o2Content(this.pAO2, p.hb);
     var coFloor = 0.25 * (p.co || 5.0);
     var caO2 = ccO2 - this.shunt * vo2 / ((1 - this.shunt) * 10 * Math.max(coFloor, this.co));
     caO2 = Math.max(2, caO2);
     var pao2Target = po2FromContent(caO2, p.hb);
-    this.pao2 = approach(this.pao2, pao2Target, d, 42);
+    this.pao2 = approach(this.pao2, pao2Target, d, 8);           // 肺から動脈までの数秒
     var sat = satFromPO2(this.pao2) * 100;
     this.spo2 = approach(this.spo2, sat, d, 14);
 
@@ -675,6 +700,20 @@
     this._updateFatigue(d);
     this._scoreTick(d);
     this._alarmCheck();
+  };
+
+  /* 肺胞 PO2 が 1 mmHg 下がるあいだに体が使える O2 の量（mL/mmHg）。
+   * 肺のガス（FRC + PEEP で広げた分。潰れた肺胞＝シャントの分は O2 を持たない）と、
+   * 血液（75 mL/kg）。血液は酸素解離曲線の傾きの分だけ効くので、平坦部ではほとんど
+   * 役に立たず、SpO2 が 90% を切るあたりから下がり方を緩める。 */
+  Engine.prototype._o2Capacity = function () {
+    var p = this.p;
+    var lungL = FRC_PER_KG * p.pbw / 1000 * (1 - this.shunt) + Math.max(0, this.vEE);
+    var gas = lungL * 1000 / (PB - PH2O);
+    var pa = this.pAO2, h = 1;
+    var slope = (o2Content(pa + h, p.hb) - o2Content(Math.max(0, pa - h), p.hb)) / (2 * h);  // mL/dL/mmHg
+    var blood = BLOOD_PER_KG * p.pbw / 1000 * 10 * slope * (1 - this.shunt);
+    return gas + blood;
   };
 
   /* ---------- 目標達成と有害事象の集計 ---------- */
@@ -727,6 +766,7 @@
     var drop = this.s.fio2 >= 0.99 ? 4 : 7;       // 先に 100% で貯金していれば落ち込みは小さい
     this.spo2 = Math.max(40, this.spo2 - drop);
     this.pao2 = Math.min(this.pao2, po2FromSat(this.spo2 / 100));
+    this.pAO2 = Math.min(this.pAO2, this.pao2);       // 吸い出されたぶん肺胞の O2 も減っている
     this.p.Rinsp = Math.max(4, this.p.Rinsp * 0.88);
     this.p.Rexp = Math.max(5, this.p.Rexp * 0.90);
     this._raise('気管吸引を実施');

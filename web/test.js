@@ -148,6 +148,20 @@ console.log('\n7. FiO2 と PaO2');
     `${room.toFixed(0)} → ${e.pao2.toFixed(0)} mmHg`);
   ok('正常肺の FiO2 0.21 で PaO2 が生理的範囲', room > 60 && room < 110, `${room.toFixed(0)} mmHg`);
 }
+{
+  /* 肺胞の O2 は O2 の出入りで動く。釣り合えば肺胞気式と同じ値になり、
+   * 換気が急に落ちると CO2 が上がりきる前に SpO2 が先に落ちる（FRC の O2 は 1 分もたない）。 */
+  const e = mk('postop', { mode: 'VC-AC', vt: 180, rr: 20, peep: 5, fio2: 0.21, flow: 24 });
+  e.sedation = 1.0; e._recomputeDrive(); run(e, 60 * 15, 0.01);
+  const pAeq = 0.21 * (760 - 47) - e.paco2 / 0.8;
+  ok('釣り合った肺胞 PO2 は肺胞気式に一致', near(e.pAO2, pAeq, 3),
+    `PAO2=${e.pAO2.toFixed(1)} 式=${pAeq.toFixed(1)} mmHg`);
+  const s0 = e.spo2, c0 = e.paco2;
+  e.s.vt = 50; e.s.rr = 10; run(e, 60, 0.01);
+  ok('換気を急に落とすと 1 分で SpO2 が先に落ち、PaCO2 はゆっくり上がる',
+    e.spo2 < s0 - 8 && e.paco2 - c0 < 20 && e.paco2 - c0 > 5,
+    `SpO2 ${s0.toFixed(0)}→${e.spo2.toFixed(0)}%  PaCO2 ${c0.toFixed(0)}→${e.paco2.toFixed(0)} mmHg`);
+}
 
 console.log('\n8. 自発呼吸とトリガ（PSV）');
 {

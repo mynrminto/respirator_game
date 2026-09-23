@@ -45,6 +45,8 @@ public final class VentilatorEngine {
 
     public private(set) var paco2: Double = 40
     public private(set) var pao2: Double = 80
+    /// 肺胞の PO2（mmHg）。CO2 から逆算せず、O2 の出入りで動かす状態量。
+    public private(set) var alveolarPO2: Double = 100
     public private(set) var hco3: Double = 24
     public private(set) var pH: Double = 7.4
     public private(set) var baseExcess: Double = 0
@@ -155,6 +157,8 @@ public final class VentilatorEngine {
         hco3 = patient.hco3
         pH = Physiology.pH(hco3: hco3, paco2: paco2)
         spo2 = Physiology.saturation(po2: pao2) * 100
+        alveolarPO2 = max(Self.alveolarO2Floor,
+                          Physiology.alveolarPO2(fio2: settings.fio2, paco2: paco2))
         heartRate = patient.heartRate
         meanArterialPressure = patient.meanArterialPressure
         cardiacOutput = patient.cardiacOutput
@@ -204,6 +208,7 @@ public final class VentilatorEngine {
         let drop = settings.fio2 >= 0.99 ? 4.0 : 7.0      // 先に 100% で貯金していれば落ち込みは小さい
         spo2 = max(40, spo2 - drop)
         pao2 = min(pao2, Physiology.po2(fromSaturation: spo2 / 100))
+        alveolarPO2 = min(alveolarPO2, pao2)     // 吸い出されたぶん肺胞の O2 も減っている
         patient.resistanceInsp = max(4, patient.resistanceInsp * 0.88)
         patient.resistanceExp = max(5, patient.resistanceExp * 0.90)
     }
@@ -650,6 +655,27 @@ public final class VentilatorEngine {
 
     // MARK: - ガス交換・循環
 
+    /* 酸素と CO2 の貯え。 */
+    static let frcPerKg = 25.0           // mL/kg  鎮静・仰臥位の機能的残気量（PEEP 0 のとき）
+    static let bloodVolumePerKg = 75.0   // mL/kg  循環血液量
+    static let co2StorePerKg = 0.33      // mL/kg/mmHg  速く平衡する CO2 の貯え
+    static let alveolarO2Floor = 12.0    // mmHg
+
+    /* 肺胞 PO2 が 1 mmHg 下がるあいだに体が使える O2 の量（mL/mmHg）。
+     * 肺のガス（FRC + PEEP で広げた分。潰れた肺胞＝シャントの分は O2 を持たない）と、
+     * 血液（75 mL/kg）。血液は酸素解離曲線の傾きの分だけ効くので、平坦部ではほとんど
+     * 役に立たず、SpO2 が 90% を切るあたりから下がり方を緩める。 */
+    func oxygenCapacity() -> Double {
+        let kg = patient.predictedBodyWeight
+        let lungL = Self.frcPerKg * kg / 1000 * (1 - shunt) + max(0, volumeEndExp)
+        let gas = lungL * 1000 / (Physiology.barometric - Physiology.waterVapor)
+        let hb = patient.hemoglobin
+        let slope = (Physiology.oxygenContent(po2: alveolarPO2 + 1, hemoglobin: hb)
+            - Physiology.oxygenContent(po2: max(0, alveolarPO2 - 1), hemoglobin: hb)) / 2
+        let blood = Self.bloodVolumePerKg * kg / 1000 * 10 * slope * (1 - shunt)
+        return gas + blood
+    }
+
     private func updateGasExchange(dt: Double) {
         gasAccumulator += dt
         guard gasAccumulator >= 0.25 else { return }
@@ -674,9 +700,25 @@ public final class VentilatorEngine {
             alveolarVentilation *= Physiology.clamp(1 - (plateau - 28) * 0.02, 0.6, 1)
         }
 
+        /* 呼吸が測れるまで（開始直後の数秒）は換気量が 0 に見えるので、ガスを動かさない。 */
+        let ventilationMeasured = measured.respiratoryRateTotal > 0 || clock > 20
+
+        /* CO2：普段は 3 分ほどの時定数で動く。ただし換気がほとんど無いときの上がり方は
+         * 体の CO2 の貯え（速く平衡する分 ≈ 0.33 mL/kg/mmHg）で頭打ちになり、
+         * 無呼吸でも 1 分に十数 mmHg までしか上がらない。 */
         let steadyStateCO2 = Physiology.clamp(0.863 * vco2 / alveolarVentilation, 8, 160)
-        paco2 = Physiology.approach(paco2, toward: steadyStateCO2, dt: d,
-                                    tau: steadyStateCO2 > paco2 ? 190 : 130)
+        let co2Tau = steadyStateCO2 > paco2 ? 190.0 : 130.0
+        let co2StoreTau = 60 * 0.863 * (Self.co2StorePerKg * patient.predictedBodyWeight)
+            / alveolarVentilation
+        if !ventilationMeasured {
+            // そのまま
+        } else if co2StoreTau > co2Tau {
+            paco2 = Physiology.clamp(
+                Physiology.approach(paco2, toward: 0.863 * vco2 / alveolarVentilation,
+                                    dt: d, tau: co2StoreTau), 8, 160)
+        } else {
+            paco2 = Physiology.approach(paco2, toward: steadyStateCO2, dt: d, tau: co2Tau)
+        }
 
         // PEEP によるリクルートメント
         let totalPEEP = measured.totalPEEP
@@ -698,14 +740,26 @@ public final class VentilatorEngine {
         cardiacOutput = Physiology.approach(cardiacOutput,
             toward: max(0.25 * patient.cardiacOutput, targetCO), dt: d, tau: 25)
 
-        // 酸素化（シャント式を閉じた形で解く）
-        let alveolarO2 = Physiology.alveolarPO2(fio2: settings.fio2, paco2: paco2)
-        let endCapillary = Physiology.oxygenContent(po2: max(20, alveolarO2),
+        // 酸素化
+        /* 肺胞の O2 は CO2 から逆算せず、O2 そのものの出入りで動かす。
+         * 入る量 = 肺胞換気量 ×（吸入 − 肺胞）、出る量 = 酸素消費量。貯えは
+         * 肺に残っているガス（FRC）と、血液のヘモグロビンが手放せる分。
+         * 換気が止まると FRC の O2 は 1 分もたずに使い切られ、CO2 より先に SpO2 が落ちる。
+         * 釣り合った状態では肺胞気式 PAO2 = PIO2 − PaCO2 / R と同じ値になる。 */
+        let inspiredO2 = settings.fio2 * (Physiology.barometric - Physiology.waterVapor)
+        if ventilationMeasured {
+            let steadyStateO2 = inspiredO2 - 0.863 * vo2 / alveolarVentilation
+            let o2Tau = 60 * 0.863 * oxygenCapacity() / alveolarVentilation
+            alveolarPO2 = Physiology.clamp(
+                Physiology.approach(alveolarPO2, toward: steadyStateO2, dt: d, tau: o2Tau),
+                Self.alveolarO2Floor, inspiredO2)
+        }
+        let endCapillary = Physiology.oxygenContent(po2: alveolarPO2,
                                                     hemoglobin: patient.hemoglobin)
         let arterial = max(2, endCapillary
             - shunt * vo2 / ((1 - shunt) * 10 * max(0.25 * patient.cardiacOutput, cardiacOutput)))
         let targetPaO2 = Physiology.po2(fromContent: arterial, hemoglobin: patient.hemoglobin)
-        pao2 = Physiology.approach(pao2, toward: targetPaO2, dt: d, tau: 42)
+        pao2 = Physiology.approach(pao2, toward: targetPaO2, dt: d, tau: 8)   // 肺から動脈までの数秒
         spo2 = Physiology.approach(spo2, toward: Physiology.saturation(po2: pao2) * 100,
                                    dt: d, tau: 14)
 
