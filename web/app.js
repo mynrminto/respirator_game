@@ -9,6 +9,9 @@
   /* 音は無くても動く（sound.js を読まない構成やテスト用） */
   var SND = window.VentSound || { play: function () {}, alarm: function () {}, pulse: function () { return false; }, pulseReset: function () {},
     enabled: function () { return false; }, setEnabled: function () {}, pulseEnabled: function () { return false; }, setPulseEnabled: function () {} };
+  /* BGM も無くても動く（bgm.js） */
+  var BGM = window.VentBGM || { want: function () {}, duck: function () {}, enabled: function () { return false; },
+    setEnabled: function () {}, clockTrack: function () { return 'day'; } };
   var $ = function (id) { return document.getElementById(id); };
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
@@ -395,8 +398,20 @@
     var e = S.eng, a = e.alarms || [], sev = 0;
     for (var i = 0; i < a.length; i++) if (a[i].sev > sev) sev = a[i].sev;
     if (!$('title').hidden || e.extubated) sev = 0;
-    SND.alarm(sev, S.silenceUntil > e.clock, performance.now() / 1000);
+    var silenced = S.silenceUntil > e.clock;
+    SND.alarm(sev, silenced, performance.now() / 1000);
+    BGM.duck(sev > 0 && !silenced && SND.enabled());   // アラームが鳴っているあいだは BGM を下げる
   }
+
+  /* BGM。昼の曲と夜の曲を、いま見ている場面の時刻で選ぶ（bgm.js）。
+   *   物語の幕 … 幕の time　／　タイトル … 昼　／　レッスン … 章の時刻　／　症例で練習 … 端末の時計 */
+  function bgmTrack() {
+    if (SV && SV.run) return SV.run.scene.time || 'day';
+    if (!$('title').hidden) return 'day';
+    if (S.lesson) return (ST && S.lesson.chap && ST.CHAPTER_TIME[S.lesson.chap.id]) || 'day';
+    return BGM.clockTrack(new Date());
+  }
+  function bgmSound() { BGM.want(bgmTrack()); }
 
   /* パルス音。心拍に合わせて 1 拍ごとに鳴り、高さは SpO₂ で変わる（sound.js）。
    * タイトル画面の裏では鳴らさない。拍が来たら SpO₂ のタイルの ♥ を光らせる（音を消していても）。 */
@@ -979,7 +994,7 @@
     } else {
       lessonTick(0);          // 抜管後も「結果を確認」の課題は判定を続ける（止めると 6-3 が終わらない）
     }
-    paintVals(); paintStatus(); paintCoach(); alarmSound(); pulseSound();
+    paintVals(); paintStatus(); paintCoach(); alarmSound(); pulseSound(); bgmSound();
     if (S.screen === 'wave') drawScope();
     else if (S.screen === 'loops') drawLoops();
     else if (S.screen === 'lung') drawLung(real);
@@ -1840,6 +1855,8 @@
        ['⌂', 'タイトルへ戻る', function () { close(); endLesson(false); showTitle(); }],
        ['♪', SND.enabled() ? '音：オン（押すと消す）' : '音：オフ（押すと鳴らす）',
         function () { SND.setEnabled(!SND.enabled()); close(); openMenu(); }],
+       ['♫', BGM.enabled() ? 'BGM：オン（押すと消す）' : 'BGM：オフ（押すと流す）',
+        function () { BGM.setEnabled(!BGM.enabled()); close(); openMenu(); }],
        ['♥', SND.pulseEnabled() ? 'パルス音：オン（押すと消す）' : 'パルス音：オフ（押すと鳴らす）',
         function () { SND.setPulseEnabled(!SND.pulseEnabled()); close(); openMenu(); }],
        ['?', 'この教材について', function () { close(); openDisclaimer(false); }]

@@ -55,10 +55,12 @@ final class SoundBoard {
         set {
             UserDefaults.standard.set(newValue, forKey: Self.enabledKey)
             if newValue { play(.tap) } else { alarmLevel = 0 }
+            BGMPlayer.shared.apply()
         }
     }
 
-    private let engine = AVAudioEngine()
+    /// BGM（BGMPlayer）も同じエンジンにつなぐ。
+    let engine = AVAudioEngine()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
     private var players: [Cue: AVAudioPlayerNode] = [:]
     private var buffers: [Cue: AVAudioPCMBuffer] = [:]
@@ -130,7 +132,7 @@ final class SoundBoard {
         play(level >= 2 ? .alarmHigh : .alarmMedium)
     }
 
-    private func start() -> Bool {
+    func start() -> Bool {
         if running && engine.isRunning { return true }
         do {
             try AVAudioSession.sharedInstance().setActive(true)

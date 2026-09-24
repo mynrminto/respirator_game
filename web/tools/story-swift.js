@@ -25,7 +25,7 @@ function scene(s) {
   return `        StoryScene(id: ${q(s.id)}, kind: ${q(s.kind)}, chapter: ${s.chapter ? q(s.chapter) : 'nil'},
                    title: ${q(s.title)},
                    card: ${card},
-                   bg: ${q(s.bg)}, end: ${end}, lines: [
+                   bg: ${q(s.bg)}, time: ${q(s.time)}, end: ${end}, lines: [
 ${s.lines.map(line).join(',\n')}
         ])`;
 }

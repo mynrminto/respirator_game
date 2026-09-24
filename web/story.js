@@ -8,6 +8,8 @@
  *   chN-open   … その章のレッスンを初めて始めるとき（章の扉）
  *   chN-close  … その章の最後のレッスンを初めて終えたとき
  *   epilogue   … 第6章の幕のあと
+ * 幕ごとに time（'day' / 'night'）を持ち、BGM の昼の曲・夜の曲をこれで選ぶ。
+ * レッスンの最中は章の時刻（CHAPTER_TIME）で選ぶ。
  * 一度見た幕はメニューの「物語を読み返す」から何度でも読める。
  *
  * 行（line）の書き方
@@ -39,13 +41,16 @@
     dawn: ['bg_story_dawn', 'bg_title_day']
   };
 
+  /* レッスンの最中に流す曲。章の舞台の時刻：第1章は初日の夜、第5章は当直の夜、ほかは日中。 */
+  var CHAPTER_TIME = { ch1: 'night', ch2: 'day', ch3: 'day', ch4: 'day', ch5: 'night', ch6: 'day' };
+
   var SCENES = [
 
     /* ===================== プロローグ ===================== */
     {
       id: 'prologue', kind: 'prologue', title: 'プロローグ　はじめての小児科',
       card: { kicker: 'プロローグ', title: 'はじめての小児科', sub: 'ローテーション初日　朝 8 時' },
-      bg: 'corridor',
+      bg: 'corridor', time: 'day',
       lines: [
         { who: 'scene', say: '初期研修の小児科ローテーション、初日。朝の病棟は、思っていたよりずっと静かだった。' },
         { who: 'scene', say: '廊下の突き当たりに「PICU・NICU」の自動ドア。中から、規則正しい機械の音が聞こえてくる。' },
@@ -91,7 +96,7 @@
     {
       id: 'ch1-open', kind: 'open', chapter: 'ch1', title: '第1章　扉　初日の夜',
       card: { kicker: '第1章', title: '機械を読む', sub: '初日の夜　PICU' },
-      bg: 'night',
+      bg: 'night', time: 'night',
       lines: [
         { who: 'scene', say: '午後 8 時。手術室から、ハルト君のベッドが運ばれてきた。麻酔科医が、手際よく呼吸器につなぎ替えていく。' },
         { who: 'nurse', say: '呼吸器、つながりました。ノルアドレナリンは 0.1 で続いています。設定は麻酔科の先生が入れてくれています。' },
@@ -101,7 +106,7 @@
     },
     {
       id: 'ch1-close', kind: 'close', chapter: 'ch1', title: '第1章　幕　午前 0 時',
-      bg: 'station',
+      bg: 'station', time: 'night',
       lines: [
         { who: 'scene', say: '午前 0 時。ハルト君の数字は落ち着いている。ナースステーションには、モニターの音だけが続いている。' },
         { who: 'doc', mood: 'happy', say: '今夜、{名前}先生は 3 つ覚えました。波形の読み方。圧が 2 つあること。肺の柔らかさと、気道の通りにくさ。' },
@@ -115,7 +120,7 @@
     {
       id: 'ch2-open', kind: 'open', chapter: 'ch2', title: '第2章　扉　2 日目の朝',
       card: { kicker: '第2章', title: '挿管直後の初期設定', sub: '2 日目の朝　回診' },
-      bg: 'picu',
+      bg: 'picu', time: 'day',
       lines: [
         { who: 'scene', say: '翌朝 8 時。ハルト君の昇圧薬は、夜のうちに半分まで減った。回診の前に、夜勤の看護師から申し送りを受ける。' },
         { who: 'nurse', say: '夜中に何度か換気量のアラームが鳴って、当直の先生が一回換気量を上げていきました。' },
@@ -126,7 +131,7 @@
     },
     {
       id: 'ch2-close', kind: 'close', chapter: 'ch2', title: '第2章　幕　昼すぎ',
-      bg: 'picu',
+      bg: 'picu', time: 'day',
       lines: [
         { who: 'scene', say: '昼すぎ。ハルト君の指示票に、{名前}先生の字で書いた設定が並んでいる。' },
         { who: 'doc', mood: 'happy', say: '体重から量を、量から回数を。酸素は下げられるだけ下げる。いい初期設定です。' },
@@ -140,7 +145,7 @@
     {
       id: 'ch3-open', kind: 'open', chapter: 'ch3', title: '第3章　扉　3 番ベッド',
       card: { kicker: '第3章', title: 'モードの違い', sub: '2 日目の午後　PICU 3 番ベッド' },
-      bg: 'picu',
+      bg: 'picu', time: 'day',
       lines: [
         { who: 'scene', say: 'インフルエンザ肺炎から ARDS になったミオちゃん（3歳）。お母さんが、ベッドの横で小さな手を握っている。' },
         { who: 'fam', name: 'ミオちゃんのお母さん', say: '先生、この子、ずっとこのままなんでしょうか…。' },
@@ -151,7 +156,7 @@
     },
     {
       id: 'ch3-close', kind: 'close', chapter: 'ch3', title: '第3章　幕　夕方',
-      bg: 'picu',
+      bg: 'picu', time: 'day',
       lines: [
         { who: 'scene', say: '夕方。ハルト君はうとうとしながら、自分のペースで息をしている。' },
         { who: 'pt', case: 'postop', name: 'ハルト君', say: '（チューブがあって話せない。かわりに指で、小さな OK をつくってみせる）' },
@@ -167,7 +172,7 @@
     {
       id: 'ch4-open', kind: 'open', chapter: 'ch4', title: '第4章　扉　3 日目の朝',
       card: { kicker: '第4章', title: '血液ガスを読む', sub: '3 日目の朝　回診前' },
-      bg: 'station',
+      bg: 'station', time: 'day',
       lines: [
         { who: 'scene', say: '3 日目の朝。回診の前に、ナースステーションに夜のあいだの採血の結果が並んでいる。' },
         { who: 'me', say: '数字が多すぎて、どれから見ればいいのか…。' },
@@ -177,7 +182,7 @@
     },
     {
       id: 'ch4-close', kind: 'close', chapter: 'ch4', title: '第4章　幕　夕方',
-      bg: 'picu',
+      bg: 'picu', time: 'day',
       lines: [
         { who: 'scene', say: '夕方。ミオちゃんの pH は低めのまま。それでも、肺にかかる圧は上限の下に収まった。' },
         { who: 'me', say: 'CO₂ が高いままでいいのか、まだ少し怖いです。' },
@@ -191,7 +196,7 @@
     {
       id: 'ch5-open', kind: 'open', chapter: 'ch5', title: '第5章　扉　2 回目の当直',
       card: { kicker: '第5章', title: 'アラームとトラブル', sub: '3 日目の夜　当直' },
-      bg: 'station',
+      bg: 'station', time: 'night',
       lines: [
         { who: 'scene', say: '2 回目の当直。ナースステーションで、ななみさんが {名前}先生に声をかけた。' },
         { who: 'nurse', say: 'ハルト君、夕方に点滴の管が詰まって、左の鎖骨の下から入れ直しています。昇圧薬は、もう切れました。' },
@@ -202,7 +207,7 @@
     },
     {
       id: 'ch5-close', kind: 'close', chapter: 'ch5', title: '第5章　幕　夜明け',
-      bg: 'dawn',
+      bg: 'dawn', time: 'day',
       lines: [
         { who: 'scene', say: '夜明け。ハルト君の胸には細いドレーンが入り、モニターの音はまた高く澄んだ音に戻っている。' },
         { who: 'me', say: '手が震えていました。でも、酸素を上げるところまでは、考える前にできました。' },
@@ -217,7 +222,7 @@
     {
       id: 'ch6-open', kind: 'open', chapter: 'ch6', title: '第6章　扉　4 日目の朝',
       card: { kicker: '第6章', title: '離脱と抜管', sub: '4 日目の朝　PICU' },
-      bg: 'picu',
+      bg: 'picu', time: 'day',
       lines: [
         { who: 'scene', say: '翌朝。ハルト君の熱は下がり、お腹の張りも引いた。ドレーンからの空気漏れも止まっている。お母さんが面会に来ている。' },
         { who: 'fam', name: 'ハルト君のお母さん', say: '先生、この管はいつ抜けるんでしょう。あの子、しゃべりたがっていて。' },
@@ -228,7 +233,7 @@
     },
     {
       id: 'ch6-close', kind: 'close', chapter: 'ch6', title: '第6章　幕　抜管のあと',
-      bg: 'picu',
+      bg: 'picu', time: 'day',
       lines: [
         { who: 'scene', say: '抜管から 1 時間。ハルト君は酸素マスクをつけて、自分でしっかり咳をしている。' },
         { who: 'pt', name: 'ハルト君', say: '…せんせい。のど、いたい。' },
@@ -243,7 +248,7 @@
     {
       id: 'epilogue', kind: 'epilogue', title: 'エピローグ　ローテーション最終日',
       card: { kicker: 'エピローグ', title: 'ローテーション最終日', sub: '夕方　PICU' },
-      bg: 'dawn',
+      bg: 'dawn', time: 'day',
       end: { label: '症例で練習する', action: 'cases', say: 'おつかれさまでした。コースの物語はここまでです。6 人の症例を、今度はひとりで受け持ってみましょう。' },
       lines: [
         { who: 'scene', say: '4 週間のローテーション、最終日。夕方の PICU で、また新しい入院の電話が鳴っている。' },
@@ -370,7 +375,7 @@
   };
 
   var api = {
-    SCENES: SCENES, SPEAKER: SPEAKER, BG: BG,
+    SCENES: SCENES, SPEAKER: SPEAKER, BG: BG, CHAPTER_TIME: CHAPTER_TIME,
     DEFAULT_NAME: DEFAULT_NAME, NAME_MAX: NAME_MAX,
     sceneById: sceneById, cleanName: cleanName, fill: fill, speakerName: speakerName,
     before: before, after: after, Run: Run

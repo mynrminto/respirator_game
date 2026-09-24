@@ -181,6 +181,10 @@ struct VentilatorScreen: View {
                     Label(SoundBoard.shared.isPulseEnabled ? "パルス音を消す（いま：オン）" : "パルス音を鳴らす（いま：オフ）",
                           systemImage: SoundBoard.shared.isPulseEnabled ? "heart" : "heart.slash")
                 }
+                Button { BGMPlayer.shared.isEnabled.toggle() } label: {
+                    Label(BGMPlayer.shared.isEnabled ? "BGM を消す（いま：オン）" : "BGM を流す（いま：オフ）",
+                          systemImage: BGMPlayer.shared.isEnabled ? "music.note" : "speaker.slash")
+                }
                 Button { ThemeStore.shared.toggle() } label: {
                     Label("見た目を切り替える（いま：\(Chrome.kind.label)）", systemImage: "paintpalette")
                 }

@@ -190,6 +190,7 @@
   }
 
   var api = {
+    audio: function () { var c = audio(); return c ? { ctx: c, master: master } : null; },
     play: play, alarm: alarm, alarmPlan: alarmPlan,
     pulse: pulse, pulsePlan: pulsePlan, pulseFreq: pulseFreq, pulseReset: pulseReset,
     pulseEnabled: function () { return pulseOn; }, setPulseEnabled: setPulseEnabled,

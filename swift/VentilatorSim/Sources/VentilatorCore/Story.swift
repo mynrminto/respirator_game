@@ -78,13 +78,15 @@ public struct StoryScene: Identifiable {
     public let title: String
     public let card: StoryCard?
     public let bg: String
+    /// BGM の昼の曲・夜の曲を選ぶ（"day" / "night"）。
+    public let time: String
     public let end: StoryEnd?
     public let lines: [StoryLine]
 
     public init(id: String, kind: String, chapter: String?, title: String, card: StoryCard?,
-                bg: String, end: StoryEnd?, lines: [StoryLine]) {
+                bg: String, time: String = "day", end: StoryEnd?, lines: [StoryLine]) {
         self.id = id; self.kind = kind; self.chapter = chapter; self.title = title
-        self.card = card; self.bg = bg; self.end = end; self.lines = lines
+        self.card = card; self.bg = bg; self.time = time; self.end = end; self.lines = lines
     }
 }
 
@@ -92,6 +94,11 @@ public enum StoryLibrary {
 
     public static let defaultName = "春野"
     public static let nameMax = 8
+
+    /// レッスンの最中に流す BGM。章の舞台の時刻（web/story.js の CHAPTER_TIME と同じ）。
+    public static let chapterTime: [String: String] = [
+        "ch1": "night", "ch2": "day", "ch3": "day", "ch4": "day", "ch5": "night", "ch6": "day"
+    ]
 
     /// 名札。{名前} は主人公の名前。患者・家族は行の name を使う。
     static let speakerLabels: [StorySpeaker: String] = [

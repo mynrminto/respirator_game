@@ -53,6 +53,7 @@ struct TitleView: View {
             }
         }
         .onAppear {
+            BGMPlayer.shared.want("day")   // タイトルは昼の曲
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
                 floating = true

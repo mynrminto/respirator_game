@@ -395,6 +395,7 @@ struct StoryView: View {
             return
         }
         run = StoryRun(scene: scene)
+        BGMPlayer.shared.want(scene.time)   // 幕の時刻で昼の曲・夜の曲を選ぶ
         lastPortrait = nil
         advanced()
     }

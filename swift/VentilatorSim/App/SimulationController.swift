@@ -458,6 +458,16 @@ final class SimulationController {
     private func updateAlarmSound() {
         let level = extubation == nil ? (engine.alarms.map(\.severity).max() ?? 0) : 0
         SoundBoard.shared.updateAlarm(level: level, silenced: isAlarmSilenced)
+        BGMPlayer.shared.duck(level > 0 && !isAlarmSilenced && SoundBoard.shared.isEnabled)
+        // BGM。物語の幕を流しているあいだは StoryView が幕の時刻で選ぶ。
+        // レッスンは章の時刻、症例で練習は端末の時計。
+        if storyQueue.isEmpty {
+            if let lesson {
+                BGMPlayer.shared.want(LessonLibrary.chapter(of: lesson.id).flatMap { StoryLibrary.chapterTime[$0.id] } ?? "day")
+            } else {
+                BGMPlayer.shared.want(BGMPlayer.clockTrack())
+            }
+        }
     }
 
     private func recordTrend(simulated: Double) {
