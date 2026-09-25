@@ -97,15 +97,21 @@ struct StoryView: View {
     private var background: some View {
         let key = backgroundKey
         let dark = key == "night" || key == "station"
-        return ZStack {
-            LinearGradient(colors: [Chrome.chassisTop, Chrome.chassis], startPoint: .top, endPoint: .bottom)
-            Art(StoryLibrary.backgrounds[key] ?? ["bg_title_day"], fit: .fill) { Color.clear }
-            LinearGradient(colors: dark ? [Color.black.opacity(0.4), Color.black.opacity(0.6)]
-                                        : [Color.black.opacity(0.12), Color.clear, Color.black.opacity(0.4)],
-                           startPoint: .top, endPoint: .bottom)
-        }
-        .ignoresSafeArea()
-        .clipped()
+        // fill で広げた絵は画面より大きくなる。ZStack にそのまま置くと ZStack ごと横に広がり、
+        // 台詞の枠や名前の入力欄が画面の外へはみ出す（iPhone で右側が切れて押せなかった）。
+        // 大きさは Color.clear で決め、絵は overlay に入れて寸法に関わらせない。
+        return Color.clear
+            .overlay {
+                ZStack {
+                    LinearGradient(colors: [Chrome.chassisTop, Chrome.chassis], startPoint: .top, endPoint: .bottom)
+                    Art(StoryLibrary.backgrounds[key] ?? ["bg_title_day"], fit: .fill) { Color.clear }
+                    LinearGradient(colors: dark ? [Color.black.opacity(0.4), Color.black.opacity(0.6)]
+                                                : [Color.black.opacity(0.12), Color.clear, Color.black.opacity(0.4)],
+                                   startPoint: .top, endPoint: .bottom)
+                }
+            }
+            .clipped()
+            .ignoresSafeArea()
     }
 
     private var topBar: some View {

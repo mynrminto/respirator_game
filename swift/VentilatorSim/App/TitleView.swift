@@ -10,7 +10,10 @@ struct TitleView: View {
 
     @AppStorage("ventsim.lessons.done.v1") private var completedRaw = ""
     @AppStorage("ventsim.agreed.v1") private var agreed = false
-    @State private var showingAbout = false
+    /// 免責事項の出し方。関門か説明かを表示と同時に決めて渡す。
+    /// （sheet(isPresented:) の中で pending を読むと、本体で読んでいない状態は古い値のまま渡り、
+    /// 関門のはずが「閉じる」になって、閉じても先へ進めなくなる。）
+    @State private var about: AboutMode?
     /// 免責事項に同意したあとで実行する操作。同意済みならすぐ実行する。
     @State private var pending: (() -> Void)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -47,8 +50,8 @@ struct TitleView: View {
         }
         .background(backdrop.ignoresSafeArea())
         .preferredColorScheme(Chrome.colorScheme)
-        .sheet(isPresented: $showingAbout, onDismiss: runPendingIfAgreed) {
-            AboutView(asGate: pending != nil) {
+        .sheet(item: $about, onDismiss: runPendingIfAgreed) { mode in
+            AboutView(asGate: mode == .gate) {
                 agreed = true
             }
         }
@@ -202,7 +205,7 @@ struct TitleView: View {
             }
             menuItem("?", icon: "icon_about", "この教材について", "免責事項とモデルの説明") {
                 pending = nil
-                showingAbout = true
+                about = .info
             }
         }
     }
@@ -276,7 +279,7 @@ struct TitleView: View {
             action()
         } else {
             pending = action
-            showingAbout = true
+            about = .gate
         }
     }
 
@@ -285,6 +288,11 @@ struct TitleView: View {
         pending = nil
         action()
     }
+}
+
+private enum AboutMode: Identifiable {
+    case gate, info
+    var id: Self { self }
 }
 
 /// ロゴの下を走る波形。
