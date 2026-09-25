@@ -787,11 +787,11 @@ public final class VentilatorEngine {
 
         // 循環
         let hrScale = norms.heartRate.upperBound / 100
-        var hrTarget = patient.heartRate
-            + Physiology.clamp((norms.spo2Target.lowerBound - spo2) * 1.8 * hrScale, 0, 35 * hrScale)
-            + Physiology.clamp((paco2 - 40) * 0.5 * hrScale, -8 * hrScale, 22 * hrScale)
-            + Physiology.clamp((7.35 - pH) * 60 * hrScale, 0, 25 * hrScale)
-            + 44 * hrScale * max(0, muscleLoad - 0.6)
+        let hrHypoxia: Double = Physiology.clamp((norms.spo2Target.lowerBound - spo2) * 1.8 * hrScale, 0, 35 * hrScale)
+        let hrCO2: Double = Physiology.clamp((paco2 - 40) * 0.5 * hrScale, -8 * hrScale, 22 * hrScale)
+        let hrAcid: Double = Physiology.clamp((7.35 - pH) * 60 * hrScale, 0, 25 * hrScale)
+        let hrWork: Double = 44 * hrScale * max(0, muscleLoad - 0.6)
+        var hrTarget: Double = patient.heartRate + hrHypoxia + hrCO2 + hrAcid + hrWork
         /* 重い低酸素では、はじめの頻脈のあとに徐脈になり、放っておけば心停止に向かう。
          * 小児は成人より早く徐脈になり、若いほどその閾値が高い（新生児は SpO2 78% から）。 */
         let bradySpO2: Double = norms.label == "新生児" ? 78 : (norms.label == "乳児" ? 72 : 65)

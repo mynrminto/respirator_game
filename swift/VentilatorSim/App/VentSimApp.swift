@@ -135,6 +135,24 @@ struct SetupView: View {
         pbw < 6 ? String(format: "%.1f", v) : String(format: "%.0f", v)
     }
 
+    /// 年齢の目安の説明文。1 つの式で連結すると型推論が終わらないので分けて組む。
+    private var normsSummary: String {
+        let vtLo = Int(norms.tidalPerKg.lowerBound)
+        let vtHi = Int(norms.tidalPerKg.upperBound)
+        let mLLo = mL(pbw * norms.tidalPerKg.lowerBound)
+        let mLHi = mL(pbw * norms.tidalPerKg.upperBound)
+        let rrLo = Int(norms.respiratoryRate.lowerBound)
+        let rrHi = Int(norms.respiratoryRate.upperBound)
+        let pplat = Int(norms.plateauMax)
+        let spLo = Int(norms.spo2Target.lowerBound)
+        let spHi = Int(norms.spo2Target.upperBound)
+        let vt = "一回換気量 \(vtLo)〜\(vtHi) mL/kg なら \(mLLo)〜\(mLHi) mL。"
+        let rr = "この年齢の呼吸数は \(rrLo)〜\(rrHi) /分、"
+        let pl = "プラトー圧は \(pplat) cmH₂O 以下、"
+        let sp = "SpO₂ 目標は \(spLo)〜\(spHi)%。"
+        return vt + rr + pl + sp
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -145,15 +163,7 @@ struct SetupView: View {
                 Section("体重と年齢の目安") {
                     LabeledContent("体重", value: String(format: "%.1f kg", pbw))
                     LabeledContent("年齢", value: scenario.patient.ageLabel)
-                    Text("一回換気量 \(Int(norms.tidalPerKg.lowerBound))〜"
-                         + "\(Int(norms.tidalPerKg.upperBound)) mL/kg なら "
-                         + mL(pbw * norms.tidalPerKg.lowerBound) + "〜"
-                         + mL(pbw * norms.tidalPerKg.upperBound) + " mL。"
-                         + "この年齢の呼吸数は \(Int(norms.respiratoryRate.lowerBound))〜"
-                         + "\(Int(norms.respiratoryRate.upperBound)) /分、"
-                         + "プラトー圧は \(Int(norms.plateauMax)) cmH₂O 以下、"
-                         + "SpO₂ 目標は \(Int(norms.spo2Target.lowerBound))〜"
-                         + "\(Int(norms.spo2Target.upperBound))%。")
+                    Text(normsSummary)
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("初期設定") {
