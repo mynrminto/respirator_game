@@ -1,17 +1,20 @@
 import AVFoundation
 import Foundation
 
-/// BGM。タイトルの曲と昼の曲・夜の曲の 3 曲を、音のファイルを持たずにその場で合成する（web/bgm.js と同じ曲・同じ音色・同じ手順）。
+/// BGM。タイトルの曲、昼の曲・夜の曲、アラームの曲の 4 曲を、音のファイルを持たずにその場で合成する（web/bgm.js と同じ曲・同じ音色・同じ手順）。
 ///
 /// - title … タイトル。ハ長調・118 BPM。弾むベース、裏拍で跳ねるエレピ、頭からマリンバの旋律、後半はオルゴールを重ねる。
 /// - day   … 昼。ハ長調・88 BPM。エレピの和音、やわらかいベース、小さなシェイカー、後半にマリンバの旋律。
-/// - night … 夜。イ短調・66 BPM。ゆっくり立ち上がるパッド、低いベース、オルゴールの高い音。
+/// - night … 夜。ハ長調・72 BPM。ゆっくり立ち上がるパッド、低いベース、オルゴールの高い音。不穏にならない静かな夜。
+/// - alarm … アラームが出ているあいだだけ。イ短調・100 BPM。刻むベース、パッド、マリンバの分散和音。暗い曲はこれだけ。
 ///
 /// 流す場所と時刻は Web 版と同じ。
 /// - タイトル … タイトルの曲
 /// - 物語の幕 … 幕ごとの時刻（StoryScene.time）
 /// - レッスン … 章の時刻（StoryLibrary.chapterTime）。第1章＝初日の夜、第5章＝当直の夜、ほかは昼
 /// - 症例で練習 … 端末の時計。6 時〜17 時台は昼、それ以外は夜
+/// - レッスン・症例でアラーム（黄・赤）が出ているあいだ … アラームの曲（消音の 2 分間も、アラームが続くあいだはそのまま）。
+///   アラームが hold 秒続けて消えたら元の曲へ戻る。
 /// 切り替えは 2.5 秒のクロスフェード。
 ///
 /// 音量はアラームやパルス音よりずっと小さく、アラームが鳴っているあいだはさらに下げる。
@@ -19,11 +22,16 @@ import Foundation
 /// オーディオセッションは SoundBoard と同じ .ambient なので、マナーモードでは鳴らない。
 ///
 /// 楽譜と音色の数値は BGMScore.swift（web/tools/bgm-swift.js が bgm.js から書き出す）。
-/// 1 曲分（40〜60 秒）をはじめて流すときに裏で合成し、ループで流す。
+/// 1 曲分（30〜55 秒）を裏で合成してループで流す。場面に入った瞬間に鳴るよう、起動直後（prepareAll）に
+/// 全曲を並べて作り始め、できた波形は端末のキャッシュに取っておく（2 回目からは読むだけ）。
 final class BGMPlayer {
     static let shared = BGMPlayer()
 
     private static let enabledKey = "ventsim.bgm.v1"
+    /// アラームが消えてから元の曲へ戻るまで（秒）。鳴ったり止んだりで曲が行き来しないように。bgm.js の HOLD と同じ。
+    static let hold: TimeInterval = 3
+    /// 合成の手順を変えたら上げる（端末に取ってある古い波形を使わないように）。
+    private static let synthVersion = 2
 
     /// BGM だけを流すかどうか。音全体が切れていれば、こちらがオンでも流れない。
     var isEnabled: Bool {
@@ -47,6 +55,7 @@ final class BGMPlayer {
     private var wanted: String?
     private var playing: String?
     private var ducked = false
+    private var lastAlarm = -Double.infinity
     private var fadeTimer: Timer?
     private var attached = false
 
@@ -58,7 +67,7 @@ final class BGMPlayer {
         let engine = SoundBoard.shared.engine
         engine.attach(bus)
         engine.connect(bus, to: engine.mainMixerNode, format: nil)
-        bus.outputVolume = BGMScore.gain
+        bus.outputVolume = BGMScore.gain * (ducked ? BGMScore.duck : 1)
         for _ in 0..<2 {
             let n = AVAudioPlayerNode()
             engine.attach(n)
@@ -68,9 +77,21 @@ final class BGMPlayer {
         }
     }
 
-    /// 流したい曲を伝える（"day" / "night" / nil）。何度呼んでもよい。
+    /// 起動直後に一度呼ぶ。全曲を裏で作り始める（タイトルの曲を先に）。何度呼んでもよい。
+    func prepareAll() {
+        for track in ["title", "day", "night", "alarm"] { prepare(track) }
+    }
+
+    /// 流したい曲を伝える（"title" / "day" / "night" / "alarm" / nil）。何度呼んでもよい。
     func want(_ track: String?) {
-        wanted = track.flatMap { BGMScore.songs[$0] == nil ? nil : $0 }
+        let track = track.flatMap { BGMScore.songs[$0] == nil ? nil : $0 }
+        let now = ProcessInfo.processInfo.systemUptime
+        if track == "alarm" {
+            lastAlarm = now
+        } else if wanted == "alarm", track == "day" || track == "night", now - lastAlarm < Self.hold {
+            return
+        }
+        wanted = track
         apply()
     }
 
@@ -126,23 +147,92 @@ final class BGMPlayer {
         }
     }
 
+    /// 裏で 1 曲作る（端末に取ってあれば読むだけ）。曲ごとに別々に走るので、4 曲が並んで進む。
     private func prepare(_ track: String) {
-        guard !rendering.contains(track), let song = BGMScore.songs[track] else { return }
+        guard buffers[track] == nil, !rendering.contains(track), let song = BGMScore.songs[track] else { return }
         rendering.insert(track)
         let format = self.format
-        DispatchQueue.global(qos: .utility).async {
-            let (l, r) = BGMSynth.render(song: song, rate: BGMScore.rate)
+        DispatchQueue.global(qos: track == "title" ? .userInitiated : .utility).async {
+            let file = Self.cacheFile(track, song: song)
+            let n = Int((song.length * BGMScore.rate).rounded())
+            let buffer = Self.load(file, frames: n, format: format) ?? {
+                let (l, r) = BGMSynth.render(song: song, rate: BGMScore.rate)
+                let b = Self.buffer(l, r, format: format)
+                if let b { Self.save(b, to: file, track: track) }
+                return b
+            }()
             DispatchQueue.main.async {
                 self.rendering.remove(track)
-                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(l.count)),
-                      let ch = buffer.floatChannelData else { return }
-                buffer.frameLength = AVAudioFrameCount(l.count)
-                l.withUnsafeBufferPointer { ch[0].update(from: $0.baseAddress!, count: l.count) }
-                r.withUnsafeBufferPointer { ch[1].update(from: $0.baseAddress!, count: r.count) }
+                guard let buffer else { return }
                 self.buffers[track] = buffer
                 self.apply()
             }
         }
+    }
+
+    private static func buffer(_ l: [Float], _ r: [Float], format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(l.count)),
+              let ch = buffer.floatChannelData else { return nil }
+        buffer.frameLength = AVAudioFrameCount(l.count)
+        l.withUnsafeBufferPointer { ch[0].update(from: $0.baseAddress!, count: l.count) }
+        r.withUnsafeBufferPointer { ch[1].update(from: $0.baseAddress!, count: r.count) }
+        return buffer
+    }
+
+    // MARK: 端末のキャッシュ（Caches/bgm/曲-楽譜の指紋.f32。L のあとに R を並べた 32 ビット浮動小数点）
+
+    private static var cacheDir: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("bgm", isDirectory: true)
+    }
+
+    /// 楽譜・音色・合成の手順が変われば別の名前になる（FNV-1a）。
+    private static func cacheFile(_ track: String, song: BGMSong) -> URL? {
+        var h: UInt64 = 0xcbf2_9ce4_8422_2325
+        func mix(_ d: Double) {
+            var b = d.bitPattern
+            for _ in 0..<8 { h = (h ^ (b & 0xff)) &* 0x100_0000_01b3; b >>= 8 }
+        }
+        mix(Double(synthVersion)); mix(BGMScore.rate)
+        mix(song.length); mix(song.feedback); mix(song.damp); mix(song.wet)
+        for note in song.notes {
+            note.inst.utf8.forEach { mix(Double($0)) }
+            mix(note.t); mix(note.d); mix(note.f); mix(note.v)
+        }
+        for (name, p) in BGMScore.instruments.sorted(by: { $0.key < $1.key }) {
+            name.utf8.forEach { mix(Double($0)) }
+            [p.attack, p.tau, p.release, p.gain, p.pan, p.index, p.indexTau, p.indexBase,
+             p.partial, p.partialGain, p.partialTau, p.detune].forEach(mix)
+        }
+        return cacheDir?.appendingPathComponent("\(track)-\(String(h, radix: 16)).f32")
+    }
+
+    private static func load(_ file: URL?, frames n: Int, format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard let file, let data = try? Data(contentsOf: file), data.count == n * 2 * MemoryLayout<Float>.size,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n)),
+              let ch = buffer.floatChannelData else { return nil }
+        buffer.frameLength = AVAudioFrameCount(n)
+        data.withUnsafeBytes { raw in
+            let f = raw.bindMemory(to: Float.self)
+            ch[0].update(from: f.baseAddress!, count: n)
+            ch[1].update(from: f.baseAddress! + n, count: n)
+        }
+        return buffer
+    }
+
+    /// 書き込めなくても鳴らすのには困らない（次の起動でまた作る）。同じ曲の古い版は消す。
+    private static func save(_ buffer: AVAudioPCMBuffer, to file: URL?, track: String) {
+        guard let file, let dir = cacheDir, let ch = buffer.floatChannelData else { return }
+        let n = Int(buffer.frameLength)
+        var data = Data(capacity: n * 2 * MemoryLayout<Float>.size)
+        data.append(UnsafeBufferPointer(start: ch[0], count: n))
+        data.append(UnsafeBufferPointer(start: ch[1], count: n))
+        let fm = FileManager.default
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        for old in (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
+        where old.hasPrefix(track + "-") && old != file.lastPathComponent {
+            try? fm.removeItem(at: dir.appendingPathComponent(old))
+        }
+        try? data.write(to: file, options: .atomic)
     }
 }
 
@@ -170,19 +260,28 @@ struct BGMSong {
 
 // MARK: - 合成（web/bgm.js の voiceInto / Reverb / Renderer と同じ手順）
 
+/// Xcode の Debug（最適化なし）でも 1 曲 1 秒ほどで作れるよう、音を足す内側のループでは
+/// 配列の添字や min・max・入れ子の関数を使わず、ポインタと四則演算だけで書く
+/// （配列のままだと Debug では 1 曲 7〜12 秒かかり、そのあいだ BGM が鳴らなかった）。
 enum BGMSynth {
     static let tableSize = 4096
-    static let sine: [Float] = (0...tableSize).map { Float(sin(2 * Double.pi * Double($0) / Double(tableSize))) }
+    /// 表は一度だけ作ってアプリが終わるまで持つ（解放しない）。
+    static let sine: UnsafeMutablePointer<Float> = table((0...tableSize).map { sin(2 * Double.pi * Double($0) / Double(tableSize)) })
     /// 8 倍音までのやわらかいのこぎり波（1/n^1.3）。ピークで割って ±1 にそろえる。
-    static let softSaw: [Float] = {
-        var t = (0...tableSize).map { i -> Double in
+    static let softSaw: UnsafeMutablePointer<Float> = {
+        let t = (0...tableSize).map { i -> Double in
             let x = Double(i) / Double(tableSize)
             return (1...8).reduce(0.0) { $0 + sin(2 * Double.pi * Double($1) * x) / pow(Double($1), 1.3) }
         }
         let peak = t.map(abs).max() ?? 1
-        t = t.map { $0 / peak }
-        return t.map(Float.init)
+        return table(t.map { $0 / peak })
     }()
+
+    private static func table(_ v: [Double]) -> UnsafeMutablePointer<Float> {
+        let p = UnsafeMutablePointer<Float>.allocate(capacity: v.count)
+        for (i, x) in v.enumerated() { p[i] = Float(x) }
+        return p
+    }
 
     static let combs = [0.0297, 0.0371, 0.0411, 0.0437]
     static let allpass = [0.005, 0.0017]
@@ -191,37 +290,41 @@ enum BGMSynth {
     static func render(song: BGMSong, rate: Double) -> ([Float], [Float]) {
         let n = Int((song.length * rate).rounded())
         var left = [Float](repeating: 0, count: n), right = [Float](repeating: 0, count: n)
-        left.withUnsafeMutableBufferPointer { l in
-            right.withUnsafeMutableBufferPointer { r in
+        let wl = UnsafeMutablePointer<Float>.allocate(capacity: n), wr = UnsafeMutablePointer<Float>.allocate(capacity: n)
+        defer { wl.deallocate(); wr.deallocate() }
+        left.withUnsafeMutableBufferPointer { lb in
+            right.withUnsafeMutableBufferPointer { rb in
+                let l = lb.baseAddress!, r = rb.baseAddress!
                 for note in song.notes {
                     guard let p = BGMScore.instruments[note.inst] else { continue }
-                    voice(into: l, r, note: note, p: p, rate: rate)
+                    voice(into: l, r, total: n, note: note, p: p, rate: rate)
                 }
+                reverb(l, into: wl, count: n, rate: rate, song: song, spread: 0)
+                reverb(r, into: wr, count: n, rate: rate, song: song, spread: spread)
+                let wet = Float(song.wet), dry = 1 - wet, w3 = wet * 3
+                var peak: Float = 1e-9
+                for i in 0..<n {
+                    let a = l[i] * dry + wl[i] * w3, b = r[i] * dry + wr[i] * w3
+                    l[i] = a; r[i] = b
+                    let m = a < 0 ? -a : a, k = b < 0 ? -b : b
+                    if m > peak { peak = m }
+                    if k > peak { peak = k }
+                }
+                let g = 0.8 / peak
+                for i in 0..<n { l[i] *= g; r[i] *= g }
             }
         }
-        let wl = reverb(left, rate: rate, song: song, spread: 0)
-        let wr = reverb(right, rate: rate, song: song, spread: spread)
-        let wet = Float(song.wet)
-        var peak: Float = 1e-9
-        for i in 0..<n {
-            left[i] = left[i] * (1 - wet) + wl[i] * wet * 3
-            right[i] = right[i] * (1 - wet) + wr[i] * wet * 3
-            peak = max(peak, abs(left[i]), abs(right[i]))
-        }
-        let g = 0.8 / peak
-        for i in 0..<n { left[i] *= g; right[i] *= g }
         return (left, right)
     }
 
     /// 1 音を L・R に足し込む。ループの長さを超えた分は頭へ回り込む。
     /// a 秒で直線に立ち上がり、時定数 tau で減衰（0 なら平ら）、長さ d を過ぎたら rel 秒で直線に消える。
-    private static func voice(into l: UnsafeMutableBufferPointer<Float>, _ r: UnsafeMutableBufferPointer<Float>,
+    private static func voice(into l: UnsafeMutablePointer<Float>, _ r: UnsafeMutablePointer<Float>, total: Int,
                               note: BGMNote, p: BGMInstrument, rate: Double) {
-        let total = l.count
         let start = Int((note.t * rate).rounded())
-        let aN = max(1, Int((p.attack * rate).rounded()))
+        let aN = Swift.max(1, Int((p.attack * rate).rounded()))
         let dN = Int((note.d * rate).rounded())
-        let relN = max(1, Int((p.release * rate).rounded()))
+        let relN = Swift.max(1, Int((p.release * rate).rounded()))
         let count = dN + relN
         let kb = p.tau > 0 ? exp(-1 / (p.tau * rate)) : 1
         let amp = p.gain * note.v
@@ -237,37 +340,41 @@ enum BGMSynth {
         case .mallet: kx = exp(-1 / (p.partialTau * rate)); x = p.partialGain
         default: break
         }
-        let ts = Double(tableSize)
-        func at(_ table: [Float], _ phase: Double) -> Double { Double(table[Int(phase * ts)]) }
+        let ts = Double(tableSize), twoPi = 2 * Double.pi
+        let sine = Self.sine, saw = Self.softSaw
+        let ib = p.indexBase, pg = p.partial, kind = p.kind
+        let invA = 1 / Double(aN), invRel = 1 / Double(relN)
+        var j = start % total
         for i in 0..<count {
-            var e = i < aN ? Double(i) / Double(aN) : body
-            if i >= aN { body *= kb }
-            if i >= dN { e *= 1 - Double(i - dN) / Double(relN) }
-            let j = (start + i) % total
+            var e: Double
+            if i < aN { e = Double(i) * invA } else { e = body; body *= kb }
+            if i >= dN { e *= 1 - Double(i - dN) * invRel }
             var s = 0.0
-            switch p.kind {
+            switch kind {
             case .fm:
-                let m = ph + (x + p.indexBase) * at(sine, ph) / (2 * Double.pi)
-                s = at(sine, m - m.rounded(.down))
+                var m = ph + (x + ib) * Double(sine[Int(ph * ts)]) / twoPi
+                m -= m.rounded(.down)
+                s = Double(sine[Int(m * ts)])
                 x *= kx
                 ph += inc; if ph >= 1 { ph -= 1 }
             case .mallet:
-                s = at(sine, ph) + x * at(sine, ph2)
+                s = Double(sine[Int(ph * ts)]) + x * Double(sine[Int(ph2 * ts)])
                 x *= kx
                 ph += inc; if ph >= 1 { ph -= 1 }
-                ph2 += inc * p.partial; if ph2 >= 1 { ph2 -= ph2.rounded(.down) }
+                ph2 += inc * pg; if ph2 >= 1 { ph2 -= ph2.rounded(.down) }
             case .bass:
-                s = at(sine, ph) + 0.35 * at(sine, ph2) + 0.12 * at(sine, ph3)
+                s = Double(sine[Int(ph * ts)]) + 0.35 * Double(sine[Int(ph2 * ts)]) + 0.12 * Double(sine[Int(ph3 * ts)])
                 ph += inc; if ph >= 1 { ph -= 1 }
                 ph2 += 2 * inc; if ph2 >= 1 { ph2 -= 1 }
                 ph3 += 3 * inc; if ph3 >= 1 { ph3 -= 1 }
             case .pad:
                 // 2 本を少しずらして左右に広げる
-                let a1 = at(softSaw, ph), a2 = at(softSaw, ph2)
+                let a1 = Double(saw[Int(ph * ts)]), a2 = Double(saw[Int(ph2 * ts)])
                 ph += inc * up; if ph >= 1 { ph -= 1 }
                 ph2 += inc * dn; if ph2 >= 1 { ph2 -= 1 }
                 l[j] += Float((a1 * 0.8 + a2 * 0.2) * e * gl)
                 r[j] += Float((a2 * 0.8 + a1 * 0.2) * e * gr)
+                j += 1; if j >= total { j = 0 }
                 continue
             case .noise:
                 // web と同じ線形合同法。差分で低い成分を落とす
@@ -277,37 +384,38 @@ enum BGMSynth {
             }
             l[j] += Float(s * e * gl)
             r[j] += Float(s * e * gr)
+            j += 1; if j >= total { j = 0 }
         }
     }
 
     /// くし形 4 本＋全域通過 2 本。ループの継ぎ目が切れないよう、2 周回して 2 周目を使う。
-    private static func reverb(_ x: [Float], rate: Double, song: BGMSong, spread: Double) -> [Float] {
-        let n = x.count
-        var out = [Float](repeating: 0, count: n)
-        var cb = combs.map { [Float](repeating: 0, count: Int((($0 + spread) * rate).rounded())) }
-        var ab = allpass.map { [Float](repeating: 0, count: Int(($0 * rate).rounded())) }
-        var cp = [0, 0, 0, 0], lp: [Float] = [0, 0, 0, 0], ap = [0, 0]
-        let fb = Float(song.feedback), damp = Float(song.damp)
+    private static func reverb(_ x: UnsafeMutablePointer<Float>, into out: UnsafeMutablePointer<Float>, count n: Int,
+                               rate: Double, song: BGMSong, spread: Double) {
+        let len = combs.map { Int((($0 + spread) * rate).rounded()) } + allpass.map { Int(($0 * rate).rounded()) }
+        let buf = len.map { c -> UnsafeMutablePointer<Float> in
+            let p = UnsafeMutablePointer<Float>.allocate(capacity: c)
+            p.initialize(repeating: 0, count: c)
+            return p
+        }
+        defer { buf.forEach { $0.deallocate() } }
+        let c0 = buf[0], c1 = buf[1], c2 = buf[2], c3 = buf[3], a0 = buf[4], a1 = buf[5]
+        let n0 = len[0], n1 = len[1], n2 = len[2], n3 = len[3], m0 = len[4], m1 = len[5]
+        var p0 = 0, p1 = 0, p2 = 0, p3 = 0, q0 = 0, q1 = 0
+        var lp0: Float = 0, lp1: Float = 0, lp2: Float = 0, lp3: Float = 0
+        let fb = Float(song.feedback), damp = Float(song.damp), keep = 1 - damp
         for pass in 0..<2 {
             for i in 0..<n {
                 let inp = x[i] * 0.25
-                var y: Float = 0
-                for k in 0..<4 {
-                    let o = cb[k][cp[k]]
-                    lp[k] = o * (1 - damp) + lp[k] * damp
-                    cb[k][cp[k]] = inp + lp[k] * fb
-                    cp[k] += 1; if cp[k] >= cb[k].count { cp[k] = 0 }
-                    y += o
-                }
-                for k in 0..<2 {
-                    let o = ab[k][ap[k]]
-                    ab[k][ap[k]] = y + o * 0.5
-                    ap[k] += 1; if ap[k] >= ab[k].count { ap[k] = 0 }
-                    y = o - y * 0.5
-                }
+                let o0 = c0[p0], o1 = c1[p1], o2 = c2[p2], o3 = c3[p3]
+                lp0 = o0 * keep + lp0 * damp; c0[p0] = inp + lp0 * fb; p0 += 1; if p0 >= n0 { p0 = 0 }
+                lp1 = o1 * keep + lp1 * damp; c1[p1] = inp + lp1 * fb; p1 += 1; if p1 >= n1 { p1 = 0 }
+                lp2 = o2 * keep + lp2 * damp; c2[p2] = inp + lp2 * fb; p2 += 1; if p2 >= n2 { p2 = 0 }
+                lp3 = o3 * keep + lp3 * damp; c3[p3] = inp + lp3 * fb; p3 += 1; if p3 >= n3 { p3 = 0 }
+                var y = o0 + o1 + o2 + o3
+                let b0 = a0[q0]; a0[q0] = y + b0 * 0.5; q0 += 1; if q0 >= m0 { q0 = 0 }; y = b0 - y * 0.5
+                let b1 = a1[q1]; a1[q1] = y + b1 * 0.5; q1 += 1; if q1 >= m1 { q1 = 0 }; y = b1 - y * 0.5
                 if pass == 1 { out[i] = y }
             }
         }
-        return out
     }
 }

@@ -460,9 +460,12 @@ final class SimulationController {
         SoundBoard.shared.updateAlarm(level: level, silenced: isAlarmSilenced)
         BGMPlayer.shared.duck(level > 0 && !isAlarmSilenced && SoundBoard.shared.isEnabled)
         // BGM。物語の幕を流しているあいだは StoryView が幕の時刻で選ぶ。
-        // レッスンは章の時刻、症例で練習は端末の時計。
+        // アラーム（黄・赤）が出ているあいだはアラームの曲（消音中も、アラームが続くあいだは）。
+        // それ以外は、レッスンは章の時刻、症例で練習は端末の時計。
         if storyQueue.isEmpty {
-            if let lesson {
+            if level > 0 {
+                BGMPlayer.shared.want("alarm")
+            } else if let lesson {
                 BGMPlayer.shared.want(LessonLibrary.chapter(of: lesson.id).flatMap { StoryLibrary.chapterTime[$0.id] } ?? "day")
             } else {
                 BGMPlayer.shared.want(BGMPlayer.clockTrack())

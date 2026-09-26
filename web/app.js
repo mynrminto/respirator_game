@@ -404,10 +404,13 @@
   }
 
   /* BGM。昼の曲と夜の曲を、いま見ている場面の時刻で選ぶ（bgm.js）。
-   *   物語の幕 … 幕の time　／　タイトル … タイトルの曲　／　レッスン … 章の時刻　／　症例で練習 … 端末の時計 */
+   *   物語の幕 … 幕の time　／　タイトル … タイトルの曲　／　レッスン … 章の時刻　／　症例で練習 … 端末の時計
+   *   レッスン・症例でアラーム（黄・赤）が出ているあいだ … アラームの曲（消音中も、アラームが続くあいだは） */
   function bgmTrack() {
     if (SV && SV.run) return SV.run.scene.time || 'day';
     if (!$('title').hidden) return 'title';
+    var e = S.eng;
+    if (!e.extubated && (e.alarms || []).some(function (x) { return x.sev > 0; })) return 'alarm';
     if (S.lesson) return (ST && S.lesson.chap && ST.CHAPTER_TIME[S.lesson.chap.id]) || 'day';
     return BGM.clockTrack(new Date());
   }

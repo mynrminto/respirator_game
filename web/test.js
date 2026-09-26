@@ -1165,23 +1165,24 @@ console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ�
   }
 }
 
-console.log('\n27. BGM（タイトルの曲と、昼の曲・夜の曲）');
+console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラームの曲）');
 {
   const BG = require('./bgm.js');
   const ST = require('./story.js');
   const SN = require('./sound.js');
-  ok('タイトル・昼・夜の 3 曲がある', Object.keys(BG.SONGS).join() === 'title,day,night');
+  ok('タイトル・昼・夜・アラームの 4 曲がある', Object.keys(BG.SONGS).join() === 'title,day,night,alarm');
   ok('タイトルの曲はいちばん速く明るい（長調）', BG.SONGS.title.bpm > BG.SONGS.day.bpm, `${BG.SONGS.title.bpm} BPM`);
-  const day = BG.score('day'), night = BG.score('night'), title = BG.score('title');
+  const day = BG.score('day'), night = BG.score('night'), title = BG.score('title'), alarm = BG.score('alarm');
   ok('楽譜は毎回同じ（決まった手順で作る）', JSON.stringify(BG.score('day')) === JSON.stringify(day));
-  ok('どの音もループの長さの中で始まる', ['title', 'day', 'night'].every(n => BG.score(n).every(x => x.t >= 0 && x.t < BG.length(n))));
+  ok('どの音もループの長さの中で始まる', ['title', 'day', 'night', 'alarm'].every(n => BG.score(n).every(x => x.t >= 0 && x.t < BG.length(n))));
   ok('昼は速く、夜はゆっくり', BG.SONGS.day.bpm > BG.SONGS.night.bpm, `${BG.SONGS.day.bpm} / ${BG.SONGS.night.bpm} BPM`);
   // 旋律はアラーム（ド・ラ・ファ = 349〜523 Hz）の音域より上で鳴らす
   const lead = (sc, inst) => sc.filter(x => x.i === inst && x.v >= 0.8);
   const alarmTop = Math.max(...SN.ALARM.high.pulses.map(p => p.f));
   const above = alarmTop * Math.pow(2, 1.5 / 12);   // アラームの最高音から全音以上離す
   ok('旋律はアラームの音域より上', lead(day, 'mallet').every(x => x.f > above) && lead(night, 'box').every(x => x.f > above)
-    && lead(title, 'mallet').every(x => x.f > above),
+    && lead(title, 'mallet').every(x => x.f > above) && lead(alarm, 'box').every(x => x.f > above)
+    && alarm.filter(x => x.i === 'mallet').every(x => x.f > above),
     `昼の最低 ${Math.min(...lead(day, 'mallet').map(x => x.f)).toFixed(0)} Hz / 夜の最低 ${Math.min(...lead(night, 'box').map(x => x.f)).toFixed(0)} Hz`);
   ok('パルス音と同じ短い純音は使わない（どの音色も倍音か残響の尾を持つ）',
     Object.values(BG.INST).every(p => p.kind !== 'sine' && p.rel >= 0.02));
@@ -1200,6 +1201,13 @@ console.log('\n27. BGM（タイトルの曲と、昼の曲・夜の曲）');
   const r = new BG.Renderer('night');
   let steps = 0;
   while (!r.step(5)) steps++;
+  // 暗い曲はアラームの曲だけ。夜の曲もハ長調（ドの和音で始まり、G7sus4 から頭へ戻る）
+  const firstBass = (sc) => sc.find(x => x.i === 'bass').f;
+  ok('夜の曲は長調（ハ長調）、短調はアラームの曲だけ', near(firstBass(night), BG.mtof(48), 0.01) && near(firstBass(day), BG.mtof(41), 0.01)
+    && near(firstBass(alarm), BG.mtof(45), 0.01), `夜 ${firstBass(night).toFixed(1)} Hz / アラーム ${firstBass(alarm).toFixed(1)} Hz`);
+  ok('アラームの曲は昼・夜より速い', BG.SONGS.alarm.bpm > BG.SONGS.day.bpm && BG.SONGS.alarm.bpm > BG.SONGS.night.bpm);
+  const wa = BG.render('alarm');
+  ok('アラームの曲も継ぎ目なくループする', Math.abs(wa.L[0] - wa.L[wa.L.length - 1]) < 0.05 && Math.abs(wa.R[0] - wa.R[wa.R.length - 1]) < 0.05);
   ok('夜の曲は少しずつ作れる（画面を止めない）', steps > 5 && r.result.L.length === Math.round(BG.length('night') * BG.RATE), steps + ' 回に分けた');
   // どこで何を流すか
   ok('章の扉の時刻：第1章と第5章は夜、第2章は昼', ST.sceneById('ch1-open').time === 'night' && ST.sceneById('ch5-open').time === 'night'
@@ -1216,6 +1224,11 @@ console.log('\n27. BGM（タイトルの曲と、昼の曲・夜の曲）');
   ok('メニューに BGM だけのオン/オフがある', /BGM：オン（押すと消す）/.test(app));
   ok('index.html が bgm.js を読む', /<script src="bgm\.js"><\/script>/.test(fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8')));
   ok('node では音を出さずに通る', (BG.want('night'), BG.duck(true), BG.playing() === null));
+  BG.want('alarm'); BG.want('day');
+  ok('アラームが消えてもすぐには戻らない（HOLD 秒続けて消えてから）', BG.wanted() === 'alarm' && BG.HOLD >= 2);
+  BG.want('title');
+  ok('タイトルへはすぐ戻る', BG.wanted() === 'title');
+  ok('app.js はアラーム（黄・赤）のあいだアラームの曲を選ぶ', /return 'alarm';/.test(app) && /x\.sev > 0/.test(app));
 
   // iPhone 版は bgm.js から書き出した楽譜と音色を持ち、同じ場所で同じ曲を選ぶ
   const swApp = path.join(__dirname, '..', 'swift', 'VentilatorSim', 'App');
@@ -1233,6 +1246,9 @@ console.log('\n27. BGM（タイトルの曲と、昼の曲・夜の曲）');
     ok('iPhone 版もタイトル・幕・レッスン・症例で曲を選ぶ', /BGMPlayer\.shared\.want\("title"\)/.test(swAll)
       && /BGMPlayer\.shared\.want\(scene\.time\)/.test(swAll) && /StoryLibrary\.chapterTime\[/.test(swAll)
       && /BGMPlayer\.clockTrack\(\)/.test(swAll) && /BGMPlayer\.shared\.duck\(/.test(swAll) && /BGMPlayer\.shared\.isEnabled = v/.test(swAll));
+    ok('iPhone 版もアラームのあいだはアラームの曲、戻るのは HOLD 秒あと', /if level > 0 \{\s*BGMPlayer\.shared\.want\("alarm"\)/.test(swAll)
+      && pl.includes('hold: TimeInterval = ' + BG.HOLD));
+    ok('iPhone 版は起動直後に全曲を先に作り、作った曲を端末に取っておく', /BGMPlayer\.shared\.prepareAll\(\)/.test(swAll) && pl.includes('cachesDirectory'));
   } else {
     ok('iPhone 版に BGMScore.swift がある', false);
   }

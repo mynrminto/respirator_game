@@ -1,24 +1,28 @@
-/* VentSim — BGM。タイトルの曲と、昼の曲・夜の曲の 3 曲を、音のファイルを持たずにその場で合成する。
+/* VentSim — BGM。タイトルの曲、昼の曲・夜の曲、アラームの曲の 4 曲を、音のファイルを持たずにその場で合成する。
  *
  *   title … タイトル。ハ長調・118 BPM。弾むベース、裏拍で跳ねるエレピ、マリンバの旋律が頭から鳴る。
  *            後半はオルゴールが旋律を 1 オクターブ上で重ねる。明るく元気に迎える。
  *
  *   day   … 昼。ハ長調・88 BPM。エレピの和音（王道進行 Fmaj7→G→Em7→Am7）、やわらかいベース、
  *            うしろで小さなシェイカー。後半 8 小節でマリンバの旋律が入る。明るく、でも忙しくない。
- *   night … 夜。イ短調・66 BPM。ゆっくり立ち上がるパッド、低いベース、オルゴールの高い音がぽつぽつ。
- *            後半 8 小節でオルゴールの旋律。静かなナースステーションの夜。
- * どちらも 16 小節で継ぎ目なくループする（音の尾と残響は先頭へ回り込ませてある）。
+ *   night … 夜。ハ長調・72 BPM。ゆっくり立ち上がるパッド、低いベース、オルゴールの高い音がぽつぽつ。
+ *            後半 8 小節でオルゴールの旋律。静かで、でも不穏にならない夜のナースステーション。
+ *   alarm … アラームが鳴っているあいだだけ。イ短調・100 BPM。8 分で刻むベース、パッド、マリンバの分散和音、
+ *            後半 8 小節でオルゴールの旋律。暗く緊迫した曲はこれだけにする。
+ * どれも 16 小節で継ぎ目なくループする（音の尾と残響は先頭へ回り込ませてある）。
  *
  * 流す場所と時刻（app.js が決め、VentBGM.want(track) で伝える）
  *   タイトル … タイトルの曲（title）
  *   物語の幕 … 幕ごとの時刻（story.js の time）。午後 8 時の扉なら夜、夜明けなら昼。
  *   レッスン … 章の時刻（story.js の CHAPTER_TIME）。第1章＝初日の夜、第5章＝当直の夜、ほかは昼。
  *   症例で練習 … 端末の時計。6 時〜17 時台は昼、それ以外は夜。
+ *   レッスン・症例でアラーム（黄・赤）が出ているあいだ … アラームの曲。消音の 2 分間もアラームが続くあいだはそのまま。
+ *     アラームが HOLD 秒続けて消えたら元の曲へ戻る。
  * 切り替えは 2.5 秒のクロスフェード。
  *
  * 聞き分けを損なわないために
  *   - 音量はアラームやパルス音よりずっと小さい（GAIN）。アラームが鳴っているあいだはさらに下げる（DUCK）。
- *   - 旋律はアラーム（ド・ラ・ファ＝349〜523 Hz）の音域を避け、昼は 1 オクターブ上、夜は 2 オクターブ上で鳴らす。
+ *   - 旋律はアラーム（ド・ラ・ファ＝349〜523 Hz）の音域を避け、昼は 1 オクターブ上、夜とアラームの曲は 2 オクターブ上で鳴らす。
  *   - パルス音と同じ短い純音は使わない（エレピ・マリンバ・オルゴールは倍音と残響を持つ）。
  * 音全体（VentSound）を切ると BGM も止まる。BGM だけを切ることもできる（メニュー、ventsim.bgm.v1）。
  *
@@ -32,8 +36,9 @@
   var KEY = 'ventsim.bgm.v1';
   var RATE = 24000;          // BGM は 24 kHz で作る（メモリを抑える。中身は 8 kHz より下）
   var GAIN = 0.15;           // 仕上がりのピークを 0.8 にそろえたうえで掛ける（ピーク 0.12）。パルス音 0.16・アラーム 0.26〜0.34 より小さい
-  var DUCK = 0.35;           // アラームが鳴っているあいだの倍率
+  var DUCK = 0.5;            // アラームが鳴っているあいだの倍率（アラームの曲ごと下げる）
   var FADE = 2.5;            // 曲の切り替え（秒）
+  var HOLD = 3;              // アラームが消えてから元の曲へ戻るまで（秒）
 
   function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 
@@ -72,28 +77,51 @@
     [28, 76, 3]
   ];
 
-  var NIGHT_CHORDS = [
-    [45, [57, 60, 64, 71]],   // Am9
-    [45, [57, 60, 64, 71]],
-    [41, [53, 57, 64, 71]],   // Fmaj7(#11)
-    [41, [53, 57, 64, 69]],
-    [38, [53, 57, 60, 64]],   // Dm9
-    [38, [53, 57, 60, 64]],
-    [40, [52, 57, 59, 64]],   // Esus4
-    [40, [52, 56, 59, 64]]    // E
+  var NIGHT_CHORDS = [  // ハ長調。暗くならないよう短調の和音で終わらず、G7sus4 から頭の Cmaj9 へ戻る
+    [48, [52, 55, 59, 62]],   // Cmaj9
+    [48, [52, 55, 59, 62]],
+    [41, [53, 57, 60, 64]],   // Fmaj7
+    [41, [53, 57, 60, 64]],
+    [45, [55, 57, 60, 64]],   // Am7
+    [40, [52, 55, 59, 62]],   // Em7
+    [41, [53, 57, 60, 64]],   // Fmaj7
+    [43, [55, 60, 62, 65]]    // G7sus4
   ];
   var NIGHT_SPARSE = [ // 前半：ぽつぽつと 1 音ずつ（オルゴール、2 オクターブ上）
-    [1, 88, 2], [9, 84, 2], [17, 86, 2], [26, 83, 2]
+    [1, 88, 2], [9, 86, 2], [17, 84, 2], [26, 83, 2]
   ];
-  var NIGHT_MELODY = [ // 後半 8 小節（33 拍目から）
-    [0, 88, 1], [1, 84, 1], [2, 83, 2],
-    [4, 81, 3], [7.5, 79, 0.5],
-    [8, 81, 1], [9, 84, 1], [10, 88, 1.5], [11.5, 86, 0.5],
-    [12, 84, 4],
-    [16, 86, 1], [17, 84, 1], [18, 81, 2],
-    [20, 84, 1], [21, 81, 1], [22, 77, 2],
-    [24, 83, 2], [26, 81, 1], [27, 83, 1],
-    [28, 80, 3]
+  var NIGHT_MELODY = [ // 後半 8 小節（33 拍目から）。C ペンタトニックを中心に、ゆっくり下りて上がる
+    [0, 88, 1], [1, 86, 1], [2, 84, 2],
+    [4, 79, 3], [7.5, 81, 0.5],
+    [8, 84, 1], [9, 88, 1], [10, 86, 1.5], [11.5, 84, 0.5],
+    [12, 81, 4],
+    [16, 84, 1], [17, 81, 1], [18, 79, 2],
+    [20, 83, 1], [21, 79, 1], [22, 76, 2],
+    [24, 81, 2], [26, 84, 1], [27, 86, 1],
+    [28, 86, 3]
+  ];
+
+  /* アラームの曲。イ短調・100 BPM。低いベースの 8 分の刻み、パッド、マリンバの分散和音、後半にオルゴールの旋律。
+   * 和音はアラームの音（ファ・ラ・ド＝F4〜C5）より下に置き、分散和音と旋律は 2 オクターブ上に逃がす。 */
+  var ALARM_CHORDS = [
+    [45, [52, 57, 60, 64]],   // Am
+    [45, [52, 57, 60, 64]],
+    [41, [48, 53, 57, 60]],   // F
+    [41, [48, 53, 57, 60]],
+    [38, [50, 53, 57, 62]],   // Dm
+    [38, [50, 53, 57, 62]],
+    [40, [52, 56, 59, 64]],   // E
+    [40, [50, 52, 56, 59]]    // E7
+  ];
+  var ALARM_MELODY = [ // 後半 8 小節（33 拍目から）
+    [0, 88, 1.5], [1.5, 89, 0.5], [2, 88, 2],
+    [4, 84, 2], [6, 83, 2],
+    [8, 84, 1.5], [9.5, 86, 0.5], [10, 84, 2],
+    [12, 81, 4],
+    [16, 86, 1.5], [17.5, 88, 0.5], [18, 86, 2],
+    [20, 81, 2], [22, 77, 2],
+    [24, 80, 2], [26, 83, 2],
+    [28, 76, 4]
   ];
 
   var TITLE_CHORDS = [
@@ -121,7 +149,8 @@
   var SONGS = {
     title: { bpm: 118, bars: 16, beats: 4, reverb: { feedback: 0.7, damp: 0.3, wet: 0.18 } },
     day: { bpm: 88, bars: 16, beats: 4, reverb: { feedback: 0.76, damp: 0.35, wet: 0.22 } },
-    night: { bpm: 66, bars: 16, beats: 4, reverb: { feedback: 0.84, damp: 0.45, wet: 0.34 } }
+    night: { bpm: 72, bars: 16, beats: 4, reverb: { feedback: 0.82, damp: 0.42, wet: 0.3 } },
+    alarm: { bpm: 100, bars: 16, beats: 4, reverb: { feedback: 0.72, damp: 0.4, wet: 0.2 } }
   };
 
   /* 楽譜を音の並びにする。返すのは [{ i: 音色, t: 秒, d: 秒, f: Hz, v: 強さ }]（t の順）。 */
@@ -133,6 +162,13 @@
       out.push({ i: inst, t: +(beat * b).toFixed(6), d: +(len * b).toFixed(6), f: +mtof(midi).toFixed(4), v: vel });
     }
     var bar, k, ch, beat0;
+    // パッドは和音が変わる小節から、同じ和音のあいだ伸ばす
+    function pads(chords, bar, vel) {
+      var c = chords[bar % 8], len = 4, j;
+      if (bar !== 0 && same(chords[(bar + 7) % 8], c)) return;
+      while (bar + len / 4 < s.bars && same(chords[(bar + len / 4) % 8], c)) len += 4;
+      for (j = 0; j < 4; j++) add('pad', bar * 4, c[1][j], len, vel);
+    }
     if (name === 'title') {
       for (bar = 0; bar < s.bars; bar++) {
         ch = TITLE_CHORDS[bar % 8]; beat0 = bar * 4;
@@ -173,15 +209,22 @@
         }
       }
       DAY_MELODY.forEach(function (n) { add('mallet', 32 + n[0], n[1], n[2], 0.9); });
+    } else if (name === 'alarm') {
+      for (bar = 0; bar < s.bars; bar++) {
+        ch = ALARM_CHORDS[bar % 8]; beat0 = bar * 4;
+        pads(ALARM_CHORDS, bar, 0.7);
+        // ベース：8 分音符で根音を刻み、頭を強く
+        for (k = 0; k < 8; k++) add('bass', beat0 + k * 0.5, ch[0], 0.4, k % 2 ? 0.5 : 0.8);
+        // マリンバ：上の 3 音を 2 オクターブ上で 8 分の分散和音に（小さく）
+        [1, 2, 3, 2, 1, 2, 3, 2].forEach(function (idx, q) { add('mallet', beat0 + q * 0.5, ch[1][idx] + 24, 0.4, q % 4 ? 0.3 : 0.45); });
+        // シェイカー：16 分音符で細かく
+        for (k = 0; k < 16; k++) add('shaker', beat0 + k * 0.25, 96, 0.15, k % 4 === 2 ? 1 : 0.4);
+      }
+      ALARM_MELODY.forEach(function (n) { add('box', 32 + n[0], n[1], n[2], 0.9); });
     } else {
       for (bar = 0; bar < s.bars; bar++) {
         ch = NIGHT_CHORDS[bar % 8]; beat0 = bar * 4;
-        // パッドは和音が変わる小節から、同じ和音のあいだ伸ばす
-        if (bar === 0 || !same(NIGHT_CHORDS[(bar + 7) % 8], ch)) {
-          var len = 4;
-          while (bar + len / 4 < s.bars && same(NIGHT_CHORDS[(bar + len / 4) % 8], ch)) len += 4;
-          for (k = 0; k < 4; k++) add('pad', beat0, ch[1][k], len, 0.8);
-        }
+        pads(NIGHT_CHORDS, bar, 0.8);
         // 低いベースを小節の頭に長く
         add('bass', beat0, ch[0], 3.6, 0.7);
         // エレピで和音を 4 分音符でゆっくりなぞる（小さく）
@@ -430,9 +473,17 @@
     nodes[target] = { src: src, gain: g };
   }
 
-  /** 流したい曲を伝える（'day' / 'night' / null）。毎フレーム呼んでよい。 */
+  /* アラームの曲から戻るのは、アラームが HOLD 秒続けて消えてから（鳴ったり止んだりで曲が行き来しないように）。 */
+  var lastAlarm = -1e9;
+  function now() { return root.performance && root.performance.now ? root.performance.now() / 1000 : Date.now() / 1000; }
+
+  /** 流したい曲を伝える（'title' / 'day' / 'night' / 'alarm' / null）。毎フレーム呼んでよい。 */
   function want(track) {
-    wanted = SONGS[track] ? track : null;
+    track = SONGS[track] ? track : null;
+    var t = now();
+    if (track === 'alarm') lastAlarm = t;
+    else if (wanted === 'alarm' && (track === 'day' || track === 'night') && t - lastAlarm < HOLD) return;
+    wanted = track;
     apply();
   }
 
@@ -466,7 +517,7 @@
     playing: function () { return playing; }, wanted: function () { return wanted; },
     refresh: apply, clockTrack: clockTrack,
     score: score, render: render, Renderer: Renderer, length: length, mtof: mtof,
-    SONGS: SONGS, INST: INST, RATE: RATE, GAIN: GAIN, DUCK: DUCK, FADE: FADE
+    SONGS: SONGS, INST: INST, RATE: RATE, GAIN: GAIN, DUCK: DUCK, FADE: FADE, HOLD: HOLD
   };
   root.VentBGM = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

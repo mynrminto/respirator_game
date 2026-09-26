@@ -3,6 +3,11 @@ import VentilatorCore
 
 @main
 struct VentSimApp: App {
+    init() {
+        // BGM は場面に入った瞬間に鳴るよう、ロゴを出しているあいだに全曲を裏で作っておく。
+        BGMPlayer.shared.prepareAll()
+    }
+
     var body: some Scene {
         WindowGroup { RootView() }
     }
