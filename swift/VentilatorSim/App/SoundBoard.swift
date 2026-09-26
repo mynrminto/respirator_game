@@ -3,11 +3,12 @@ import Foundation
 
 /// 操作音とアラーム音。Web 版 web/sound.js と同じ音程・長さ・間隔で、音のファイルは持たずにその場で合成する。
 ///
-/// 操作音は 4 種類。
+/// 操作音は 4 種類。ほかに起動時のロゴで 1 回だけ鳴らす sparkle がある。
 /// - click   … 機器のキー（設定キー・ハードキー・モード・消音など）。硬くて短い打鍵音。
 /// - tick    … ダイヤルが 1 目盛り動いた。ごく小さく高い音。
 /// - confirm … 「確定」で設定が患者に反映された。上がる 2 音。
 /// - tap     … 機器の外のボタン（学習帯など）。丸く柔らかい音。
+/// - sparkle … 起動時のロゴが「キラッ」と光るときの音。高い鈴の音が駆け上がり、きらめきが残る。
 ///
 /// アラーム音は IEC 60601-1-8 の考え方に寄せる（ド・ラ・ファの 3 音の並びで優先度を分ける）。
 /// - high   … 赤（危険）。3 音＋2 音を 2 回、計 10 音を 8 秒ごと。
@@ -24,7 +25,7 @@ import Foundation
 final class SoundBoard {
     static let shared = SoundBoard()
 
-    enum Cue: CaseIterable { case click, tick, confirm, tap, alarmHigh, alarmMedium }
+    enum Cue: CaseIterable { case click, tick, confirm, tap, sparkle, alarmHigh, alarmMedium }
 
     static let highEvery: Double = 8
     static let mediumEvery: Double = 15
@@ -170,6 +171,15 @@ final class SoundBoard {
                     Note(f: 1568, t: 0.085, d: 0.11, gain: 0.26)]
         case .tap:
             return [Note(f: 740, t: 0, d: 0.06, gain: 0.20, to: 1110)]
+        case .sparkle:
+            // ド・ソ・ド・ミ（C6〜E7）を駆け上がり、上に細いきらめきを 2 つ残す。アラームの音域（349〜523 Hz）より上。
+            let bell: [(Double, Double)] = [(1, 1), (2, 0.28), (3.01, 0.08)]
+            return [Note(f: 1046.5, t: 0, d: 0.12, gain: 0.13, harmonics: bell),
+                    Note(f: 1568, t: 0.07, d: 0.14, gain: 0.13, harmonics: bell),
+                    Note(f: 2093, t: 0.14, d: 0.18, gain: 0.12, harmonics: bell),
+                    Note(f: 2637, t: 0.21, d: 0.4, gain: 0.12, harmonics: bell),
+                    Note(f: 3136, t: 0.26, d: 0.55, gain: 0.05),
+                    Note(f: 4186, t: 0.33, d: 0.55, gain: 0.035)]
         case .alarmHigh:
             // 3 音（ド・ラ・ファ）＋2 音（ラ・ファ）、少し空けてもう一度。web/sound.js の ALARM.high と同じ。
             var out: [Note] = [], t = 0.0
