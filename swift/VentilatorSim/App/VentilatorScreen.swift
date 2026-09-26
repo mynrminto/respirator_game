@@ -20,6 +20,13 @@ struct VentilatorScreen: View {
     @State private var showingStoryList = false
     @State private var showingMenu = false
     @State private var menuPick: DeviceMenuSheet.Pick?
+    /// ポーズを離したあと、測った Pplat・total PEEP を波形の上に残しておく期限。
+    @State private var holdReadoutUntil: Date?
+
+    /// 貼り付ける波形の高さ。スクロールする部分（数値・キー）が小さい画面でも残るように、画面の高さに比例させて上下を抑える。
+    static func waveHeight(for screenHeight: CGFloat) -> CGFloat {
+        min(max(150, screenHeight * 0.27), 280)
+    }
 
     /// 設定キーやダイヤルの見出し。Dynamic Type に合わせて大きくするが、キーの折り返しが
     /// 崩れない範囲で頭打ちにする。
@@ -28,18 +35,32 @@ struct VentilatorScreen: View {
 
     var body: some View {
         let _ = controller.tickCount        // 5 Hz の更新を購読する
+        GeometryReader { geo in
         ScrollViewReader { proxy in
             ScrollView(.vertical) {
                 VStack(spacing: 0) {
-                    screenArea
+                    valuePanel
                         .padding(.horizontal, 6)
-                        .padding(.vertical, 6)
+                        .padding(.bottom, 6)
                     modeAndScreenTabs
                     parameterKeys
                     hardKeys
                 }
             }
-            .safeAreaInset(edge: .top, spacing: 0) { topBar }
+            // 波形は上に貼り付けて、キーを押しにスクロールしても見えたままにする
+            // （吸気ポーズで Pplat を測るときなど、波形を見ながらキーを押す）。
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    topBar
+                    wavePanel(height: Self.waveHeight(for: geo.size.height))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 6)
+                }
+                .background(
+                    LinearGradient(colors: [Chrome.chassisTop, Chrome.chassis],
+                                   startPoint: .top, endPoint: .bottom)
+                )
+            }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 VStack(spacing: 0) {
                     LessonCoachView(controller: controller)
@@ -50,6 +71,11 @@ struct VentilatorScreen: View {
             .onChange(of: controller.lessonSpots) { _, spots in
                 scrollToSpot(spots, proxy: proxy)
             }
+        }
+        }
+        .onChange(of: holdKey) { _, now in
+            // ポーズが終わってもしばらくは測った値を波形の上に残す
+            if now == nil { holdReadoutUntil = Date().addingTimeInterval(6) }
         }
         .background(
             LinearGradient(colors: [Chrome.chassisTop, Chrome.chassis],
@@ -126,10 +152,10 @@ struct VentilatorScreen: View {
     private func scrollToSpot(_ spots: [String], proxy: ScrollViewProxy) {
         let scrollable = ["key:", "hard:", "mode:", "val:"]
         guard let target = spots.first(where: { spec in
-            spec == "wave" || spec.hasPrefix("lane:") || scrollable.contains { spec.hasPrefix($0) }
+            scrollable.contains { spec.hasPrefix($0) }
         }) else { return }
         withAnimation(.easeInOut(duration: 0.3)) {
-            proxy.scrollTo(target.hasPrefix("lane:") ? "wave" : target, anchor: nil)   // 波形の段は波形の画面ごと
+            proxy.scrollTo(target, anchor: nil)   // 波形は上に貼り付けてあるので送らない
         }
     }
 
@@ -263,58 +289,89 @@ struct VentilatorScreen: View {
 
     // MARK: - 画面
 
-    private var screenArea: some View {
-        VStack(spacing: Chrome.isPop ? 2 : 1) {
-            ZStack(alignment: .bottomLeading) {
-                switch controller.screen {
-                case .waveforms: scope
-                case .loops: LoopView(current: controller.currentLoop,
-                                      previous: controller.previousLoop,
-                                      volumeFloor: volumeCeiling,
-                                      flowFloor: flowLimit / 4)
-                case .trend: TrendView(samples: controller.trend, volumeMax: volumeCeiling)
-                case .lung3D: LungSceneView(controller: controller)
-                }
-                if controller.waveformsFrozen && controller.screen == .waveforms {
-                    Text("波形停止中")
-                        .font(Chrome.label(11, weight: Chrome.isPop ? .bold : .regular))
-                        .foregroundStyle(Chrome.isPop ? Color.black.opacity(0.75) : Chrome.pressure)
-                        .padding(.horizontal, 9).padding(.vertical, 3)
-                        .background(
-                            Group {
-                                if Chrome.isPop {
-                                    Capsule().fill(Chrome.pressure)
-                                } else {
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .stroke(Chrome.pressure.opacity(0.6), lineWidth: 1)
-                                }
+    /// 上に貼り付ける画面（波形・ループ・トレンド・肺 3D）。
+    private func wavePanel(height: CGFloat) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            switch controller.screen {
+            case .waveforms: scope
+            case .loops: LoopView(current: controller.currentLoop,
+                                  previous: controller.previousLoop,
+                                  volumeFloor: volumeCeiling,
+                                  flowFloor: flowLimit / 4)
+            case .trend: TrendView(samples: controller.trend, volumeMax: volumeCeiling)
+            case .lung3D: LungSceneView(controller: controller)
+            }
+            if controller.waveformsFrozen && controller.screen == .waveforms {
+                Text("波形停止中")
+                    .font(Chrome.label(11, weight: Chrome.isPop ? .bold : .regular))
+                    .foregroundStyle(Chrome.isPop ? Color.black.opacity(0.75) : Chrome.pressure)
+                    .padding(.horizontal, 9).padding(.vertical, 3)
+                    .background(
+                        Group {
+                            if Chrome.isPop {
+                                Capsule().fill(Chrome.pressure)
+                            } else {
+                                RoundedRectangle(cornerRadius: 3)
+                                    .stroke(Chrome.pressure.opacity(0.6), lineWidth: 1)
                             }
-                        )
-                        .padding(8)
-                }
-                if controller.speed.rawValue > 1 {
-                    Text("早送り中  \(Int(controller.speed.rawValue))×")
-                        .font(Chrome.label(11, weight: .bold))
-                        .foregroundStyle(Color.black.opacity(0.75))
-                        .padding(.horizontal, 12).padding(.vertical, 3)
-                        .background(Capsule().fill(Chrome.pressure))
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.bottom, 0)
-                }
+                        }
+                    )
+                    .padding(8)
             }
-            // 波形の高さは決めておく。決めないとスクロールの中でつぶれる。
-            .containerRelativeFrame(.vertical) { height, _ in
-                min(max(200, height * 0.42), 330)
+            if controller.speed.rawValue > 1 {
+                Text("早送り中  \(Int(controller.speed.rawValue))×")
+                    .font(Chrome.label(11, weight: .bold))
+                    .foregroundStyle(Color.black.opacity(0.75))
+                    .padding(.horizontal, 12).padding(.vertical, 3)
+                    .background(Capsule().fill(Chrome.pressure))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.bottom, 0)
             }
-            .id("wave")
-            valueGrid
         }
+        .overlay(alignment: .topTrailing) { holdReadout }
+        .frame(height: height)
+        .id("wave")
         .background(Chrome.screenTileLine)
         .clipShape(RoundedRectangle(cornerRadius: Chrome.cornerLarge))
         .overlay(
             RoundedRectangle(cornerRadius: Chrome.cornerLarge)
                 .stroke(Chrome.screenFrame, lineWidth: Chrome.isPop ? 3 : 1)
         )
+    }
+
+    /// ポーズ中（と離したあと少し）は、測っている値を波形の右上に出す。数値のタイルがスクロールで隠れていても読める。
+    @ViewBuilder
+    private var holdReadout: some View {
+        let engine = controller.engine
+        let showing = holdKey != nil || (holdReadoutUntil.map { $0 > Date() } ?? false)
+        if showing {
+            let items = ["Pplat", "PEEP tot"].compactMap(Readout.find)
+            HStack(spacing: 10) {
+                ForEach(items) { r in
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(r.caption).font(Chrome.label(10, weight: .bold))
+                        Text(r.value(engine)).font(Chrome.digits(17, weight: .bold))
+                    }
+                }
+            }
+            .foregroundStyle(Chrome.pressure)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(Capsule().fill(Color.black.opacity(0.55)))
+            .padding(6)
+            .accessibilityElement(children: .combine)
+            .transition(.opacity)
+        }
+    }
+
+    /// スクロールする数値のタイル。
+    private var valuePanel: some View {
+        valueGrid
+            .background(Chrome.screenTileLine)
+            .clipShape(RoundedRectangle(cornerRadius: Chrome.cornerLarge))
+            .overlay(
+                RoundedRectangle(cornerRadius: Chrome.cornerLarge)
+                    .stroke(Chrome.screenFrame, lineWidth: Chrome.isPop ? 3 : 1)
+            )
     }
 
     /// 体重あたりの容量の目盛り。早産児の 6 mL と学童の 250 mL を同じ軸で描くと片方が線になる。
