@@ -207,12 +207,12 @@ extension LessonLibrary {
                          "PEEP が高ければ Pplat も一緒に上がります。", "量が多ければ Pplat も上がります。"],
                   why: "差が開いた＝抵抗の増加です。痰、チューブの屈曲や閉塞、気管支攣縮を探します。小児はチューブが細いぶん、わずかな分泌物でも抵抗がはっきり上がります。"),
             .talk(.puku, "吸気ポーズがあるなら、呼気ポーズもあるの？"),
-            .talk(.doctor, "あります。こちらは吐ききれているかを見るためのもの。第 5 章で主役になります。"),
+            .talk(.doctor, "あります。こちらは吐ききれているかを見るためのもの。これが大事になる子もいますが、それは別の機会にしましょう。"),
             .talk(.doctor, "呼気ポーズは、吐き終わりで弁を閉じ、肺の中に残った圧を測ります。これが総 PEEP。設定の PEEP より高ければ吐き残しがあります。"),
             .key("「呼気ポーズ」を押して、総 PEEP を測ってください。", event: .expiratoryHold)
                 .spotting(["hard:kExp"]),
             .step("測り終わるのを待ちます。",
-                  why: "総 PEEP と設定 PEEP の差が auto-PEEP（吐ききれずに残った圧）です。この児ではほぼゼロ。第5章で、これが問題になる乳児を扱います。",
+                  why: "総 PEEP と設定 PEEP の差が auto-PEEP（吐ききれずに残った圧）です。この児ではほぼゼロ。気道の細い乳児では、ここが問題になることがあります。",
                   check: { $0.measured.totalPEEP > 0 && $0.holdSettled })
                 .watching(["PEEP tot", "auto-PEEP"])
         ])
@@ -398,7 +398,7 @@ extension LessonLibrary {
                 }
                 .spotting(["val:ABP mean"]).watching(["ABP mean", "SpO₂", "Pplat"]),
             .step("PEEP を 5 cmH₂O に戻してください。",
-                  why: "PEEP は高いほど良いものではなく、開ける肺が残っているときに効くものです。第4章で、本当に効く小児 ARDS の肺を扱います。",
+                  why: "PEEP は高いほど良いものではなく、開ける肺が残っているときに効くものです。本当に効くのは、ARDS のように潰れた肺胞が多い肺です。",
                   check: { $0.settings.peep <= 5 })
                 .spotting(["key:peep"]).watching(["ABP mean", "SpO₂"])
         ])
@@ -544,7 +544,7 @@ extension LessonLibrary {
                  "PSV は始めるのも止めるのも患者"],
         tasks: [
             .talk(.doctor, "手伝い方には段階があります。全部やるか、足りない分だけ足すか、本人にまかせるか。"),
-            .talk(.doctor, "全部やるのが A/C。すべての呼吸を機械が同じだけ送ります。ここまでのレッスンは、ずっとこれでした。"),
+            .talk(.doctor, "全部やるのが A/C。すべての呼吸を機械が同じだけ送ります。いまのハルト君も、これです。"),
             .talk(.doctor, "SIMV は、決めた回数だけ機械が送り（強制換気）、そのあいだは患者が自分で吸います。PSV は、患者が吸うたびに圧で後押しするだけです。"),
             .talk(.doctor, "その後押しを PS（プレッシャーサポート）と言います。患者が吸いはじめたら、決めた圧まで機械が手伝います。"),
             .key("モードを「SIMV」に切り替えてください。", event: .modeSIMV,
