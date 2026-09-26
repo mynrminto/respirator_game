@@ -12,10 +12,18 @@ struct RootView: View {
     @State private var controller: SimulationController?
     @State private var showingCourse = false
     @State private var showingCases = false
+    /// 起動時のロゴ。消えてからタイトルを出す（タイトルの BGM もそこから）。
+    @State private var showingSplash = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
-            if let controller {
+            if showingSplash {
+                SplashView {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.5)) { showingSplash = false }
+                }
+                .transition(.opacity)
+            } else if let controller {
                 VentilatorScreen(controller: controller,
                                  onGoToTitle: { self.controller = nil })
             } else {
