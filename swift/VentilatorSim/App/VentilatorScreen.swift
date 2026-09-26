@@ -18,6 +18,8 @@ struct VentilatorScreen: View {
     @State private var showingCourse = false
     @State private var showingCases = false
     @State private var showingStoryList = false
+    @State private var showingMenu = false
+    @State private var menuPick: DeviceMenuSheet.Pick?
 
     /// 設定キーやダイヤルの見出し。Dynamic Type に合わせて大きくするが、キーの折り返しが
     /// 崩れない範囲で頭打ちにする。
@@ -82,6 +84,12 @@ struct VentilatorScreen: View {
         }
         .sheet(isPresented: $showingWeaning) {
             WeaningSheet(controller: controller)
+        }
+        .sheet(isPresented: $showingMenu, onDismiss: runMenuPick) {
+            DeviceMenuSheet(title: controller.scenario.profile.name + "・" + controller.scenario.profile.weight) {
+                menuPick = $0
+                showingMenu = false
+            }
         }
         .sheet(isPresented: $showingPatient) {
             PatientInfoSheet(controller: controller)
@@ -158,41 +166,12 @@ struct VentilatorScreen: View {
     }
 
     /// 症例やレッスンを変える入口。Web 版の「メニュー」キーにあたる。
+    ///
+    /// システムの Menu は使わない。この画面は 5 Hz で描き直すので、開いたままの Menu の中身も
+    /// 作り直され、スクロールが戻ったり下の項目を押せなかったりした（iPhone 15 Pro Max で確認）。
+    /// 代わりに下から出るシートにし、項目はスクロールできる一覧にする。
     private var menuButton: some View {
-        Menu {
-            Section(controller.scenario.profile.name + "・" + controller.scenario.profile.weight) {
-                Button { openPatientInfo() } label: {
-                    Label("患者情報", systemImage: "person.text.rectangle")
-                }
-                Button { showingCourse = true } label: {
-                    Label("レッスン一覧", systemImage: "list.bullet")
-                }
-                Button { showingCases = true } label: {
-                    Label("症例を選ぶ", systemImage: "person.2")
-                }
-                Button { showingStoryList = true } label: {
-                    Label("物語を読み返す", systemImage: "book")
-                }
-                Button { SoundBoard.shared.isEnabled.toggle() } label: {
-                    Label(SoundBoard.shared.isEnabled ? "音を消す（いま：オン）" : "音を鳴らす（いま：オフ）",
-                          systemImage: SoundBoard.shared.isEnabled ? "speaker.wave.2" : "speaker.slash")
-                }
-                Button { SoundBoard.shared.isPulseEnabled.toggle() } label: {
-                    Label(SoundBoard.shared.isPulseEnabled ? "パルス音を消す（いま：オン）" : "パルス音を鳴らす（いま：オフ）",
-                          systemImage: SoundBoard.shared.isPulseEnabled ? "heart" : "heart.slash")
-                }
-                Button { BGMPlayer.shared.isEnabled.toggle() } label: {
-                    Label(BGMPlayer.shared.isEnabled ? "BGM を消す（いま：オン）" : "BGM を流す（いま：オフ）",
-                          systemImage: BGMPlayer.shared.isEnabled ? "music.note" : "speaker.slash")
-                }
-                Button { ThemeStore.shared.toggle() } label: {
-                    Label("見た目を切り替える（いま：\(Chrome.kind.label)）", systemImage: "paintpalette")
-                }
-                Button { onGoToTitle() } label: {
-                    Label("タイトルへ", systemImage: "house")
-                }
-            }
-        } label: {
+        Button { showingMenu = true } label: {
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Chrome.dim)
@@ -200,6 +179,19 @@ struct VentilatorScreen: View {
                 .contentShape(Rectangle())
         }
         .accessibilityLabel("メニュー")
+    }
+
+    /// メニューで選んだ行き先。シートが閉じきってから開く（シートの上にシートを重ねない）。
+    private func runMenuPick() {
+        guard let pick = menuPick else { return }
+        menuPick = nil
+        switch pick {
+        case .patient: openPatientInfo()
+        case .course: showingCourse = true
+        case .cases: showingCases = true
+        case .story: showingStoryList = true
+        case .title: onGoToTitle()
+        }
     }
 
     /// アラームは 1 件だけ文字で出し、残りは丸い件数（+2）にする。

@@ -404,10 +404,10 @@
   }
 
   /* BGM。昼の曲と夜の曲を、いま見ている場面の時刻で選ぶ（bgm.js）。
-   *   物語の幕 … 幕の time　／　タイトル … 昼　／　レッスン … 章の時刻　／　症例で練習 … 端末の時計 */
+   *   物語の幕 … 幕の time　／　タイトル … タイトルの曲　／　レッスン … 章の時刻　／　症例で練習 … 端末の時計 */
   function bgmTrack() {
     if (SV && SV.run) return SV.run.scene.time || 'day';
-    if (!$('title').hidden) return 'day';
+    if (!$('title').hidden) return 'title';
     if (S.lesson) return (ST && S.lesson.chap && ST.CHAPTER_TIME[S.lesson.chap.id]) || 'day';
     return BGM.clockTrack(new Date());
   }
