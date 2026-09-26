@@ -39,6 +39,11 @@ extension LessonLibrary {
                 }
                 .watching(["etCO₂", "SpO₂"]),
             .talk(.doctor, "返ってきましたね。まず、いまの結果を順番どおりに読んでみましょう。"),
+            .talk(.doctor, "pH は血液の酸性・アルカリ性の度合い。正常は 7.35〜7.45。低ければ酸性に傾いた状態（アシデミア）、高ければアルカレミアです。"),
+            .talk(.doctor, "PaCO₂ は動脈血の二酸化炭素の圧。呼吸で決まり、正常は 35〜45 mmHg。上がるほど血液は酸性に傾きます。"),
+            .talk(.doctor, "HCO₃⁻ は重炭酸イオン。血液のアルカリ役で、腎臓が調節します。正常は 21〜26。下がるほど酸性に傾きます。"),
+            .talk(.puku, "アシドーシスとか、呼吸性とか代謝性とか、よく聞くけど…"),
+            .talk(.doctor, "pH を下げる向きの異常がアシドーシス、上げる向きがアルカローシス。原因が CO₂ なら呼吸性、HCO₃⁻ なら代謝性です。"),
             .quiz("いまの結果はどう読みますか。",
                   asking: { c in
                       guard let g = c.lastBloodGas else { return "いまの結果はどう読みますか。" }
@@ -52,6 +57,7 @@ extension LessonLibrary {
                   miss: [nil, "pH と PaCO₂ を基準値と比べてください。どちらも範囲に入っています。",
                          "HCO₃⁻ は下がっていません。", "PaCO₂ は下がっていません。"],
                   why: "① pH は正常、② PaCO₂ も正常、③ HCO₃⁻ も正常。いまの設定で換気は足りています。正常を一度読んでおくと、崩れたときの違いに気づけます。"),
+            .talk(.doctor, "代償は、片方が崩れたとき、もう片方が pH を戻そうと動くこと。CO₂ が上がれば、腎臓が HCO₃⁻ を増やして釣り合わせます。"),
             .talk(.doctor, "代償の目安を 1 つだけ。PaCO₂ が 10 上がると、HCO₃⁻ は急性なら +1、数日たった慢性なら +3.5。"),
             .quiz("pH 7.28 / PaCO₂ 58 / HCO₃⁻ 26。これは何ですか。",
                   ["代謝性アシドーシス",
@@ -70,6 +76,7 @@ extension LessonLibrary {
                   miss: ["PaCO₂ は 30 と低い。呼吸はむしろ CO₂ を吐き出しています。", nil,
                          "pH 7.22 なのでアルカローシスではありません。", "pH 7.22 なのでアルカローシスではありません。"],
                   why: "アシデミアなのに PaCO₂ は低い。主犯は HCO₃⁻ 12 で、低い PaCO₂ は過換気で代償している姿です。ここで鎮静をかけて呼吸を抑えると、pH は一気に落ちます。"),
+            .talk(.doctor, "酸素化は別枠で P/F 比を見ます。PaO₂ を FiO₂（小数。40% なら 0.4）で割った値。正常は 400 以上で、低いほど悪い。"),
             .quiz("PaO₂ 70 mmHg、FiO₂ 0.8 のときの P/F 比は？",
                   ["56",
                    "88",
@@ -140,6 +147,7 @@ extension LessonLibrary {
                 }
                 .spotting(["hard:kAbg"]).watching(["MV", "etCO₂"]),
             .talk(.puku, "量と回数、どっちを上げても同じじゃないの？"),
+            .talk(.doctor, "ヒントは死腔。口から気管支までの通り道にある空気は、肺胞まで届かず、ガス交換に使われません。1 回の呼吸ごとに、その分が無駄になります。"),
             .quiz("Vt 120→160 と RR 20→27、どちらがよく効きますか（MV の増分はほぼ同じ）。",
                   ["Vt を増やすほう",
                    "RR を上げるほう",
@@ -189,6 +197,7 @@ extension LessonLibrary {
                 }
                 .watching(["SpO₂", "Pplat"]),
             .talk(.doctor, "だから先に肺胞を開きます。ここが PEEP の出番です。"),
+            .talk(.doctor, "PEEP で吐き終わりにも圧を残すと、潰れていた肺胞が開いたまま保たれます。潰れた肺胞を開き直すことを、リクルートと言います。"),
             .step("PEEP を 14 cmH₂O まで上げて確定してください。",
                   hint: "実際は 2 cmH₂O ずつ上げて、Pplat と血圧を見ながら進めます。",
                   check: { $0.settings.peep >= 14 })
@@ -254,6 +263,8 @@ extension LessonLibrary {
             .talk(.doctor, "P/F は良くなりました。でも今度は Pplat が高い。ここからは、何かを諦める相談です。"),
             .talk(.puku, "諦める？"),
             .talk(.doctor, "CO₂ を下げきることを諦めます。そのぶん肺を守る、という考え方です。"),
+            .talk(.doctor, "これを permissive hypercapnia（許容的高二酸化炭素血症）と言います。肺を守るために、CO₂ が高いのを承知で許す方針です。"),
+            .talk(.doctor, "肺保護の目安は、一回換気量 5〜6 mL/kg、Pplat と ΔP は上限以下。上限は年齢で違い、それぞれのタイルの下に出ています。"),
             .quiz("いまの Vte は何 mL/kg ですか。Vte のタイルで確かめてください。",
                   ["約 5 mL/kg",
                    "約 7 mL/kg",
@@ -363,6 +374,7 @@ extension LessonLibrary {
                     c.engine.setAirwayResistance(inspiratory: r.inspiratory * 7.0,
                                                  expiratory: r.expiratory * 3.5)
                 },
+            .talk(.doctor, "気道内圧上限のアラームは、PIP が設定した上限に届くと鳴ります。その呼吸は途中で打ち切られ、送れる量も減ります。"),
             .key("PIP が急に上がりました。設定を変える前に、何をしますか。",
                  hint: "原因を切り分けるキーがハードキーにあります。",
                  event: .inspiratoryHold,
@@ -435,6 +447,7 @@ extension LessonLibrary {
                 .looking(["lane:flow"]),
             .talk(.puku, "吐くのって、放っておけば出ていくんじゃないの？"),
             .talk(.doctor, "細い気道では、出ていく時間が足りません。波形に出ます。見てください。"),
+            .talk(.doctor, "吐ききる前に次の吸気が来ると、肺に空気が残ります。残った空気が作る圧が auto-PEEP。設定の PEEP に上乗せされます。"),
             .step("流量波形（真ん中、緑）を 20 秒見てください。呼気がゼロに戻りきっていますか。",
                   hold: 20,
                   why: "呼気が底からゼロに戻る前に、次の吸気で断ち切られています。これが吐き残しの形です。",
@@ -536,6 +549,7 @@ extension LessonLibrary {
                 .watching(["PIP", "Pplat", "Vte"]),
             .talk(.doctor, "圧の形と、聴診。2 つ合わせると 1 つに絞れます。")
                 .looking(["lane:paw"]),
+            .talk(.doctor, "片肺挿管は、チューブが深く入りすぎて、片方の気管支だけに入ってしまうこと。反対側の肺には空気が届きません。"),
             .quiz("この所見に加えて、左の呼吸音が聞こえません。何を疑いますか。",
                   ["右片肺挿管または気胸",
                    "痰づまり",
@@ -587,6 +601,7 @@ extension LessonLibrary {
             .talk(.scene, "朝。ハルト君が目を開けて、チューブを気にして手を動かしている。"),
             .talk(.puku, "元気そうだし、もう抜いちゃえば？"),
             .talk(.doctor, "その「元気そう」を数字にして確かめるのが、この章です。"),
+            .talk(.doctor, "呼吸器の手伝いを少しずつ減らしていくことを離脱（ウィーニング）、最後に気管チューブを抜くことを抜管と言います。"),
             .key("「離脱」キーを押して、条件のリストを見てください。", event: .openWeaning,
                  why: "× がついている項目が、いま足りていないものです。")
                 .spotting(["hard:kWean"]),
@@ -595,6 +610,7 @@ extension LessonLibrary {
                   why: "条件が揃いました。ここで初めて SBT に進めます。",
                   check: { c in Weaning.readiness(for: c.engine).allSatisfy(\.met) })
                 .spotting(["key:fio2", "key:peep", "key:sed"]).watching(["SpO₂", "RR tot", "ABP mean"]),
+            .talk(.doctor, "✓ がそろったら、次は SBT（自発呼吸トライアル）。手伝いをほとんど外して、自分の力で 30 分呼吸できるか試す検査です。"),
             .talk(.doctor, "全部 ✓ になりました。では、このまま抜いていいでしょうか。"),
             .quiz("条件を全部満たしていれば、そのまま抜管してよいですか。",
                   ["よい",
@@ -697,6 +713,7 @@ extension LessonLibrary {
         tasks: [
             .talk(.scene, "昼。ハルト君の鎮静は朝のうちに切ってある。しっかり目を開け、自分で呼吸している。今日のうちに抜管を目指す。"),
             .talk(.doctor, "最後の関門です。呼吸の力だけでなく、気道を自分で守れるかを見ます。"),
+            .talk(.doctor, "気道を守るとは、痰を咳で出せること、つばや吐いたものを気管に入れないこと。そのために、意識と咳の力を見ます。"),
             .step("「離脱」キーから SBT を開始し、最後まで完走させてください。",
                   hint: "早送りを使ってください。",
                   why: "SBT に通りました。",
