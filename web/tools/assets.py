@@ -26,10 +26,13 @@ SHEETS = {
 }
 # 単体で来てもよいもの（シートの代わり）
 PATIENTS = ['patient_postop', 'patient_rds', 'patient_bronchiolitis', 'patient_ards', 'patient_asthma', 'patient_gbs',
-            'patient_neonate', 'patient_infant', 'patient_child', 'patient_bed']
+            'patient_neonate', 'patient_infant', 'patient_child', 'patient_bed',
+            'patient_adult_postop', 'patient_adult_chf', 'patient_adult_copd', 'patient_adult_ards', 'patient_adult_asthma',
+            'patient_adult_gbs']
 SINGLES = ['doctor_normal', 'doctor_happy', 'doctor_think', 'doctor_alert'] + PATIENTS + ['ui_button', 'ui_button_primary', 'ui_panel', 'ui_ribbon',
-           'logo', 'hud_patient_frame', 'fx_confetti']
-BACKGROUNDS = ['bg_title_day', 'bg_title_night', 'bg_play']
+           'logo', 'hud_patient_frame', 'fx_confetti', 'nurse_normal', 'icon_cases']
+BACKGROUNDS = ['bg_title_day', 'bg_title_night', 'bg_play',
+               'bg_story_corridor', 'bg_story_nicu', 'bg_story_station', 'bg_story_dawn']
 NINE = ['ui_button', 'ui_button_primary', 'ui_panel', 'ui_ribbon', 'hud_patient_frame']
 MAX_SIDE = 1024   # 立ち絵はこれ以上大きくしない（iPhone のメモリと読み込み時間のため）
 PATIENT_SIDE = 768  # 患者は小さく出すので、顔色差分 ×3 のぶん軽くする

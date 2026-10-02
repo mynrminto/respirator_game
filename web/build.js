@@ -34,6 +34,13 @@ if (!dev) {
     html = html.replace('<script src="assets.js"></script>',
       '<script>window.VENT_MANIFEST = ' + fs.readFileSync(manifestPath, 'utf8').trim() + ';</script>\n<script src="assets.js"></script>');
   }
+  // 成人版の画像（assets-adult/）。無ければ空にして、小児の絵ではなくコード描画に落とす。
+  if (adult) {
+    const ap = path.join(dir, 'assets-adult', 'manifest.json');
+    const am = fs.existsSync(ap) ? fs.readFileSync(ap, 'utf8').trim() : '{}';
+    html = html.replace('<script src="assets.js"></script>',
+      '<script>window.VENT_MANIFEST_ADULT = ' + am + ';</script>\n<script src="assets.js"></script>');
+  }
   html = html.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => {
     const code = fs.readFileSync(path.join(dir, src), 'utf8');
     return '<script>\n/* ' + src + ' */\n' + code + '\n</script>';

@@ -35,6 +35,8 @@
   }
 
   var LINE = '#2E2545';          // 輪郭線
+  /* 成人版（window.VENT_EDITION === 'adult'）では、くまなど小児科の飾りを描かない。 */
+  var ADULT = typeof window !== 'undefined' && window.VENT_EDITION === 'adult';
   function outline(w) { return 'stroke="' + LINE + '" stroke-width="' + (w || 6) + '" stroke-linejoin="round" stroke-linecap="round"'; }
 
   /* ============================================================
@@ -195,8 +197,8 @@
     /* 床のケーブル */
     g += '<path d="M380 900 q100-40 200 20 q120 60 260 -10" fill="none" stroke="' + (dark ? '#0A0E1C' : '#5A4A60') + '" stroke-width="5" opacity=".6"/>'
       + '<path d="M1040 720 q60 120 200 140" fill="none" stroke="' + (dark ? '#0A0E1C' : '#5A4A60') + '" stroke-width="5" opacity=".6"/>';
-    /* ベッドのくま（唯一の飾り） */
-    g += '<circle cx="960" cy="562" r="9" fill="#D9A066" ' + outline(3) + '/><circle cx="984" cy="562" r="9" fill="#D9A066" ' + outline(3) + '/>'
+    /* ベッドのくま（唯一の飾り。成人版では置かない） */
+    if (!ADULT) g += '<circle cx="960" cy="562" r="9" fill="#D9A066" ' + outline(3) + '/><circle cx="984" cy="562" r="9" fill="#D9A066" ' + outline(3) + '/>'
       + '<circle cx="972" cy="576" r="20" fill="#E8B77A" ' + outline(4) + '/><ellipse cx="972" cy="582" rx="8" ry="6" fill="#FFE2B8"/>'
       + '<circle cx="965" cy="572" r="2.4" fill="' + LINE + '"/><circle cx="979" cy="572" r="2.4" fill="' + LINE + '"/><circle cx="972" cy="580" r="2.4" fill="' + LINE + '"/>';
 
@@ -211,7 +213,7 @@
   function doctor(dark, blink) {
     var W = 420, H = 560;
     var defs = lg('coat', 0, 0, 1, 0, [[0, '#FFFFFF'], [1, '#E4E9F5']])
-      + lg('scrub', 0, 0, 0, 1, [[0, '#3BD6AE'], [1, '#17A585']])
+      + lg('scrub', 0, 0, 0, 1, ADULT ? [[0, '#3E5E9C'], [1, '#283F72']] : [[0, '#3BD6AE'], [1, '#17A585']])
       + lg('hair', 0, 0, 0, 1, [[0, '#4A3E6B'], [1, '#2E2545']]);
     var g = '';
     /* 影 */
@@ -221,7 +223,7 @@
     /* スクラブの前身頃 */
     g += '<path d="M168 296 q42 34 84 0 q18 78 12 224 h-108 q-6-146 12-224 z" fill="url(#scrub)" ' + outline(6) + '/>';
     /* 襟 */
-    g += '<path d="M164 292 l46 44 l46-44 l-20-10 l-26 24 l-26-24 z" fill="#0F8E73" ' + outline(5) + '/>';
+    g += '<path d="M164 292 l46 44 l46-44 l-20-10 l-26 24 l-26-24 z" fill="' + (ADULT ? '#1E2F57' : '#0F8E73') + '" ' + outline(5) + '/>';
     /* 腕 */
     g += '<path d="M128 322 q-26 70-12 140 q4 22 26 18 q18-4 14-26 q-10-62 6-118 z" fill="url(#coat)" ' + outline(6) + '/>';
     g += '<path d="M292 322 q26 70 12 140 q-4 22-26 18 q-18-4-14-26 q10-62-6-118 z" fill="url(#coat)" ' + outline(6) + '/>';
@@ -230,8 +232,10 @@
     /* 聴診器 */
     g += '<path d="M176 300 q-6 84 34 84 q40 0 40-56" fill="none" stroke="#3C4A66" stroke-width="10" stroke-linecap="round"/>'
       + '<circle cx="250" cy="332" r="18" fill="#9AACC9" ' + outline(5) + '/><circle cx="250" cy="332" r="8" fill="#DCE6F7"/>';
-    /* 胸のくまのバッジ（小児科医のしるし） */
-    g += '<circle cx="150" cy="356" r="16" fill="#FFF3B0" ' + outline(4) + '/>'
+    /* 胸のくまのバッジ（小児科医のしるし）。成人版は名札にする。 */
+    if (ADULT) g += '<rect x="132" y="344" width="40" height="26" rx="4" fill="#FFFFFF" ' + outline(4) + '/>'
+      + '<rect x="138" y="350" width="12" height="14" rx="2" fill="#9AB3D9"/><path d="M154 352 h12 M154 358 h10 M154 364 h8" stroke="#8A93A8" stroke-width="2.4"/>';
+    else g += '<circle cx="150" cy="356" r="16" fill="#FFF3B0" ' + outline(4) + '/>'
       + '<circle cx="143" cy="349" r="4" fill="#D9A066"/><circle cx="157" cy="349" r="4" fill="#D9A066"/>'
       + '<circle cx="150" cy="357" r="9" fill="#E8B77A"/><circle cx="147" cy="355" r="1.6" fill="' + LINE + '"/><circle cx="153" cy="355" r="1.6" fill="' + LINE + '"/>'
       + '<ellipse cx="150" cy="360" rx="3.6" ry="2.6" fill="#FFE2B8"/>';

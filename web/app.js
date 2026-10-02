@@ -2442,7 +2442,8 @@
   function storyBg(key) {
     var names = (ST.BG[key] || ST.BG.picu);
     for (var i = 0; i < names.length; i++) if (AS.has(names[i])) return AS.url(names[i]);
-    return null;
+    /* 背景の絵がまだ無い版（成人版で画像が届く前）は、コードで描いた ICU を敷く。夜の場面は暗い版。 */
+    return AR.room(key === 'night' || key === 'station');
   }
 
   /* 立ち絵。先生とぷくぷくは全身、患者はベッドの一枚絵を窓に入れる。
