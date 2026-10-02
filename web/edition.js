@@ -32,5 +32,7 @@
     : { unit: '/分/(mL/kg)', limit: 8, lim: '<8', get: function (m) { return m.rsbiKg; }, dec: 1,
         fail: 'f/VT が 8 を超えました（浅く速い呼吸）' };
   root.VentEdition = E;
+  /* 成人版は index.html の :root[data-edition="adult"] で配色を落ち着いた紺・青緑にする */
+  if (root.document && root.document.documentElement) root.document.documentElement.setAttribute('data-edition', E.id);
   if (typeof module !== 'undefined' && module.exports) module.exports = E;
 })(typeof window !== 'undefined' ? window : globalThis);

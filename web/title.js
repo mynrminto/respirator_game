@@ -12,6 +12,7 @@
  */
 (function () {
   'use strict';
+  var ADULT_UI = window.VENT_EDITION === 'adult';   // 成人版は橙の代わりに青緑
 
   /* 文字は DOM 側と同じ丸ゴシックにそろえる。見出し用の太い書体はロゴの英字だけに使う。 */
   var FONT = '"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Yu Gothic","Noto Sans JP",sans-serif';
@@ -131,7 +132,7 @@
         texture(A.bubble(dark), 200, 140),
         pick('ui_button_primary', 160, 120, A.plate('go', dark)),
         pick('ui_button', 160, 120, A.plate('plain', dark)),
-        texture(A.badge('#FF8A3D', dark), 96, 96),
+        texture(A.badge(ADULT_UI ? '#1FA3B0' : '#FF8A3D', dark), 96, 96),
         texture(A.badge('#5B7CFA', dark), 96, 96),
         texture(A.barTrack(dark), 120, 40),
         texture(A.barFill(), 120, 40),
@@ -310,9 +311,9 @@
     var glyph = text(icon ? '' : item.glyph, 22, 0xFFFFFF, '800', 0x2E2545);
     glyph.anchor.set(0.5);
     var title = text(item.title, 22, item.primary ? 0xFFFFFF : (opts.dark ? 0xE8F0FF : 0x2E2545), '800',
-                     item.primary ? 0x8A3B10 : null);
+                     item.primary ? (ADULT_UI ? 0x0B4A55 : 0x8A3B10) : null);
     title.anchor.set(0, 0.5);
-    var sub = text(item.sub || '', 13, item.primary ? 0xFFF4E4 : (opts.dark ? 0x9FB3D9 : 0x6B5C86), '700');
+    var sub = text(item.sub || '', 13, item.primary ? (ADULT_UI ? 0xE8FAFB : 0xFFF4E4) : (opts.dark ? 0x9FB3D9 : 0x6B5C86), '700');
     sub.anchor.set(0, 0.5);
     c.addChild(plate, badge, glyph, title, sub);
     c._parts = { plate: plate, badge: badge, glyph: glyph, title: title, sub: sub };

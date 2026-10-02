@@ -39,9 +39,33 @@
   "h": 582,
   "w": 210
  },
+ "hud_patient_frame": {
+  "bottom": 390,
+  "h": 1024,
+  "left": 390,
+  "recolored": true,
+  "right": 390,
+  "top": 390,
+  "w": 976
+ },
+ "icon_about": {
+  "h": 540,
+  "recolored": true,
+  "w": 537
+ },
  "icon_cases": {
   "h": 972,
   "w": 985
+ },
+ "icon_course": {
+  "h": 534,
+  "recolored": true,
+  "w": 536
+ },
+ "icon_go": {
+  "h": 534,
+  "recolored": true,
+  "w": 536
  },
  "mascot_alert": {
   "h": 554,
@@ -134,5 +158,41 @@
  "patient_adult_postop_mid": {
   "h": 503,
   "w": 768
+ },
+ "ui_button": {
+  "bottom": 101,
+  "h": 253,
+  "left": 101,
+  "recolored": true,
+  "right": 101,
+  "top": 101,
+  "w": 1024
+ },
+ "ui_button_primary": {
+  "bottom": 100,
+  "h": 252,
+  "left": 100,
+  "recolored": true,
+  "right": 100,
+  "top": 100,
+  "w": 1024
+ },
+ "ui_panel": {
+  "bottom": 168,
+  "h": 886,
+  "left": 112,
+  "recolored": true,
+  "right": 112,
+  "top": 265,
+  "w": 1024
+ },
+ "ui_ribbon": {
+  "bottom": 81,
+  "h": 203,
+  "left": 133,
+  "recolored": true,
+  "right": 133,
+  "top": 81,
+  "w": 1024
  }
 }
