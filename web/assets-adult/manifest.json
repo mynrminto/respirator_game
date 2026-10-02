@@ -1,1 +1,138 @@
-{}
+{
+ "bg_play": {
+  "h": 1024,
+  "w": 1536
+ },
+ "bg_story_corridor": {
+  "h": 1024,
+  "w": 1536
+ },
+ "bg_story_dawn": {
+  "h": 1024,
+  "w": 1536
+ },
+ "bg_story_station": {
+  "h": 1024,
+  "w": 1536
+ },
+ "bg_title_day": {
+  "h": 1024,
+  "w": 1536
+ },
+ "bg_title_night": {
+  "h": 1024,
+  "w": 1536
+ },
+ "doctor_alert": {
+  "h": 582,
+  "w": 245
+ },
+ "doctor_happy": {
+  "h": 621,
+  "w": 214
+ },
+ "doctor_normal": {
+  "h": 626,
+  "w": 201
+ },
+ "doctor_think": {
+  "h": 582,
+  "w": 210
+ },
+ "icon_cases": {
+  "h": 972,
+  "w": 985
+ },
+ "mascot_alert": {
+  "h": 554,
+  "w": 361
+ },
+ "mascot_excited": {
+  "h": 543,
+  "w": 414
+ },
+ "mascot_happy": {
+  "h": 602,
+  "w": 368
+ },
+ "mascot_sad": {
+  "h": 525,
+  "w": 329
+ },
+ "nurse_normal": {
+  "h": 1024,
+  "w": 382
+ },
+ "patient_adult_ards": {
+  "h": 508,
+  "w": 768
+ },
+ "patient_adult_ards_bad": {
+  "h": 508,
+  "w": 768
+ },
+ "patient_adult_ards_mid": {
+  "h": 508,
+  "w": 768
+ },
+ "patient_adult_asthma": {
+  "h": 513,
+  "w": 768
+ },
+ "patient_adult_asthma_bad": {
+  "h": 513,
+  "w": 768
+ },
+ "patient_adult_asthma_mid": {
+  "h": 513,
+  "w": 768
+ },
+ "patient_adult_chf": {
+  "h": 513,
+  "w": 767
+ },
+ "patient_adult_chf_bad": {
+  "h": 513,
+  "w": 767
+ },
+ "patient_adult_chf_mid": {
+  "h": 513,
+  "w": 767
+ },
+ "patient_adult_copd": {
+  "h": 504,
+  "w": 768
+ },
+ "patient_adult_copd_bad": {
+  "h": 504,
+  "w": 768
+ },
+ "patient_adult_copd_mid": {
+  "h": 504,
+  "w": 768
+ },
+ "patient_adult_gbs": {
+  "h": 530,
+  "w": 767
+ },
+ "patient_adult_gbs_bad": {
+  "h": 530,
+  "w": 767
+ },
+ "patient_adult_gbs_mid": {
+  "h": 530,
+  "w": 767
+ },
+ "patient_adult_postop": {
+  "h": 503,
+  "w": 768
+ },
+ "patient_adult_postop_bad": {
+  "h": 503,
+  "w": 768
+ },
+ "patient_adult_postop_mid": {
+  "h": 503,
+  "w": 768
+ }
+}

@@ -65,8 +65,49 @@ def cutout(img, lo=70, hi=150):
     a3 = alpha[..., None]
     safe = np.where(a3 > 0.02, a3, 1.0)
     unmixed = np.where(a3 > 0.02, (rgb - bg * (1 - a3)) / safe, rgb)
+    # 緑背景のとき、半透明の縁（光のにじみなど）に残る緑かぶりを抑える。不透明な部分の緑はそのまま。
+    if bg[1] > bg[0] + 60 and bg[1] > bg[2] + 60:
+        g_cap = np.maximum(unmixed[..., 0], unmixed[..., 2])
+        edge = alpha < 0.98
+        unmixed[..., 1] = np.where(edge, np.minimum(unmixed[..., 1], g_cap), unmixed[..., 1])
     out = np.concatenate([np.clip(unmixed, 0, 255), (alpha * 255)[..., None]], axis=-1)
     return Image.fromarray(out.astype(np.uint8), 'RGBA')
+
+
+def despill(img):
+    """緑を含まない絵（ぷくぷく）向け: 不透明な部分まで含めて緑かぶりを抑える（G を R・B の大きいほうまでに）。"""
+    a = np.array(img)
+    a[..., 1] = np.minimum(a[..., 1], np.maximum(a[..., 0], a[..., 2]))
+    return Image.fromarray(a, 'RGBA')
+
+
+def drop_edge_bits(img, frac=0.05):
+    """シートを 4 分割したとき、隣のマスからはみ出してきた小さな切れ端（マスの縁に触れる小さな塊）を消す。"""
+    a = np.asarray(img)[..., 3] > 8
+    h, w = a.shape
+    seen = np.zeros_like(a)
+    comps = []
+    for y0, x0 in zip(*np.nonzero(a)):
+        if seen[y0, x0]:
+            continue
+        stack = [(y0, x0)]; seen[y0, x0] = True; pts = []; edge = False
+        while stack:
+            y, x = stack.pop(); pts.append((y, x))
+            if y == 0 or x == 0 or y == h - 1 or x == w - 1:
+                edge = True
+            for yy, xx in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+                if 0 <= yy < h and 0 <= xx < w and a[yy, xx] and not seen[yy, xx]:
+                    seen[yy, xx] = True; stack.append((yy, xx))
+        comps.append((len(pts), edge, pts))
+    if not comps:
+        return img
+    big = max(c[0] for c in comps)
+    out = np.array(img)
+    for n, edge, pts in comps:
+        if edge and n < big * frac:
+            ys, xs = zip(*pts)
+            out[list(ys), list(xs), 3] = 0
+    return Image.fromarray(out, 'RGBA')
 
 
 def autocrop(img, pad=4):
@@ -186,8 +227,10 @@ def main():
             continue
         print(sheet)
         img = cutout(load(p))
+        if sheet == 'mascot_sheet':
+            img = despill(img)
         for name, cell in zip(names, split_grid(img)):
-            cell = shrink(autocrop(cell))
+            cell = shrink(autocrop(drop_edge_bits(cell)))
             extra = nine_insets(cell, name) if name in NINE else None
             put(name, cell, extra)
 
