@@ -125,7 +125,8 @@
   body{margin:0;background:var(--body);color:var(--ink);font-family:var(--jp);font-size:13px;
     -webkit-text-size-adjust:100%;overscroll-behavior:none}
   *{box-sizing:border-box}
-  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;-webkit-touch-callout:none}   /* iPhone・iPad で続けて押しても拡大しない */
   button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .n{font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:600}
   .cap{font-family:var(--num);font-size:10px;letter-spacing:.08em;color:var(--dim);font-weight:500}
@@ -800,7 +801,9 @@
     box-shadow:0 4px 0 rgba(46,37,69,.22)}
   .rbubble::after{content:"";position:absolute;left:50%;bottom:-16px;width:0;height:0;
     border:9px solid transparent;border-top:10px solid var(--gline);transform:translateX(-50%)}
-  @media(min-width:1180px){
+  /* 左右に絵の欄を出すのは、真ん中に 900px 以上残るときだけ（iPad Pro 11 の横向き 1194px では出さない。
+     出すと中の操作盤が 860px 未満に縮み、右端が切れる）。 */
+  @media(min-width:1360px){
     :root:not([data-theme="device"]){--railw:230px}
     :root:not([data-theme="device"]) .stage{display:block}
     :root:not([data-theme="device"]) .rail{display:flex}

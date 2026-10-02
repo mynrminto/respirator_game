@@ -13,8 +13,13 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 (async () => {
   const b = await chromium.launch({ executablePath: EXEC, args: ['--allow-file-access-from-files'] });
   const errs = [];
-  for (const vp of [{ w: 1180, h: 760, n: 'wide' }, { w: 390, h: 844, n: 'phone' }]) {
-    const p = await b.newPage({ viewport: { width: vp.w, height: vp.h }, deviceScaleFactor: 2 });
+  // SMOKE_VIEWPORTS=ip15p:393x852,ipad11:834x1194 のように実機の論理ピクセルで確かめる（タッチ端末として開く）。
+  const VPS = process.env.SMOKE_VIEWPORTS
+    ? process.env.SMOKE_VIEWPORTS.split(',').map(s => { const [n, wh] = s.split(':'); const [w, h] = wh.split('x').map(Number); return { n, w, h, touch: true }; })
+    : [{ w: 1180, h: 760, n: 'wide' }, { w: 390, h: 844, n: 'phone' }];
+  for (const vp of VPS) {
+    const p = await b.newPage({ viewport: { width: vp.w, height: vp.h }, deviceScaleFactor: vp.touch && Math.min(vp.w, vp.h) < 500 ? 3 : 2,
+                                hasTouch: !!vp.touch, isMobile: !!vp.touch && Math.min(vp.w, vp.h) < 500 });
     p.on('pageerror', e => errs.push(vp.n + ': ' + e.message));
     // Google Fonts はサンドボックスの proxy で証明書検証に失敗することがある。アプリの問題ではない。
     p.on('console', m => {
