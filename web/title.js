@@ -178,7 +178,7 @@
   function fonts() {
     if (!document.fonts || !document.fonts.load) return Promise.resolve();
     /* 書体が来る前に文字を焼くと、あとから差し替わらない。画面に出す文字ぶんの書体を先に取り寄せて待つ。 */
-    var sample = ['こどもの人工呼吸器シミュレーター', opts.line || '', opts.themeLabel || 'ポップ', '0123456789%']
+    var sample = [((window.VentEdition && window.VentEdition.title) || 'こどもの人工呼吸器シミュレーター'), opts.line || '', opts.themeLabel || 'ポップ', '0123456789%']
       .concat((opts.items || []).map(function (it) { return (it.title || '') + (it.sub || ''); })).join('');
     var wants = [
       document.fonts.load('800 20px "M PLUS Rounded 1c"', sample),
@@ -257,7 +257,7 @@
     layers.logoArt = t.logo ? sprite(t.logo) : null;
     if (layers.logoArt) { layers.logoArt.anchor.set(0.5); layers.logo.visible = false; layers.ribbon.visible = false; }
     if (layers.logoArt) layers.ui.addChild(layers.logoArt);
-    layers.sub = text('こどもの人工呼吸器シミュレーター', 18, opts.dark ? 0xCFE0FF : 0x4A3C62, '800');
+    layers.sub = text(((window.VentEdition && window.VentEdition.title) || 'こどもの人工呼吸器シミュレーター'), 18, opts.dark ? 0xCFE0FF : 0x4A3C62, '800');
     layers.sub.anchor.set(0.5);
     layers.ui.addChild(layers.ribbon, layers.logo, layers.sub);
 

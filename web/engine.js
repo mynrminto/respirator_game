@@ -53,7 +53,8 @@
   /* ---------- 年齢別の基準値 ----------
    * 症例ごとに毎回書かなくて済むよう、月齢と体重から既定値を作る。
    * 症例側の patient.norms に同じキーを書けば上書きされる。
-   * rr/hr は正常域、mapMin は許容できる平均血圧の下限（新生児は在胎週数がおおよその目安）。 */
+   * rr/hr は正常域、mapMin は許容できる平均血圧の下限（新生児は在胎週数がおおよその目安）。
+   * 18 歳以上は成人版（adult/）の症例で、体重の基準は身長からの予測体重になる。 */
   function ageNorms(ageMonths) {
     var a = ageMonths;
     if (a < 1)   return { label: '新生児',   rr: [40, 60], hr: [120, 160], mapMin: 30, spo2: [90, 95],
@@ -75,6 +76,10 @@
     if (a < 144) return { label: '学童',     rr: [18, 26], hr: [75, 115],  mapMin: 60, spo2: [94, 98],
                           platMax: 30, dpMax: 15, vtPerKg: [6, 8],  vdCircuit: 12,  apnea: 20,
                           rrMax: 45, tiMin: 0.45, trigLock: 0.20,
+                          abg: { ph: [7.35, 7.45], paco2: [35, 45], pao2: [80, 100], hco3: [22, 26] } };
+    if (a >= 216) return { label: '成人',   rr: [12, 20], hr: [60, 100],  mapMin: 65, spo2: [92, 96],
+                          platMax: 30, dpMax: 15, vtPerKg: [6, 8],  vdCircuit: 30,  apnea: 20,
+                          rrMax: 40, tiMin: 0.50, trigLock: 0.25,
                           abg: { ph: [7.35, 7.45], paco2: [35, 45], pao2: [80, 100], hco3: [22, 26] } };
     return           { label: '思春期',      rr: [14, 22], hr: [60, 100],  mapMin: 65, spo2: [94, 98],
                           platMax: 30, dpMax: 15, vtPerKg: [6, 8],  vdCircuit: 15,  apnea: 20,

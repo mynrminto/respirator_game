@@ -5,7 +5,8 @@
 const path = require('path');
 const { chromium } = require(process.env.PW || 'playwright');
 
-const FILE = 'file://' + path.join(__dirname, 'preview.html');
+// SMOKE_FILE=preview-adult.html で成人版を確かめる（node web/build.js --edition adult を先に）。
+const FILE = 'file://' + path.join(__dirname, process.env.SMOKE_FILE || 'preview.html');
 const SHOT = process.env.SHOT_DIR || '/tmp/claude-0';
 const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 

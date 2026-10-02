@@ -9,14 +9,17 @@
 'use strict';
 const path = require('path');
 const E = require(path.join(__dirname, '..', 'engine.js'));
-const SC = require(path.join(__dirname, '..', 'scenarios.js'));
-const LS = require(path.join(__dirname, '..', 'lessons.js'));
+/* VENT_EDITION=adult で成人版（web/adult/）の症例・レッスン・手順を使う。 */
+const ADULT = process.env.VENT_EDITION === 'adult';
+const DATA = ADULT ? path.join(__dirname, '..', 'adult') : path.join(__dirname, '..');
+const SC = require(path.join(DATA, 'scenarios.js'));
+const LS = require(process.env.VENT_LESSONS ? path.resolve(process.env.VENT_LESSONS) : path.join(DATA, 'lessons.js'));
 
 /* ---- プレイヤーの手順 ----
  * キーはレッスン ID、値は課題の say（指示文）の書き出しと、そこで回す値。
  * set: { vt: 84, rr: 30 } の形で設定を回す。sed は鎮静（0〜1）。
  * wait: 秒 … 条件が満たされるまでの上限（既定 900 秒）。 */
-const SOLVE = {
+const SOLVE = ADULT ? require(path.join(DATA, 'solve.js')) : {
   '7-1': [
     ['呼吸回数を下げ', { set: { rr: 24 } }],
     ['一回換気量を 8', { set: { vt: 48 } }],
@@ -124,7 +127,8 @@ function play(id, opt) {
     let bad = null;
     if (e.m.rrTotal > rrCap) bad = 'RR>' + rrCap;
     else if (e.spo2 < nm.spo2[0]) bad = 'SpO2<' + nm.spo2[0];
-    else if (e.m.rsbiKg != null && e.m.rsbiKg > 8) bad = 'f/VT>8';
+    else if (!ADULT && e.m.rsbiKg != null && e.m.rsbiKg > 8) bad = 'f/VT>8';
+    else if (ADULT && e.m.rsbi != null && e.m.rsbi > 105) bad = 'RSBI>105';
     else if (e.hr > hrCap) bad = 'HR>' + hrCap;
     else if (e.map < nm.mapMin) bad = 'MAP<' + nm.mapMin;
     else if (e.ph < 7.30) bad = 'pH<7.30';

@@ -290,6 +290,7 @@
 
   /* 患者。小児科なので、年齢層で見た目を変える。
    *   kind: 'neonate'（保育器の新生児） | 'infant'（ベビーベッドの乳児、既定） | 'child'（ベッドの学童）
+   *       | 'adult'（ICU ベッドのおとな。成人版） 
    *   tone: 'ok' | 'mid' | 'bad'（顔色。SpO₂ と症例の重さで決まる） */
   function patient(tone, dark, kind) {
     var W = 520, H = 360;
@@ -298,7 +299,7 @@
     var cheek = tone === 'bad' ? '#D9A6B0' : '#FFB3C6';
     var defs = lg('quilt', 0, 0, 0, 1, dark
         ? [[0, '#2B3A6B'], [1, '#1B2749']]
-        : [[0, '#FFE1EC'], [1, '#F5BFD6']])
+        : (kind === 'adult' ? [[0, '#DCEBFF'], [1, '#AFC8EE']] : [[0, '#FFE1EC'], [1, '#F5BFD6']]))
       + lg('bed', 0, 0, 0, 1, [[0, '#FFFFFF'], [1, '#DCE4F4']])
       + lg('glass', 0, 0, 0, 1, [[0, '#FFFFFF', 0.55], [0.5, '#DDF3FF', 0.25], [1, '#BFE3FF', 0.35]])
       + lg('cab', 0, 0, 0, 1, dark ? [[0, '#3A4670'], [1, '#26304F']] : [[0, '#F1F4FB'], [1, '#C9D3E8']]);
@@ -312,14 +313,18 @@
       s += '<path d="M' + (cx + r * 0.6) + ' ' + (cy + r * 0.9) + ' q' + bodyW * 0.55 + '-' + r * 0.7 + ' ' + bodyW + '-' + r * 0.1
         + ' q' + (r * 0.5) + ' ' + (r * 0.15) + ' ' + (r * 0.5) + ' ' + (r * 0.55) + ' v' + (r * 0.5)
         + ' q-' + (bodyW * 0.62) + ' ' + (r * 0.4) + ' -' + (bodyW + r * 1.1) + ' 0 q-' + (r * 0.2) + '-' + (r * 0.6) + ' ' + (r * 0.3) + '-' + (r * 0.95) + 'z" fill="url(#quilt)" ' + outline(7) + '/>';
-      /* 布団の星 */
+      /* 布団の星（おとなの掛け物には付けない） */
       var sx = cx + r * 1.6, sy = cy + r * 1.05;
-      s += '<path d="M' + sx + ' ' + (sy - 9) + ' l3 6 l7 1 l-5 5 l1 7 l-6-3 l-6 3 l1-7 l-5-5 l7-1z" fill="#FFF" opacity=".75"/>';
-      s += '<path d="M' + (sx + 46) + ' ' + (sy + 2) + ' l2 5 l6 1 l-4 4 l1 6 l-5-3 l-5 3 l1-6 l-4-4 l6-1z" fill="#FFF" opacity=".6"/>';
+      if (hair !== 'short') s += '<path d="M' + sx + ' ' + (sy - 9) + ' l3 6 l7 1 l-5 5 l1 7 l-6-3 l-6 3 l1-7 l-5-5 l7-1z" fill="#FFF" opacity=".75"/>';
+      if (hair !== 'short') s += '<path d="M' + (sx + 46) + ' ' + (sy + 2) + ' l2 5 l6 1 l-4 4 l1 6 l-5-3 l-5 3 l1-6 l-4-4 l6-1z" fill="#FFF" opacity=".6"/>';
       /* 頭 */
       s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + skin + '" ' + outline(7) + '/>';
       /* 髪：赤ちゃんは一房、子どもは前髪 */
-      if (hair === 'tuft') {
+      if (hair === 'short') {
+        /* おとなの短髪：頭頂だけを覆い、生え際を後ろへ下げる */
+        s += '<path d="M' + (cx - r * 0.98) + ' ' + (cy - r * 0.12) + ' q2-' + r * 0.98 + ' ' + r * 0.98 + '-' + r * 0.98 + ' q' + r * 0.96 + ' 0 ' + r * 0.98 + ' ' + r * 0.98
+          + ' q-' + r * 0.4 + '-' + r * 0.62 + '-' + r * 0.98 + '-' + r * 0.6 + ' q-' + r * 0.62 + ' 0-' + r * 0.98 + ' ' + r * 0.6 + 'z" fill="#7A7488" ' + outline(6) + '/>';
+      } else if (hair === 'tuft') {
         s += '<path d="M' + (cx - 6) + ' ' + (cy - r) + ' q4-30 26-26 q-14 6-10 26z" fill="#4A4160" ' + outline(5) + '/>';
       } else {
         s += '<path d="M' + (cx - r * 0.95) + ' ' + (cy - r * 0.05) + ' q6-' + r * 1.1 + ' ' + r * 0.95 + '-' + r * 1.1 + ' q' + r * 0.9 + ' 0 ' + r * 0.95 + ' ' + r * 1.1
@@ -380,6 +385,18 @@
       g += '<path d="M110 176 q4-56 60-62" fill="none" stroke="#FFF" stroke-width="8" stroke-linecap="round" opacity=".8"/>';
       /* 処置窓 */
       g += '<circle cx="330" cy="200" r="26" fill="none" stroke="#FFF" stroke-width="7" opacity=".85"/>';
+    } else if (kind === 'adult') {
+      /* ICU のベッド：背を 30 度上げ、柵と点滴台 */
+      g += '<rect x="64" y="300" width="18" height="44" rx="9" fill="' + metal + '" ' + outline(5) + '/>'
+        + '<rect x="438" y="300" width="18" height="44" rx="9" fill="' + metal + '" ' + outline(5) + '/>';
+      g += '<rect x="476" y="40" width="10" height="300" rx="5" fill="' + metal + '" ' + outline(4) + '/>'
+        + '<rect x="456" y="52" width="40" height="58" rx="10" fill="#EAF6FF" ' + outline(4) + '/>'
+        + '<path d="M476 110 q-30 60-40 130" fill="none" stroke="#9AA7C4" stroke-width="3"/>';
+      g += '<path d="M44 290 l40-150 l30 8 l-36 142z" fill="url(#bed)" ' + outline(6) + '/>';
+      g += '<rect x="44" y="252" width="420" height="46" rx="14" fill="url(#bed)" ' + outline(6) + '/>';
+      g += '<rect x="250" y="232" width="150" height="16" rx="8" fill="' + metal + '" ' + outline(4) + '/>';
+      g += '<ellipse cx="130" cy="214" rx="74" ry="40" fill="#F4F7FF" ' + outline(6) + '/>';
+      g += kid(138, 188, 52, 250, 'short');
     } else if (kind === 'child') {
       /* 学童のベッド：おとな用より小さく、くまつき */
       g += '<rect x="70" y="300" width="18" height="44" rx="9" fill="' + metal + '" ' + outline(5) + '/>'
