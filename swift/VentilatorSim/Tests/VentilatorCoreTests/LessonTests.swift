@@ -507,9 +507,10 @@ struct PatientInfoTests {
         #expect(p.ward == "PICU")
         #expect(p.weight == "25 kg")
         let rds = ScenarioLibrary.rds.profile
+        #expect(rds.name == "あおい君")
         #expect(rds.ward == "NICU")
         #expect(rds.weight == "1.1 kg")
-        #expect(rds.ageSex.isEmpty)                  // 呼び名が無い症例は「在胎28週 日齢1 男児」を名前に使う
+        #expect(rds.ageSex == "在胎28週 日齢1 男児")
         #expect(ScenarioLibrary.bronchiolitis.profile.ageSex == "生後4か月 男児")   // 物語では「そうた君」
     }
 
