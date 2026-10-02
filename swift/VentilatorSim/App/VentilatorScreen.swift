@@ -24,8 +24,15 @@ struct VentilatorScreen: View {
     @State private var holdReadoutUntil: Date?
 
     /// 貼り付ける波形の高さ。スクロールする部分（数値・キー）が小さい画面でも残るように、画面の高さに比例させて上下を抑える。
-    static func waveHeight(for screenHeight: CGFloat) -> CGFloat {
-        min(max(150, screenHeight * 0.27), 280)
+    /// iPad のように幅が広い画面では、キーの下が空かないよう波形を大きく取る。
+    static func waveHeight(for size: CGSize) -> CGFloat {
+        if size.width >= 700 {
+            // 縦長なら下の余白を波形で埋め、横長ならキーがスクロールせずに収まる高さにとどめる。
+            return size.height > size.width
+                ? min(max(280, size.height * 0.40), 560)
+                : min(max(220, size.height * 0.32), 440)
+        }
+        return min(max(150, size.height * 0.27), 280)
     }
 
     /// 設定キーやダイヤルの見出し。Dynamic Type に合わせて大きくするが、キーの折り返しが
@@ -52,7 +59,7 @@ struct VentilatorScreen: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
                     topBar
-                    wavePanel(height: Self.waveHeight(for: geo.size.height))
+                    wavePanel(height: Self.waveHeight(for: geo.size))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 6)
                 }
