@@ -111,7 +111,7 @@ public enum ScenarioLibrary {
             goals: .init(pH: 7.22...7.42, paco2: 45...60, pao2: 45...75)),
         suggested: .init(mode: .pressureAssistControl, tidalVolume: 6, respiratoryRate: 55,
                          peep: 6, fio2: 0.35, inspiratoryPressure: 10, inspiratoryTime: 0.30,
-                         inspiratoryFlow: 2, pressureSupport: 6, riseTime: 0.06, triggerFlow: 0.4), ward: "NICU")
+                         inspiratoryFlow: 2, pressureSupport: 6, riseTime: 0.06, triggerFlow: 0.4), ward: "NICU", nickname: "あおい君")
 
     public static let bronchiolitis = Scenario(
         id: "bronchiolitis", title: "RSV 細気管支炎", tag: "auto-PEEP",
@@ -185,7 +185,7 @@ public enum ScenarioLibrary {
             goals: .init(pH: 7.20...7.45, paco2: 40...80, pao2: 60...110)),
         suggested: .init(mode: .volumeAssistControl, tidalVolume: 250, respiratoryRate: 12,
                          peep: 5, fio2: 0.6, inspiratoryPressure: 18, inspiratoryTime: 0.8,
-                         inspiratoryFlow: 30, pressureSupport: 10, riseTime: 0.15, triggerFlow: 1.5), ward: "PICU")
+                         inspiratoryFlow: 30, pressureSupport: 10, riseTime: 0.15, triggerFlow: 1.5), ward: "PICU", nickname: "レン君")
 
     public static let guillainBarre = Scenario(
         id: "gbs", title: "ギラン・バレー症候群", tag: "離脱",

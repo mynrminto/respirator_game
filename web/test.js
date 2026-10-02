@@ -351,7 +351,7 @@ console.log('\n18. 学習コースの構造');
 {
   const LS = require('./lessons.js');
   const flat = LS.allLessons();
-  ok('章とレッスンがある', LS.CHAPTERS.length === 6 && flat.length === 19,
+  ok('章とレッスンがある', LS.CHAPTERS.length === 11 && flat.length === 33,
     `${LS.CHAPTERS.length} 章 / ${flat.length} レッスン`);
 
   const ids = flat.map(x => x.lesson.id);
@@ -501,7 +501,7 @@ console.log('\n18b. 教材は読み物ではなく操作であること');
     captions.add('名前');          // 主人公（プレイヤー）の名前。fillSay が差し込む
     const swiftDir = path.join(__dirname, '..', 'swift', 'VentilatorSim', 'Sources', 'VentilatorCore');
     const sources = { 'lessons.js': fs.readFileSync(path.join(__dirname, 'lessons.js'), 'utf8') };
-    for (const f of ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift']) {
+    for (const f of ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift', 'LessonsChapter7to11.swift']) {
       const fp = path.join(swiftDir, f);
       if (fs.existsSync(fp)) sources[f] = fs.readFileSync(fp, 'utf8');
     }
@@ -720,12 +720,12 @@ console.log('\n21. Web 版と iPhone 版がそろっているか');
   if (!fs.existsSync(dir)) {
     console.log('  --   swift/ が無いので省略');
   } else {
-    const src = ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift']
+    const src = ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift', 'LessonsChapter7to11.swift']
       .map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
 
     // Swift 側のレッスンを、id ごとに切り出す
     const swiftLessons = [];
-    const head = /id: "([0-9]-[0-9])", title: "([^"]+)", minutes: (\d+)/g;
+    const head = /id: "([0-9]+-[0-9]+)", title: "([^"]+)", minutes: (\d+)/g;
     let m, marks = [];
     while ((m = head.exec(src))) marks.push({ id: m[1], title: m[2], minutes: +m[3], at: m.index });
     marks.forEach((mk, i) => {
@@ -743,7 +743,7 @@ console.log('\n21. Web 版と iPhone 版がそろっているか');
     });
 
     const js = LS.allLessons().map(x => x.lesson);
-    ok('Swift 側にも 19 レッスンある', swiftLessons.length === 19, `${swiftLessons.length} 件`);
+    ok('Swift 側にもすべてのレッスンがある', swiftLessons.length === js.length, `${swiftLessons.length} / ${js.length} 件`);
 
     let diff = [];
     for (const l of js) {
@@ -916,7 +916,8 @@ console.log('\n23. 患者情報');
   ok('物語の呼び名・年齢・病棟・体重が出る',
     p.name === 'ハルト君' && p.ageSex === '8歳 男児' && p.ward === 'PICU' && p.weight === '25 kg', JSON.stringify(p));
   const r = SC.patientProfile(byId('rds'));
-  ok('呼び名の無い症例は年齢を名前にし、NICU・小数の体重', r.ward === 'NICU' && r.weight === '1.1 kg' && r.ageSex === '', JSON.stringify(r));
+  ok('早産児も物語の呼び名で出し、NICU・小数の体重', r.name === 'あおい君' && r.ward === 'NICU' && r.weight === '1.1 kg' && r.ageSex === '在胎28週 日齢1 男児', JSON.stringify(r));
+  ok('どの症例にも物語の呼び名がある（全員を物語で受け持つ）', SCENARIOS.every(s => !!s.nickname), SCENARIOS.filter(s => !s.nickname).map(s => s.id).join(' '));
   ok('物語の性別と症例の性別がそろう（そうた君は男児）', SC.patientProfile(byId('bronchiolitis')).ageSex === '生後4か月 男児');
   // 物語に出てくる呼び名が、その症例の nickname と一致すること
   let badName = [];
@@ -1070,7 +1071,7 @@ console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ�
   const cards = ST.SCENES.filter(s => s.kind === 'open');
   ok('章の扉の文字が章の題と一致する', cards.every(s => {
     const ch = LS.CHAPTERS.find(c => c.id === s.chapter);
-    return ch && ch.title.replace(/^第\d章\s*/, '') === s.card.title && s.card.kicker === ch.title.slice(0, 3);
+    return ch && ch.title.replace(/^第\d+章\s*/, '') === s.card.title && s.card.kicker === ch.title.match(/^第\d+章/)[0];
   }));
 
   // 台詞の話し手・長さ・差し込み
@@ -1108,10 +1109,12 @@ console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ�
     && same(ST.before('4-2', 'ch4', ['prologue']), ['ch4-open'])
     && same(ST.before('1-2', 'ch1', ['prologue', 'ch1-open']), []));
   const ch = id => LS.chapterOf(id);
-  ok('章の最後のレッスンのあとに幕、第6章のあとはエピローグも', same(ST.after('1-3', ch('1-3'), []), ['ch1-close'])
+  ok('章の最後のレッスンのあとに幕、最後の章のあとはエピローグも', same(ST.after('1-3', ch('1-3'), []), ['ch1-close'])
     && same(ST.after('1-2', ch('1-2'), []), [])
     && same(ST.after('4-4', ch('4-4'), ['ch4-close']), [])
-    && same(ST.after('6-3', ch('6-3'), []), ['ch6-close', 'epilogue']));
+    && same(ST.after('6-3', ch('6-3'), []), ['ch6-close'])
+    && same(ST.after('11-2', ch('11-2'), []), ['ch11-close', 'epilogue'])
+    && ST.LAST_CHAPTER === LS.CHAPTERS[LS.CHAPTERS.length - 1].id);
 
   // 進行
   const r = new ST.Run(ST.sceneById('prologue'));
@@ -1252,6 +1255,33 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
   } else {
     ok('iPhone 版に BGMScore.swift がある', false);
   }
+}
+
+console.log('\n28. 物語の後半（第7〜11章）を機械で通しプレイする');
+{
+  /* 5 人の子それぞれについて「初期設定 → 血液ガスで調整 → 離脱」を物語で体験する。
+   * プレイヤーと同じ手順（tools/autoplay.js の SOLVE）で、この症例のエンジンで
+   * 本当に最後まで進めるか、抜管は成功で終わるかを確かめる。 */
+  const AP = require('./tools/autoplay.js');
+  const LS = require('./lessons.js');
+  const ST = require('./story.js');
+  const late = LS.CHAPTERS.slice(6);
+  const ids = late.reduce((a, ch) => a.concat(ch.lessons.map(l => l.id)), []);
+  const failed = [], badExt = [];
+  for (const id of ids) {
+    try {
+      const r = AP.play(id);
+      if (!r.ok) failed.push(id);
+      if (r.ext && !r.ext.ok) badExt.push(id + ':' + r.ext.list.join('/'));
+    } catch (err) { failed.push(err.message); }
+  }
+  ok('第7〜11章の 14 レッスンが、プレイヤーの手順で最後まで進む', ids.length === 14 && failed.length === 0, failed.join(' / '));
+  ok('抜管の課題はすべて抜管成功で終わる', badExt.length === 0, badExt.join(' '));
+  const cases = new Set(late.reduce((a, ch) => a.concat(ch.lessons.map(l => l.scenario)), []));
+  ok('ハルト君以外の 5 人が、それぞれ 1 章ずつ受け持たれる', ['bronchiolitis', 'ards', 'rds', 'asthma', 'gbs'].every(c => cases.has(c)));
+  const endsInExtubation = late.every(ch => ch.lessons[ch.lessons.length - 1].tasks.some(t => t.event === 'extubate'));
+  ok('どの章も抜管で終わる', endsInExtubation);
+  ok('どの章にも BGM の時刻がある', LS.CHAPTERS.every(ch => ST.CHAPTER_TIME[ch.id] === 'day' || ST.CHAPTER_TIME[ch.id] === 'night'));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

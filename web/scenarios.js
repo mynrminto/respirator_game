@@ -2,7 +2,7 @@
  * すべて小児（新生児〜思春期）。設定の基準は予測体重ではなく実体重（weightKg）。
  * ageMonths から年齢相応の呼吸数・心拍・血圧・圧の上限が決まる（engine.js の ageNorms）。
  * tone は患者の絵の顔色（ok / mid / bad）。年齢層は ageMonths から自動で決まるので持たない。
- * ward は入室している病棟、nickname は学習コースの物語での呼び名（物語に出てこない症例は持たない）。 */
+ * ward は入室している病棟、nickname は学習コースの物語での呼び名。 */
 (function (root) {
   'use strict';
 
@@ -35,7 +35,7 @@
     },
     {
       id: 'rds', tone: 'mid',
-      ward: 'NICU',
+      ward: 'NICU',  nickname: 'あおい君',
       title: '早産児の呼吸窮迫症候群（RDS）',
       tag: '新生児',
       oneLine: 'サーファクタント投与後の硬い肺。mL 単位の換気量と短い吸気時間を扱う。',
@@ -114,7 +114,7 @@
     },
     {
       id: 'asthma', tone: 'bad',
-      ward: 'PICU',
+      ward: 'PICU',  nickname: 'レン君',
       title: '喘息重積発作',
       tag: '上級',
       oneLine: '極端に高い気道抵抗。息を吐かせることを最優先にする学童の症例。',

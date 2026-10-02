@@ -547,7 +547,22 @@ public enum LessonLibrary {
                       lessons: [lesson5_1, lesson5_2, lesson5_3]),
         LessonChapter(id: "ch6", title: "第6章　離脱と抜管", tag: "離脱",
                       subtitle: "つけるより、外すほうが難しい。",
-                      lessons: [lesson6_1, lesson6_2, lesson6_3])
+                      lessons: [lesson6_1, lesson6_2, lesson6_3]),
+        LessonChapter(id: "ch7", title: "第7章　細い気道", tag: "細気管支炎",
+                      subtitle: "細い気道の乳児を、設定の見直しから抜管まで受け持つ。",
+                      lessons: [lesson7_1, lesson7_2, lesson7_3]),
+        LessonChapter(id: "ch8", title: "第8章　硬い肺をもう一度", tag: "ARDS",
+                      subtitle: "硬い肺の子を、設定のやり直しから抜管まで受け持つ。",
+                      lessons: [lesson8_1, lesson8_2, lesson8_3]),
+        LessonChapter(id: "ch9", title: "第9章　手のひらの肺", tag: "新生児",
+                      subtitle: "在胎 28 週の肺を、生まれた日から抜管まで受け持つ。",
+                      lessons: [lesson9_1, lesson9_2, lesson9_3]),
+        LessonChapter(id: "ch10", title: "第10章　吐けない息", tag: "喘息",
+                      subtitle: "喘息重積の子に、吐かせる換気を組み立てる。",
+                      lessons: [lesson10_1, lesson10_2, lesson10_3]),
+        LessonChapter(id: "ch11", title: "第11章　力を取り戻す", tag: "神経筋",
+                      subtitle: "呼吸の筋肉が弱い子を、休ませながら抜管までつなぐ。",
+                      lessons: [lesson11_1, lesson11_2])
     ]
 
     public static var all: [Lesson] { chapters.flatMap(\.lessons) }

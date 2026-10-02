@@ -48,10 +48,10 @@ private func context(_ engine: VentilatorEngine, memory: LessonMemory,
 @Suite("学習コースの構造")
 struct LessonStructureTests {
 
-    @Test("6 章 19 レッスンあり、ID が重複しない")
+    @Test("11 章 33 レッスンあり、ID が重複しない")
     func inventory() {
-        #expect(LessonLibrary.chapters.count == 6)
-        #expect(LessonLibrary.all.count == 19)
+        #expect(LessonLibrary.chapters.count == 11)
+        #expect(LessonLibrary.all.count == 33)
         let ids = LessonLibrary.all.map(\.id)
         #expect(Set(ids).count == ids.count)
     }

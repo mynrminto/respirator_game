@@ -21,7 +21,9 @@ import Testing
     #expect(StoryLibrary.after(lessonID: "1-2", chapter: ch1, seen: []).isEmpty)
     #expect(StoryLibrary.after(lessonID: "1-3", chapter: ch1, seen: []) == ["ch1-close"])
     let ch6 = LessonLibrary.chapter(of: "6-3")
-    #expect(StoryLibrary.after(lessonID: "6-3", chapter: ch6, seen: []) == ["ch6-close", "epilogue"])
+    #expect(StoryLibrary.after(lessonID: "6-3", chapter: ch6, seen: []) == ["ch6-close"])
+    let last = LessonLibrary.chapter(of: "11-2")
+    #expect(StoryLibrary.after(lessonID: "11-2", chapter: last, seen: []) == ["ch11-close", "epilogue"])
 }
 
 @Test func storyNameIsCleaned() {

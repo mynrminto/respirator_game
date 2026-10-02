@@ -874,6 +874,24 @@ public final class VentilatorEngine {
         pao2 = min(pao2, maxPaO2)
     }
 
+    /// 回復や悪化の途中から場面を始めるとき、患者の値（抵抗・シャント・呼吸筋の力など）をまとめて差し替える。
+    /// 差し替えたあと、呼吸ドライブを計算し直す（web の _recomputeDrive）。
+    public func adjustPatient(_ change: (inout Patient) -> Void) {
+        change(&patient)
+        recomputeDrive()
+    }
+
+    /// 場面の始まりで、HCO₃⁻ をその値に置く（代償が済んだあとから始めるとき）。
+    public func setBicarbonate(_ value: Double) {
+        hco3 = value
+        recomputeDrive()
+    }
+
+    /// ショックの途中から場面を始めるとき、平均血圧をその値まで先に下げておく。すでに低ければ何もしない。
+    public func lowerBloodPressure(to maxMAP: Double) {
+        meanArterialPressure = min(meanArterialPressure, maxMAP)
+    }
+
     /// 肺の硬さ。レッスンが気胸や片肺挿管を起こすときに、元の値を控えてから差し替える。
     public var lungCompliance: Double { patient.compliance }
     public func setLungCompliance(_ value: Double) { patient.compliance = max(0.0001, value) }

@@ -483,7 +483,7 @@
     } else {
       items.push({ id: 'go', glyph: '▶', title: 'はじめる', primary: true, sub: '学習コースを 1 から' });
     }
-    items.push({ id: 'course', glyph: '☰', title: 'コースを選ぶ', sub: '6 章 ' + n + ' レッスンから選ぶ' });
+    items.push({ id: 'course', glyph: '☰', title: 'コースを選ぶ', sub: LS.CHAPTERS.length + ' 章 ' + n + ' レッスンから選ぶ' });
     items.push({ id: 'cases', glyph: '✚', title: '症例で練習', sub: SC.SCENARIOS.length + ' 症例を自由に操作する' });
     items.push({ id: 'about', glyph: '?', title: 'この教材について', sub: '免責事項とモデルの説明' });
     return {

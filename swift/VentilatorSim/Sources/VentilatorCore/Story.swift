@@ -97,8 +97,12 @@ public enum StoryLibrary {
 
     /// レッスンの最中に流す BGM。章の舞台の時刻（web/story.js の CHAPTER_TIME と同じ）。
     public static let chapterTime: [String: String] = [
-        "ch1": "night", "ch2": "day", "ch3": "day", "ch4": "day", "ch5": "night", "ch6": "day"
+        "ch1": "night", "ch2": "day", "ch3": "day", "ch4": "day", "ch5": "night", "ch6": "day",
+        "ch7": "day", "ch8": "day", "ch9": "night", "ch10": "night", "ch11": "day"
     ]
+
+    /// エピローグを流す章。研修の最終日（web/story.js の LAST_CHAPTER）。
+    public static let lastChapter = "ch11"
 
     /// 名札。{名前} は主人公の名前。患者・家族は行の name を使う。
     static let speakerLabels: [StorySpeaker: String] = [
@@ -153,7 +157,7 @@ public enum StoryLibrary {
         var out: [String] = []
         let close = chapter.id + "-close"
         if scene(id: close) != nil && !seen.contains(close) { out.append(close) }
-        if chapter.id == "ch6" && !seen.contains("epilogue") { out.append("epilogue") }
+        if chapter.id == lastChapter && !seen.contains("epilogue") { out.append("epilogue") }
         return out
     }
 }

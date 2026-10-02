@@ -1,13 +1,14 @@
 /* VentSim — ゲーム全体を貫く物語。
  * 主人公は、初期研修で小児科を回りはじめた研修医（プレイヤー）。いぶき先生が指導医、
  * ぷくぷくは「息」から生まれた精で、主人公の代わりに「なんで？」と聞く。
- * 縦糸は、ローテ初日の夜に受け持つ術後のハルト君（8歳）が抜管するまで。
+ * 縦糸は、ローテ初日の夜に受け持つ術後のハルト君（8歳）が抜管するまで（第1〜6章）。
+ * 第7〜11章はローテの 2〜4 週目で、ほかの 5 人を 1 人ずつ、設定から抜管まで受け持つ。
  *
  * レッスンの中の会話（lessons.js の talk）とは別に、ここには「幕」を置く。
  *   prologue   … いちばん最初にコースへ入るとき（名前を決める）
  *   chN-open   … その章のレッスンを初めて始めるとき（章の扉）
  *   chN-close  … その章の最後のレッスンを初めて終えたとき
- *   epilogue   … 第6章の幕のあと
+ *   epilogue   … 最後の章（第11章）の幕のあと
  * 幕ごとに time（'day' / 'night'）を持ち、BGM の昼の曲・夜の曲をこれで選ぶ。
  * レッスンの最中は章の時刻（CHAPTER_TIME）で選ぶ。
  * 一度見た幕はメニューの「物語を読み返す」から何度でも読める。
@@ -41,8 +42,13 @@
     dawn: ['bg_story_dawn', 'bg_title_day']
   };
 
-  /* レッスンの最中に流す曲。章の舞台の時刻：第1章は初日の夜、第5章は当直の夜、ほかは日中。 */
-  var CHAPTER_TIME = { ch1: 'night', ch2: 'day', ch3: 'day', ch4: 'day', ch5: 'night', ch6: 'day' };
+  /* レッスンの最中に流す曲。章の舞台の時刻：第1章は初日の夜、第5章は当直の夜、
+   * 第9章は NICU の夜、第10章は救急外来からの当直の夜、ほかは日中。 */
+  var CHAPTER_TIME = { ch1: 'night', ch2: 'day', ch3: 'day', ch4: 'day', ch5: 'night', ch6: 'day',
+    ch7: 'day', ch8: 'day', ch9: 'night', ch10: 'night', ch11: 'day' };
+
+  /* エピローグは最後の章の幕のあとに流す。 */
+  var LAST_CHAPTER = 'ch11';
 
   var SCENES = [
 
@@ -244,6 +250,134 @@
       ]
     },
 
+    /* ===================== 第7章 ===================== */
+    {
+      id: 'ch7-open', kind: 'open', chapter: 'ch7', title: '第7章　扉　5 日目の朝',
+      card: { kicker: '第7章', title: '細い気道', sub: '5 日目の朝　PICU 5 番ベッド' },
+      bg: 'picu', time: 'day',
+      lines: [
+        { who: 'scene', say: 'ハルト君が抜管された翌朝。空いたベッドに、朝の光が差している。' },
+        { who: 'nurse', say: '{名前}先生、5 番ベッドのそうた君、夜のあいだに呼吸回数を 40 まで上げています。' },
+        { who: 'doc', mood: 'think', say: 'そうた君は、今日から{名前}先生の受け持ちです。挿管した夜のこと、覚えていますか。' },
+        { who: 'me', say: 'はい。吐ききれずに、血圧が下がって…。' },
+        { who: 'puku', mood: 'alert', say: 'また回数が上がってる！' },
+        { who: 'doc', say: 'あの夜と同じ落とし穴です。今度は、{名前}先生が組み直してください。' }
+      ]
+    },
+    {
+      id: 'ch7-close', kind: 'close', chapter: 'ch7', title: '第7章　幕　8 日目の昼前',
+      bg: 'picu', time: 'day',
+      lines: [
+        { who: 'scene', say: '8 日目の昼前。そうた君は鼻のカニュラで、ゆっくりと息をしている。' },
+        { who: 'scene', say: 'お母さんが差し出した指を、小さな手がぎゅっと握った。' },
+        { who: 'fam', name: 'そうた君のお母さん', say: '先生、この子、握り返してくれました…！' },
+        { who: 'doc', mood: 'happy', say: '回数より量、吐かせて待つ。{名前}先生の設定で、そうた君は乗りきりました。' },
+        { who: 'puku', mood: 'happy', say: 'ぼく、吐く時間のこと、もう忘れないよ。' },
+        { who: 'doc', say: 'ミオちゃんの回診に行きましょう。あの子も、良くなってきています。' }
+      ]
+    },
+
+    /* ===================== 第8章 ===================== */
+    {
+      id: 'ch8-open', kind: 'open', chapter: 'ch8', title: '第8章　扉　3 番ベッド、ふたたび',
+      card: { kicker: '第8章', title: '硬い肺をもう一度', sub: '8 日目の昼　PICU 3 番ベッド' },
+      bg: 'picu', time: 'day',
+      lines: [
+        { who: 'scene', say: '3 番ベッドのミオちゃんは、呼吸器につながって 9 日目。酸素の量が減り、熱も下がりはじめた。' },
+        { who: 'fam', name: 'ミオちゃんのお母さん', say: '先生、昨日より顔色がいいって、看護師さんが。' },
+        { who: 'doc', mood: 'happy', say: 'はい。肺が少しずつ戻ってきています。ここからは、良くなるほうの話をしましょう。' },
+        { who: 'nurse', say: 'では、床ずれ予防の体位変換をしますね。{名前}先生、チューブを見ていてください。' },
+        { who: 'puku', mood: 'excited', say: 'ぼくも見張ってる！' }
+      ]
+    },
+    {
+      id: 'ch8-close', kind: 'close', chapter: 'ch8', title: '第8章　幕　12 日目の夕方',
+      bg: 'picu', time: 'day',
+      lines: [
+        { who: 'scene', say: '12 日目の夕方。ミオちゃんは HFNC をつけたまま、お母さんの膝で絵本を見ている。' },
+        { who: 'fam', name: 'ミオちゃんのお母さん', say: 'チューブが抜けた日は、心臓が止まるかと思いました。' },
+        { who: 'doc', say: 'わたしもです。でも、{名前}先生が設定を一から組み直してくれました。' },
+        { who: 'me', say: '量、PEEP、酸素、回数。順番を覚えていたから、手が動きました。' },
+        { who: 'doc', mood: 'happy', say: 'それが「覚えた」ということです。来週から、{名前}先生は NICU に入ります。' },
+        { who: 'puku', mood: 'excited', say: 'NICU って、あのちっちゃい子たちのところ？' }
+      ]
+    },
+
+    /* ===================== 第9章 ===================== */
+    {
+      id: 'ch9-open', kind: 'open', chapter: 'ch9', title: '第9章　扉　NICU の夜',
+      card: { kicker: '第9章', title: '手のひらの肺', sub: '2 週目の夜　NICU' },
+      bg: 'nicu', time: 'night',
+      lines: [
+        { who: 'scene', say: '2 週目。NICU の夜は、PICU よりさらに静かだ。保育器のファンの音だけが続いている。' },
+        { who: 'nurse', say: '{名前}先生、産科から連絡です。在胎 28 週、もうすぐ生まれます。' },
+        { who: 'doc', say: 'ローテの初日に見た、保育器の子と同じ週数です。分娩室へ行きましょう。' },
+        { who: 'puku', mood: 'sad', say: '28 週って、本当なら、まだお母さんのお腹の中にいる時期だよね…' },
+        { who: 'doc', say: 'あと 3 か月、お腹の中で肺を育てるはずだった子です。その続きを、外で手伝います。' }
+      ]
+    },
+    {
+      id: 'ch9-close', kind: 'close', chapter: 'ch9', title: '第9章　幕　生まれて 4 日目',
+      bg: 'nicu', time: 'day',
+      lines: [
+        { who: 'scene', say: '生まれて 4 日目。あおい君は nCPAP のまま、保育器の中で手足を伸ばしている。' },
+        { who: 'fam', name: 'あおい君のお父さん', say: '小さすぎて、触ったら壊れてしまいそうで…。' },
+        { who: 'nurse', say: '大丈夫ですよ。手のひらで、そっと包んであげてください。' },
+        { who: 'doc', mood: 'happy', say: '桁が変わっても、考え方は同じでした。{名前}先生、もう NICU の数字も読めますね。' },
+        { who: 'me', say: '小さじ 1 杯の空気が、こんなに重いとは思いませんでした。' }
+      ]
+    },
+
+    /* ===================== 第10章 ===================== */
+    {
+      id: 'ch10-open', kind: 'open', chapter: 'ch10', title: '第10章　扉　救急外来からの電話',
+      card: { kicker: '第10章', title: '吐けない息', sub: '3 週目の夕方　救急外来' },
+      bg: 'station', time: 'night',
+      lines: [
+        { who: 'scene', say: '3 週目、PICU に戻って最初の当直。夕方、救急外来から電話が鳴った。' },
+        { who: 'nurse', say: '11 歳の男の子、喘息の発作です。吸入が効かなくて、いま挿管しています！' },
+        { who: 'doc', mood: 'alert', say: '{名前}先生、行きましょう。喘息の子の呼吸器は、ほかのどの子とも違います。' },
+        { who: 'puku', mood: 'alert', say: '違うって、どこが？' },
+        { who: 'doc', say: '吸わせることより、吐かせることがすべて。今夜は、それだけ覚えてください。' }
+      ]
+    },
+    {
+      id: 'ch10-close', kind: 'close', chapter: 'ch10', title: '第10章　幕　病棟へ移る日',
+      bg: 'picu', time: 'day',
+      lines: [
+        { who: 'scene', say: '抜管の翌日。レン君は一般病棟へ移る前に、吸入器の使い方をもう一度教わっている。' },
+        { who: 'pt', case: 'asthma', name: 'レン君', say: '…ちゃんと毎日やります。あんなに苦しいのは、もう嫌だ。' },
+        { who: 'doc', say: '吸入ステロイドは、発作のない日のための薬です。続けた日の分だけ、発作が遠くなります。' },
+        { who: 'me', say: '呼吸器を外すまでが治療じゃないんですね。' },
+        { who: 'doc', mood: 'happy', say: 'そうです。次の発作を起こさないところまでが、わたしたちの仕事です。' }
+      ]
+    },
+
+    /* ===================== 第11章 ===================== */
+    {
+      id: 'ch11-open', kind: 'open', chapter: 'ch11', title: '第11章　扉　窓際のベッド',
+      card: { kicker: '第11章', title: '力を取り戻す', sub: '3 週目　PICU 窓際のベッド' },
+      bg: 'picu', time: 'day',
+      lines: [
+        { who: 'scene', say: '窓際のベッドのあかりちゃん。挿管から 4 週間。初日より、指先がよく動くようになった。' },
+        { who: 'pt', case: 'gbs', name: 'あかりちゃん', say: '（文字盤を指でたどる。「いつ、しゃべれる？」）' },
+        { who: 'puku', mood: 'sad', say: 'この前の SBT、18 分でだめだったんだよね…' },
+        { who: 'doc', say: 'あの日から、毎日少しずつ練習してきました。{名前}先生、仕上げを一緒にやりましょう。' },
+        { who: 'me', say: 'あかりちゃん、もうすぐだよ。' }
+      ]
+    },
+    {
+      id: 'ch11-close', kind: 'close', chapter: 'ch11', title: '第11章　幕　4 週間ぶりの声',
+      bg: 'picu', time: 'day',
+      lines: [
+        { who: 'scene', say: '抜管の翌日。あかりちゃんは NPPV のマスクを外して、窓の外を見ている。' },
+        { who: 'pt', case: 'gbs', name: 'あかりちゃん', say: '…せんせい。こえ、でた。' },
+        { who: 'puku', mood: 'excited', say: 'しゃべった！ 4 週間ぶりだよ！' },
+        { who: 'fam', name: 'あかりちゃんのお母さん', say: '先生方、本当に、本当にありがとうございました。' },
+        { who: 'doc', mood: 'happy', say: '{名前}先生。ローテが終わるまで、あと 1 週間です。' }
+      ]
+    },
+
     /* ===================== エピローグ ===================== */
     {
       id: 'epilogue', kind: 'epilogue', title: 'エピローグ　ローテーション最終日',
@@ -253,7 +387,8 @@
       lines: [
         { who: 'scene', say: '4 週間のローテーション、最終日。夕方の PICU で、また新しい入院の電話が鳴っている。' },
         { who: 'scene', say: 'ベッドの顔ぶれは入れ替わった。ミオちゃんは一般病棟へ移り、そうた君はとうに家へ帰った。' },
-        { who: 'scene', say: 'あかりちゃんも先週抜管され、リハビリで車いすに乗れるようになった。退院したハルト君からは、手紙が届いている。' },
+        { who: 'scene', say: 'あかりちゃんはリハビリで車いすに乗れるようになり、レン君は吸入を続けると約束して退院した。' },
+        { who: 'scene', say: 'NICU のあおい君は 1,400 g を超えた。退院したハルト君からは、手紙が届いている。' },
         { who: 'doc', say: '{名前}先生。初日に、子どもの呼吸器は触ったことがないと言っていましたね。' },
         { who: 'me', say: '…はい。いまも、全部分かったとは思えません。' },
         { who: 'doc', mood: 'happy', say: 'それでいいんです。分からないと思える人は、確かめに戻ってこられます。' },
@@ -302,7 +437,7 @@
     if (chapter.lessons[chapter.lessons.length - 1].id !== lessonId) return out;
     var close = chapter.id + '-close';
     if (sceneById(close) && seen.indexOf(close) < 0) out.push(close);
-    if (chapter.id === 'ch6' && seen.indexOf('epilogue') < 0) out.push('epilogue');
+    if (chapter.id === LAST_CHAPTER && seen.indexOf('epilogue') < 0) out.push('epilogue');
     return out;
   }
 
@@ -375,7 +510,7 @@
   };
 
   var api = {
-    SCENES: SCENES, SPEAKER: SPEAKER, BG: BG, CHAPTER_TIME: CHAPTER_TIME,
+    SCENES: SCENES, SPEAKER: SPEAKER, BG: BG, CHAPTER_TIME: CHAPTER_TIME, LAST_CHAPTER: LAST_CHAPTER,
     DEFAULT_NAME: DEFAULT_NAME, NAME_MAX: NAME_MAX,
     sceneById: sceneById, cleanName: cleanName, fill: fill, speakerName: speakerName,
     before: before, after: after, Run: Run
