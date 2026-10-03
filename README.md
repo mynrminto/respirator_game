@@ -31,6 +31,26 @@
 目標値が本当に到達できるかは、`web/test.js` と `Tests/VentilatorCoreTests/LessonTests.swift`
 の両方でシミュレーションを回して検証しています。
 
+## 成人版
+
+同じエンジンと画面で動く**成人版**（おとなの人工呼吸器シミュレーター）があります。
+症例・レッスン・物語の 3 ファイルだけを `web/adult/` のものに差し替えて作ります。
+
+| 場所 | 内容 |
+| --- | --- |
+| `web/adult/scenarios.js` | 成人 6 症例（腹膜炎術後・心原性肺水腫・COPD 急性増悪・ARDS・重症喘息・ギラン・バレー）。設定の基準は予測体重 |
+| `web/adult/lessons.js` | 11 章 33 レッスン（ID は小児版と同じ）。第7章は COPD、第9章は心不全 |
+| `web/adult/story.js` | 初期研修医が ICU を回る物語 |
+| `web/edition.js` | 版ごとの画面の文言。成人版は f/VT のタイルに RSBI（f ÷ Vt[L]、<105）を出す |
+
+```sh
+node web/build.js --edition adult         # web/preview-adult.html（1 ファイル版）
+node web/build.js --edition adult --dev   # web/adult.html（展開せずに確かめる用）
+node web/test-adult.js                    # 成人の病態・構造・全 33 レッスンの通しプレイ
+```
+
+iPhone 版（Swift）はまだ小児版だけです。
+
 ## 構成
 
 | 場所 | 内容 |

@@ -125,7 +125,8 @@
   body{margin:0;background:var(--body);color:var(--ink);font-family:var(--jp);font-size:13px;
     -webkit-text-size-adjust:100%;overscroll-behavior:none}
   *{box-sizing:border-box}
-  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;-webkit-touch-callout:none}   /* iPhone・iPad で続けて押しても拡大しない */
   button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .n{font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:600}
   .cap{font-family:var(--num);font-size:10px;letter-spacing:.08em;color:var(--dim);font-weight:500}
@@ -800,7 +801,9 @@
     box-shadow:0 4px 0 rgba(46,37,69,.22)}
   .rbubble::after{content:"";position:absolute;left:50%;bottom:-16px;width:0;height:0;
     border:9px solid transparent;border-top:10px solid var(--gline);transform:translateX(-50%)}
-  @media(min-width:1180px){
+  /* 左右に絵の欄を出すのは、真ん中に 900px 以上残るときだけ（iPad Pro 11 の横向き 1194px では出さない。
+     出すと中の操作盤が 860px 未満に縮み、右端が切れる）。 */
+  @media(min-width:1360px){
     :root:not([data-theme="device"]){--railw:230px}
     :root:not([data-theme="device"]) .stage{display:block}
     :root:not([data-theme="device"]) .rail{display:flex}
@@ -894,6 +897,45 @@
     100%{opacity:0;transform:translate(-50%,-10px) scale(.98)}
   }
   @media (prefers-reduced-motion:reduce){#fx{display:none}.toast{animation:none;opacity:1}}
+
+  /* ============ 成人版の配色（ポップのときだけ） ============
+   * ピンク・橙・クリームを、紺・青緑・冷たい白に置きかえる。構造はそのまま、トークンと一部の固定色だけ上書き。 */
+  :root[data-edition="adult"]:not([data-theme="device"]){
+    --body:#EEF2F6;
+    --deck:linear-gradient(168deg,#F2F6FA 0%,#E6EEF5 50%,#DDE8F1 100%);
+    --panel2:#F5F8FB;
+    --br:#D5DEE8; --br2:#CBD6E3;
+    --ink:#1C2A40; --dim:#5E6C80; --faint:#97A3B4;
+    --shadow:0 2px 0 rgba(30,50,80,.10), 0 6px 16px rgba(30,60,100,.10);
+    --accent:#168A99; --accent2:#2F5E9E; --accent3:#1F9E78;
+    --brand1:#2C4F86; --brand2:#168A99; --brand3:#1F9E78; --brand4:#4C7BC0;
+    --key-br:#D3DCE6; --key-lip:#C4D0DC;
+    --key-on:#E5F4F6; --key-on-ink:#0E5F6B;
+    --hkey-br:#D3DCE6;
+    --knob-track:#D3DCE6; --knob-ptr:#1C2A40; --knob-tick:#B8C5D3;
+    --knob-face:radial-gradient(circle at 34% 28%,#FFFFFF 0%,#F1F5F9 46%,#DFE7EF 78%,#C9D5E1 100%);
+    --chap:#2F5E9E;
+    --coach-ink:#1C2A40;
+    --modal-back:rgba(15,30,50,.45);
+    --gline:#1C2A40; --glip:#B5C3D3;
+  }
+  :root[data-edition="adult"] [data-chap="ch1"]{--chap:#2F6FB0} :root[data-edition="adult"] [data-chap="ch2"]{--chap:#1F8E7A}
+  :root[data-edition="adult"] [data-chap="ch3"]{--chap:#4B5FA8} :root[data-edition="adult"] [data-chap="ch4"]{--chap:#2C4F86}
+  :root[data-edition="adult"] [data-chap="ch5"]{--chap:#167F8E} :root[data-edition="adult"] [data-chap="ch6"]{--chap:#5A6E8C}
+  :root[data-edition="adult"] [data-chap="ch7"]{--chap:#1C93A0} :root[data-edition="adult"] [data-chap="ch8"]{--chap:#3D5D96}
+  :root[data-edition="adult"] [data-chap="ch9"]{--chap:#2E8A66} :root[data-edition="adult"] [data-chap="ch10"]{--chap:#3F6BB5}
+  :root[data-edition="adult"] [data-chap="ch11"]{--chap:#4E7088}
+  :root[data-edition="adult"]:not([data-theme="device"]) .bigprog .bar i,
+  :root[data-edition="adult"]:not([data-theme="device"]) .tprog i{background:linear-gradient(90deg,#2C4F86,#168A99 55%,#1F9E78)}
+  :root[data-edition="adult"]:not([data-theme="device"]) .mhead{background:linear-gradient(180deg,#3B5F98,#2A4877)}
+  :root[data-edition="adult"]:not([data-theme="device"]) .mbtn.go{background:linear-gradient(180deg,#22A3B1,#137D8B);box-shadow:0 4px 0 #0B5560}
+  :root[data-edition="adult"]:not([data-theme="device"]) .tbtn.go,
+  :root[data-edition="adult"]:not([data-theme="device"]) .case.lead{background:linear-gradient(120deg,#E6F4F6,#F3F7FA 60%,#E8EFF8)}
+  :root[data-edition="adult"]:not([data-theme="device"]) .toast{background:linear-gradient(135deg,#2C4F86,#168A99);box-shadow:0 10px 30px rgba(20,60,100,.35)}
+  :root[data-edition="adult"] .cwho.pt{color:#2C4F86}
+  :root[data-edition="adult"] .cav.pt{border-color:#2C4F86;background:#E8EFF8}
+  :root[data-edition="adult"] .sbadge{background:#DDEBF2;color:#168A99}
+  :root[data-edition="adult"] .sname.w-me{background:#2C4F86} :root[data-edition="adult"] .sname.w-nurse{background:#168A99}
 </style>
 
 <div id="stage" class="stage" aria-hidden="true">
@@ -1035,6 +1077,7 @@
 <script src="vendor/three.min.js"></script>
 <script src="sound.js"></script>
 <script src="bgm.js"></script>
+<script src="edition.js"></script>
 <script src="assets.js"></script>
 <script src="characters.js"></script>
 <script src="art.js"></script>
