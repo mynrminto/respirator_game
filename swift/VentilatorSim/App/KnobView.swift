@@ -28,7 +28,7 @@ struct KnobView: View {
         Canvas { context, size in
             draw(&context, size)
         }
-        .frame(width: 58, height: 58)
+        .frame(width: Chrome.s(58), height: Chrome.s(58))
         .background(
             Circle().fill(
                 RadialGradient(colors: [Chrome.palette.knobFaceTop,

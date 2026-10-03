@@ -210,7 +210,7 @@ struct StoryView: View {
         case .nurse:
             Art(["nurse_normal"]) {
                 Text("看")
-                    .font(.system(size: 48, weight: .heavy))
+                    .font(.system(size: Chrome.s(48), weight: .heavy))
                     .foregroundStyle(Color(red: 1, green: 0.54, blue: 0.24))
                     .frame(width: 112, height: 112)
                     .background(Circle().fill(Color(red: 1, green: 0.89, blue: 0.82)))
@@ -304,7 +304,7 @@ struct StoryView: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if !isTyping && run?.waiting == nil && !finalStep {
-                Text("▼").font(.system(size: 13)).foregroundStyle(Chrome.accent)
+                Text("▼").font(.system(size: Chrome.s(13))).foregroundStyle(Chrome.accent)
                     .padding(.trailing, 16).padding(.bottom, 8)
             }
         }

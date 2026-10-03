@@ -36,7 +36,7 @@ struct RootView: View {
                           onOpenCourse: { showingCourse = true },
                           onOpenCases: { showingCases = true })
                     .sheet(isPresented: $showingCourse) {
-                        LessonCourseView { start(lesson: $0) }
+                        LessonCourseView { start(lesson: $0) }.padTextSize()
                     }
                     .sheet(isPresented: $showingCases) {
                         ScenarioListView(onStart: { scenario, settings, provisional in
@@ -44,6 +44,7 @@ struct RootView: View {
                             controller = SimulationController(scenario: scenario, settings: settings,
                                                               provisional: provisional)
                         })
+                        .padTextSize()
                     }
             }
         }
@@ -127,6 +128,7 @@ struct ScenarioListView: View {
                     selected = nil
                     onStart(scenario, settings, provisional)
                 }
+                .padTextSize()
             }
         }
     }

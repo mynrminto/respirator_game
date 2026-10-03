@@ -128,7 +128,7 @@ struct ParameterStepper: View {
                     .accessibilityLabel("\(parameter.label)を下げる")
                 Spacer()
                 Text(value.formatted(.number.precision(.fractionLength(parameter.digits))))
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: Chrome.s(22), weight: .semibold))
                     .monospacedDigit()
                 Text(parameter.unit).font(.caption2).foregroundStyle(.secondary)
                 Spacer()

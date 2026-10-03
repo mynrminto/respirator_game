@@ -92,7 +92,7 @@ struct LungSceneView: View {
             Text(title).font(Chrome.label(9)).foregroundStyle(Chrome.screenDim)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value).font(Chrome.digits(17, weight: .bold)).foregroundStyle(Chrome.screenInk)
-                Text(unit).font(.system(size: 8)).foregroundStyle(Chrome.screenDim)
+                Text(unit).font(.system(size: Chrome.s(8))).foregroundStyle(Chrome.screenDim)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

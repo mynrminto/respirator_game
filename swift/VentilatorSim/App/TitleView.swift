@@ -19,6 +19,9 @@ struct TitleView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var floating = false
 
+    /// iPad のタイトルは広い画面の中央に置くので、Chrome.uiScale に加えてもう一段大きくする。
+    private var titleBoost: CGFloat { Chrome.uiScale > 1 ? 1.2 : 1 }
+
     private var done: Int {
         let ids = Set(completedRaw.split(separator: ",").map(String.init))
         return LessonLibrary.all.filter { ids.contains($0.id) }.count
@@ -31,10 +34,14 @@ struct TitleView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let compact = geo.size.height < 720
-            let castHeight: CGFloat = compact ? 96 : 132
+            // iPad は文字もキャラクターも大きくし、上下の余白を均等に分けて中央に置く。
+            let pad = Chrome.uiScale > 1
+            let compact = !pad && geo.size.height < 720
+            let tall = geo.size.height > geo.size.width
+            let castHeight: CGFloat = pad ? (tall ? 270 : 170) : (compact ? 96 : 132)
 
-            VStack(spacing: compact ? 10 : 16) {
+            VStack(spacing: compact ? 10 : (pad ? (tall ? 28 : 14) : 16)) {
+                if pad { Spacer(minLength: 0) }
                 cast(height: castHeight)
                 logo(compact: compact)
                 speech
@@ -42,7 +49,7 @@ struct TitleView: View {
                 Spacer(minLength: 0)
                 footer
             }
-            .frame(maxWidth: 520)
+            .frame(maxWidth: pad ? 720 : 520)
             .padding(.horizontal, 20)
             .padding(.top, compact ? 12 : 24)
             .padding(.bottom, 12)
@@ -54,6 +61,7 @@ struct TitleView: View {
             AboutView(asGate: mode == .gate) {
                 agreed = true
             }
+            .padTextSize()
         }
         .onAppear {
             BGMPlayer.shared.want("title")   // タイトルは明るいタイトルの曲
@@ -129,15 +137,15 @@ struct TitleView: View {
             ZStack {
                 WaveMark()
                     .stroke(gradient, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                    .frame(height: compact ? 26 : 32)
+                    .frame(height: Chrome.s(compact ? 26 : 32) * titleBoost)
                     .opacity(0.55)
-                    .offset(y: compact ? 16 : 20)
+                    .offset(y: Chrome.s(compact ? 16 : 20) * titleBoost)
                 Text("VentaSim")
-                    .font(.system(size: compact ? 40 : 48, weight: .black, design: .rounded))
+                    .font(.system(size: Chrome.s(compact ? 40 : 48) * titleBoost, weight: .black, design: .rounded))
                     .foregroundStyle(gradient)
             }
             Text("人工呼吸器シミュレーター")
-                .font(Chrome.label(13, weight: .bold))
+                .font(Chrome.label(13 * titleBoost, weight: .bold))
                 .foregroundStyle(Chrome.dim)
                 .tracking(2)
         }
@@ -147,16 +155,16 @@ struct TitleView: View {
 
     private var speech: some View {
         HStack(alignment: .top, spacing: 10) {
-            CharacterBadge(size: 44, ring: Chrome.accent.opacity(0.35), background: Chrome.panel2) {
+            CharacterBadge(size: Chrome.s(44) * titleBoost, ring: Chrome.accent.opacity(0.35), background: Chrome.panel2) {
                 DoctorView(mood: done >= total && total > 0 ? .happy : .normal)
             }
             Text(line)
-                .font(Chrome.label(13))
+                .font(Chrome.label(13 * titleBoost))
                 .foregroundStyle(Chrome.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.horizontal, Chrome.s(14))
+                .padding(.vertical, Chrome.s(10))
                 .background(
                     RoundedRectangle(cornerRadius: Chrome.cornerLarge)
                         .fill(Chrome.panel)
@@ -221,27 +229,27 @@ struct TitleView: View {
                         image.resizable().aspectRatio(contentMode: .fit).padding(2)
                     } else {
                         Text(glyph)
-                            .font(.system(size: 15, weight: .black, design: .rounded))
+                            .font(.system(size: Chrome.s(15) * titleBoost, weight: .black, design: .rounded))
                             .foregroundStyle(primary ? Chrome.accentInk : Chrome.accent)
                     }
                 }
-                .frame(width: 30, height: 30)
+                .frame(width: Chrome.s(30) * titleBoost, height: Chrome.s(30) * titleBoost)
                 .background(
                     Circle().fill(primary ? Color.white.opacity(0.25) : Chrome.panel2)
                 )
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                        .font(Chrome.label(16, weight: .heavy))
+                        .font(Chrome.label(16 * titleBoost, weight: .heavy))
                         .foregroundStyle(primary ? Chrome.accentInk : Chrome.ink)
                     Text(subtitle)
-                        .font(Chrome.label(11))
+                        .font(Chrome.label(11 * titleBoost))
                         .foregroundStyle(primary ? Chrome.accentInk.opacity(0.85) : Chrome.dim)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
+            .padding(.horizontal, Chrome.s(14))
+            .padding(.vertical, Chrome.s(11) * titleBoost)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(TitleMenuStyle(primary: primary))

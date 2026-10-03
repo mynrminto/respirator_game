@@ -111,30 +111,33 @@ struct VentilatorScreen: View {
                           meanArterialPressure: controller.engine.meanArterialPressure,
                           plateau: controller.engine.measured.plateauPressure,
                           autoPEEP: controller.engine.measured.autoPEEP)
+                .padTextSize()
         }
         .sheet(item: $controller.sbtOutcome) { outcome in
-            SBTResultSheet(controller: controller, outcome: outcome)
+            SBTResultSheet(controller: controller, outcome: outcome).padTextSize()
         }
         .sheet(isPresented: $showingWeaning) {
-            WeaningSheet(controller: controller)
+            WeaningSheet(controller: controller).padTextSize()
         }
         .sheet(isPresented: $showingMenu, onDismiss: runMenuPick) {
             DeviceMenuSheet(title: controller.scenario.profile.name + "・" + controller.scenario.profile.weight) {
                 menuPick = $0
                 showingMenu = false
             }
+            .padTextSize()
         }
         .sheet(isPresented: $showingPatient) {
-            PatientInfoSheet(controller: controller)
+            PatientInfoSheet(controller: controller).padTextSize()
         }
         .sheet(isPresented: $showingCourse) {
-            LessonCourseView { controller.beginLesson($0) }
+            LessonCourseView { controller.beginLesson($0) }.padTextSize()
         }
         .sheet(isPresented: $showingStoryList) {
             StoryListView { id in
                 showingStoryList = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { controller.playStory([id]) }
             }
+            .padTextSize()
         }
         // 物語の幕。プロローグ・章の扉・章の幕・エピローグを機器の上に重ねる。
         .fullScreenCover(isPresented: Binding(
@@ -152,6 +155,7 @@ struct VentilatorScreen: View {
                 showingCases = false
                 controller.load(scenario: scenario, settings: settings, provisional: provisional)
             })
+            .padTextSize()
         }
     }
 
@@ -206,7 +210,7 @@ struct VentilatorScreen: View {
     private var menuButton: some View {
         Button { showingMenu = true } label: {
             Image(systemName: "line.3.horizontal")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: Chrome.s(18), weight: .semibold))
                 .foregroundStyle(Chrome.dim)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
@@ -705,7 +709,7 @@ struct VentilatorScreen: View {
                 Text("確定")
                     .font(Chrome.label(14, weight: Chrome.isPop ? .heavy : .semibold))
                     .foregroundStyle(Chrome.isPop ? Chrome.accentInk : Chrome.good)
-                    .padding(.horizontal, Chrome.isPop ? 14 : 12).padding(.vertical, 10)
+                    .padding(.horizontal, Chrome.s(Chrome.isPop ? 14 : 12)).padding(.vertical, Chrome.s(10))
                     .background(
                         Group {
                             if Chrome.isPop {
@@ -737,14 +741,14 @@ struct VentilatorScreen: View {
             controller.nudge(direction)
         } label: {
             Image(systemName: direction < 0 ? "minus" : "plus")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: Chrome.s(15), weight: .bold))
                 .foregroundStyle(Chrome.keyInk)
-                .frame(width: 34, height: 34)
+                .frame(width: Chrome.s(34), height: Chrome.s(34))
                 .background(
                     Circle().fill(Chrome.key)
                         .overlay(Circle().stroke(Chrome.keyBorder, lineWidth: Chrome.isPop ? 2 : 1))
                 )
-                .frame(width: 44, height: 44)
+                .frame(width: Chrome.s(44), height: Chrome.s(44))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

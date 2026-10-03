@@ -113,9 +113,9 @@ struct LessonCoachView: View {
                 Rectangle().fill(Chrome.isPop ? tint : Coach.line)
                     .frame(height: Chrome.isPop ? 3 : 1)
             }
-            .sheet(isPresented: $showingBrief) { LessonBriefView(lesson: lesson) }
+            .sheet(isPresented: $showingBrief) { LessonBriefView(lesson: lesson).padTextSize() }
             .sheet(isPresented: $showingCourse) {
-                LessonCourseView { controller.beginLesson($0) }
+                LessonCourseView { controller.beginLesson($0) }.padTextSize()
             }
             .onChange(of: controller.lessonPhase) { _, phase in
                 if phase == .done { markCompleted(lesson.id) }
@@ -218,7 +218,7 @@ struct LessonCoachView: View {
         HStack(spacing: 4) {
             Button { collapsed.toggle() } label: {
                 Image(systemName: collapsed ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: Chrome.s(14), weight: .semibold))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -307,7 +307,7 @@ struct LessonCoachView: View {
         case .feedback:
             VStack(alignment: .leading, spacing: 6) {
                 Text(controller.lessonFeedback)
-                    .font(.system(size: saySize))
+                    .font(.system(size: Chrome.s(saySize)))
                     .foregroundStyle(Chrome.good)
                     .fixedSize(horizontal: false, vertical: true)
                 primaryButton("次へ") { controller.continueLesson() }
@@ -341,10 +341,10 @@ struct LessonCoachView: View {
                     ForEach(runtime.lesson.points, id: \.self) { point in
                         HStack(alignment: .firstTextBaseline, spacing: 5) {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 11))
+                                .font(.system(size: Chrome.s(11)))
                                 .foregroundStyle(tint)
                             Text(point.subscripted)
-                                .font(.system(size: saySize - 1))
+                                .font(.system(size: Chrome.s(saySize - 1)))
                                 .foregroundStyle(Coach.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -366,7 +366,7 @@ struct LessonCoachView: View {
         let isScene = task.speaker == .scene
         return VStack(alignment: .leading, spacing: 6) {
             Text(controller.fillSay(task.instruction(controller.lessonContext)))
-                .font(.system(size: saySize, weight: isScene ? .regular : .medium,
+                .font(.system(size: Chrome.s(saySize), weight: isScene ? .regular : .medium,
                               design: .default))
                 .italic(isScene)
                 .foregroundStyle(isScene ? Coach.faint : Coach.ink)
@@ -391,12 +391,12 @@ struct LessonCoachView: View {
         let hint = missed ?? controller.fillSay(task.hint(context))
         return VStack(alignment: .leading, spacing: 4) {
             Text(controller.fillSay(task.instruction(context)))
-                .font(.system(size: saySize, weight: .medium))
+                .font(.system(size: Chrome.s(saySize), weight: .medium))
                 .foregroundStyle(Coach.ink)
                 .fixedSize(horizontal: false, vertical: true)
             if !hint.isEmpty {
                 Text(hint)
-                    .font(.system(size: saySize - 1.5))
+                    .font(.system(size: Chrome.s(saySize - 1.5)))
                     .foregroundStyle(missed != nil ? Chrome.warning : Coach.faint)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -424,14 +424,14 @@ struct LessonCoachView: View {
                             : [GridItem(.flexible())]
         return VStack(alignment: .leading, spacing: 5) {
             Text(controller.fillSay(quiz.questionText(controller.lessonContext)))
-                .font(.system(size: saySize, weight: .medium))
+                .font(.system(size: Chrome.s(saySize), weight: .medium))
                 .foregroundStyle(Coach.ink)
                 .fixedSize(horizontal: false, vertical: true)
             if runtime.lastAnswerWasWrong {
                 // 選んだ選択肢ごとの「なぜ違うか」を添える（web の quiz.miss）。
                 Text(runtime.feedback.map { $0.ok ? "もう一度考えてみてください。" : $0.text }
                      ?? "もう一度考えてみてください。")
-                    .font(.system(size: saySize - 1.5))
+                    .font(.system(size: Chrome.s(saySize - 1.5)))
                     .foregroundStyle(Chrome.warning)
             }
             LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {

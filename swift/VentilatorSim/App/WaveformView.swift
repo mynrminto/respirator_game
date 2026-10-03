@@ -79,13 +79,13 @@ struct ScopeView: View {
 
             // 目盛りとレーン名
             context.draw(Text(String(Int(lane.range.upperBound)))
-                            .font(.system(size: 9)).foregroundColor(Chrome.screenDim),
+                            .font(.system(size: Chrome.s(9))).foregroundColor(Chrome.screenDim),
                          at: CGPoint(x: axisWidth - 5, y: top + 9), anchor: .trailing)
             context.draw(Text(String(Int(lane.range.lowerBound)))
-                            .font(.system(size: 9)).foregroundColor(Chrome.screenDim),
+                            .font(.system(size: Chrome.s(9))).foregroundColor(Chrome.screenDim),
                          at: CGPoint(x: axisWidth - 5, y: bottom - 6), anchor: .trailing)
             context.draw(Text("\(lane.label)  \(lane.unit)")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: Chrome.s(10), weight: .semibold))
                             .foregroundColor(lane.color.opacity(0.9)),
                          at: CGPoint(x: axisWidth + 6, y: top + 10), anchor: .leading)
 
@@ -154,11 +154,11 @@ struct LoopView: View {
                           width: frame.width - 56, height: frame.height - 48)
         guard plot.width > 40, plot.height > 40 else { return }
         context.stroke(Path(plot), with: .color(Chrome.screenTileLine), lineWidth: 1)
-        context.draw(Text(title).font(.system(size: 10, weight: .semibold)).foregroundColor(Chrome.screenInk.opacity(0.85)),
+        context.draw(Text(title).font(.system(size: Chrome.s(10), weight: .semibold)).foregroundColor(Chrome.screenInk.opacity(0.85)),
                      at: CGPoint(x: plot.minX, y: frame.minY + 12), anchor: .leading)
-        context.draw(Text("Volume mL").font(.system(size: 9)).foregroundColor(Chrome.screenDim),
+        context.draw(Text("Volume mL").font(.system(size: Chrome.s(9))).foregroundColor(Chrome.screenDim),
                      at: CGPoint(x: plot.minX, y: plot.maxY + 12), anchor: .leading)
-        context.draw(Text(yLabel).font(.system(size: 9)).foregroundColor(Chrome.screenDim),
+        context.draw(Text(yLabel).font(.system(size: Chrome.s(9))).foregroundColor(Chrome.screenDim),
                      at: CGPoint(x: plot.maxX, y: frame.minY + 12), anchor: .trailing)
 
         // 直前の呼吸を薄く、いま描いている呼吸をはっきりと重ねる。
@@ -167,7 +167,7 @@ struct LoopView: View {
         if current.count > 24 { sets.append((current, false)) }
         let all = sets.flatMap(\.points)
         guard all.count > 8 else {
-            context.draw(Text("計測中").font(.system(size: 11)).foregroundColor(Chrome.screenDim),
+            context.draw(Text("計測中").font(.system(size: Chrome.s(11))).foregroundColor(Chrome.screenDim),
                          at: CGPoint(x: plot.midX, y: plot.midY))
             return
         }
@@ -206,7 +206,7 @@ struct TrendView: View {
         Canvas { context, size in
             guard samples.count > 1 else {
                 context.draw(Text("トレンドを記録しています")
-                                .font(.system(size: 11)).foregroundColor(Chrome.screenDim),
+                                .font(.system(size: Chrome.s(11))).foregroundColor(Chrome.screenDim),
                              at: CGPoint(x: size.width / 2, y: size.height / 2))
                 return
             }
@@ -223,13 +223,13 @@ struct TrendView: View {
                 baseline.move(to: CGPoint(x: axis, y: bottom))
                 baseline.addLine(to: CGPoint(x: size.width - 8, y: bottom))
                 context.stroke(baseline, with: .color(Chrome.screenTileLine), lineWidth: 1)
-                context.draw(Text(label).font(.system(size: 10, weight: .semibold))
+                context.draw(Text(label).font(.system(size: Chrome.s(10), weight: .semibold))
                                 .foregroundColor(color.opacity(0.9)),
                              at: CGPoint(x: axis + 4, y: top), anchor: .leading)
-                context.draw(Text(String(Int(bounds.upperBound))).font(.system(size: 9))
+                context.draw(Text(String(Int(bounds.upperBound))).font(.system(size: Chrome.s(9)))
                                 .foregroundColor(Chrome.screenDim),
                              at: CGPoint(x: axis - 4, y: top + 4), anchor: .trailing)
-                context.draw(Text(String(Int(bounds.lowerBound))).font(.system(size: 9))
+                context.draw(Text(String(Int(bounds.lowerBound))).font(.system(size: Chrome.s(9)))
                                 .foregroundColor(Chrome.screenDim),
                              at: CGPoint(x: axis - 4, y: bottom), anchor: .trailing)
 
@@ -254,7 +254,7 @@ struct TrendView: View {
             lane(1, "Vte  mL", Chrome.volume, 0...tidalTop) { $0.tidal }
             lane(2, "SpO₂  %", Chrome.spo2, 80...100) { $0.spo2 }
 
-            context.draw(Text("直近 \(Int(span / 60)) 分").font(.system(size: 9))
+            context.draw(Text("直近 \(Int(span / 60)) 分").font(.system(size: Chrome.s(9)))
                             .foregroundColor(Chrome.screenDim),
                          at: CGPoint(x: size.width / 2, y: size.height - 6))
         }

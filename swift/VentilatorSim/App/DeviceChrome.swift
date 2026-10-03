@@ -252,13 +252,18 @@ enum Chrome {
         }
     }
 
+    /// iPad は画面が大きく少し離して見るので、文字と文字まわりの寸法をひとまわり大きくする。iPhone は 1 のまま。
+    static let uiScale: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 1.25 : 1
+    /// iPhone 向けに決めた寸法を、iPad では uiScale 倍にする。
+    static func s(_ size: CGFloat) -> CGFloat { size * uiScale }
+
     static func digits(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight, design: isPop ? .rounded : .default).monospacedDigit()
+        .system(size: s(size), weight: weight, design: isPop ? .rounded : .default).monospacedDigit()
     }
 
     /// 見出しやボタンの文字。ポップのときだけ丸ゴシックにする。
     static func label(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: isPop ? .rounded : .default)
+        .system(size: s(size), weight: weight, design: isPop ? .rounded : .default)
     }
 }
 
@@ -495,7 +500,7 @@ struct ValueTile: View {
                         .font(Chrome.label(min(smallSize, 13)))
                         .foregroundStyle(Chrome.screenDim.opacity(0.85))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(0.6)
                 }
             }
             HStack(alignment: .firstTextBaseline, spacing: 2) {
@@ -529,7 +534,7 @@ struct PulseHeart: View {
 
     var body: some View {
         Text("♥")
-            .font(.system(size: size))
+            .font(.system(size: Chrome.s(size)))
             .foregroundStyle(Color(red: 1.000, green: 0.435, blue: 0.569))
             .opacity(flash ? 1 : 0.25)
             .scaleEffect(flash && !reduceMotion ? 1.35 : 1)
@@ -623,4 +628,29 @@ struct CelebrationView: View {
             onFinished()
         }
     }
+}
+
+/// iPad では、シートなど標準の文字スタイルで組んだ画面の文字を Dynamic Type で 2 段大きくし、
+/// 文字が増えた分シートも一回り大きく（ページの大きさに）する。iPhone では何もしない。
+struct PadTextSize: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var size
+
+    func body(content: Content) -> some View {
+        if Chrome.uiScale > 1 {
+            let all = DynamicTypeSize.allCases
+            let index = all.firstIndex(of: size) ?? 0
+            let larger = content.dynamicTypeSize(all[min(index + 2, all.count - 1)])
+            if #available(iOS 18.0, *) {
+                larger.presentationSizing(.page)
+            } else {
+                larger
+            }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func padTextSize() -> some View { modifier(PadTextSize()) }
 }

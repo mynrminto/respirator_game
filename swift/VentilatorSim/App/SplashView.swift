@@ -46,7 +46,7 @@ struct SplashView: View {
                 }
                 // 右上の星
                 Image(systemName: "sparkle")
-                    .font(.system(size: 34, weight: .regular))
+                    .font(.system(size: Chrome.s(34), weight: .regular))
                     .foregroundStyle(.white)
                     .shadow(color: Color(red: 0.2, green: 0.7, blue: 1), radius: 8)
                     .shadow(color: .white, radius: 2)
