@@ -269,7 +269,7 @@ struct StoryView: View {
         let isScene = finalStep || line?.who == .scene
         return VStack(alignment: .leading, spacing: 12) {
             Text(text)
-                .font(Chrome.label(16, weight: .medium))
+                .font(Chrome.label(16 * Chrome.readBoost, weight: .medium))
                 .foregroundStyle(isScene ? Chrome.dim : Chrome.ink)
                 .lineSpacing(6)
                 .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
@@ -294,7 +294,7 @@ struct StoryView: View {
         .overlay(alignment: .topLeading) {
             if !speaker.isEmpty && !finalStep {
                 Text(speaker)
-                    .font(Chrome.label(13.5, weight: .heavy))
+                    .font(Chrome.label(13.5 * Chrome.readBoost, weight: .heavy))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14).padding(.vertical, 4)
                     .background(Capsule().fill(nameTint(line?.who ?? .doc)))
@@ -304,7 +304,7 @@ struct StoryView: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if !isTyping && run?.waiting == nil && !finalStep {
-                Text("▼").font(.system(size: Chrome.s(13))).foregroundStyle(Chrome.accent)
+                Text("▼").font(.system(size: Chrome.s(13) * Chrome.readBoost)).foregroundStyle(Chrome.accent)
                     .padding(.trailing, 16).padding(.bottom, 8)
             }
         }

@@ -685,7 +685,7 @@ struct VentilatorScreen: View {
                     }
                 } else {
                     Text("キーを選び、ダイヤルで合わせて「確定」")
-                        .font(Chrome.label(12)).foregroundStyle(Chrome.dim)
+                        .font(Chrome.label(12 * Chrome.readBoost)).foregroundStyle(Chrome.dim)
                         .lineLimit(3)
                         .minimumScaleFactor(0.85)
                         .fixedSize(horizontal: false, vertical: true)

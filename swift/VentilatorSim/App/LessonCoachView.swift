@@ -76,9 +76,9 @@ struct LessonCoachView: View {
 
     /// せりふの文字。Dynamic Type に合わせるが、帯が高くなりすぎないよう頭打ちにする。
     @ScaledMetric(relativeTo: .subheadline) private var sayScaled: CGFloat = 13.5
-    private var saySize: CGFloat { min(sayScaled, 18) }
+    private var saySize: CGFloat { min(sayScaled, 18) * Chrome.readBoost }
     @ScaledMetric(relativeTo: .body) private var maxBodyScaled: CGFloat = 190
-    private var maxBodyHeight: CGFloat { min(maxBodyScaled, 260) }
+    private var maxBodyHeight: CGFloat { min(maxBodyScaled, 260) * Chrome.readBoost }
 
     var body: some View {
         let _ = controller.lessonVersion       // ランタイムの変化を購読する
@@ -139,7 +139,7 @@ struct LessonCoachView: View {
         HStack(alignment: .top, spacing: 8) {
             if speaker != .scene {
                 // FaceArt が自分で顔の位置に寄せるので、ここでは拡大しない。
-                CharacterBadge(size: 34, zoom: 1,
+                CharacterBadge(size: Chrome.s(34) * Chrome.readBoost, zoom: 1,
                                ring: Chrome.isPop ? speakerTint.opacity(0.6) : nil,
                                background: Coach.choice) {
                     speakerPortrait
@@ -148,7 +148,7 @@ struct LessonCoachView: View {
             VStack(alignment: .leading, spacing: 5) {
                 if !speaker.displayName.isEmpty && currentTaskIsTalk {
                     Text(speaker.displayName)
-                        .font(Chrome.label(11, weight: .heavy))
+                        .font(Chrome.label(11 * Chrome.readBoost, weight: .heavy))
                         .foregroundStyle(speakerTint)
                 }
                 content(for: runtime)
@@ -189,7 +189,7 @@ struct LessonCoachView: View {
         let changed = before != nil && before != now
         return HStack(alignment: .firstTextBaseline, spacing: 5) {
             Text(readout.caption)
-                .font(Chrome.label(11, weight: .bold))
+                .font(Chrome.label(11 * Chrome.readBoost, weight: .bold))
                 .foregroundStyle(Coach.faint)
             if let before, changed {
                 Text("\(before) →")
@@ -200,7 +200,7 @@ struct LessonCoachView: View {
                 .font(Chrome.digits(15, weight: .bold))
                 .foregroundStyle(changed ? tint : Coach.ink)
             Text(readout.unit)
-                .font(Chrome.label(10))
+                .font(Chrome.label(10 * Chrome.readBoost))
                 .foregroundStyle(Coach.faint)
         }
         .padding(.horizontal, 10).padding(.vertical, 3)
@@ -218,7 +218,7 @@ struct LessonCoachView: View {
         HStack(spacing: 4) {
             Button { collapsed.toggle() } label: {
                 Image(systemName: collapsed ? "chevron.up" : "chevron.down")
-                    .font(.system(size: Chrome.s(14), weight: .semibold))
+                    .font(.system(size: Chrome.s(14) * Chrome.readBoost, weight: .semibold))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -228,13 +228,13 @@ struct LessonCoachView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(lesson.title)
-                    .font(Chrome.label(13, weight: Chrome.isPop ? .heavy : .semibold))
+                    .font(Chrome.label(13 * Chrome.readBoost, weight: Chrome.isPop ? .heavy : .semibold))
                     .foregroundStyle(Chrome.isPop ? Coach.ink : Coach.accent)
                     .lineLimit(1)
                 HStack(spacing: 6) {
                     if let chapter = controller.lessonChapter {
                         Text(chapter.tag)
-                            .font(Chrome.label(10, weight: Chrome.isPop ? .bold : .regular))
+                            .font(Chrome.label(10 * Chrome.readBoost, weight: Chrome.isPop ? .bold : .regular))
                             .foregroundStyle(Chrome.isPop ? Color.white : Coach.faint)
                             .padding(.horizontal, Chrome.isPop ? 6 : 0)
                             .padding(.vertical, Chrome.isPop ? 1 : 0)
@@ -253,6 +253,8 @@ struct LessonCoachView: View {
             smallButton("終了") { controller.endLesson() }
         }
         .padding(.trailing, 6)
+        // iPad では見出しの文字が 44pt の行より高くなるので、帯の上端に詰まらないよう上下に空ける。
+        .padding(.vertical, Chrome.readBoost > 1 ? 6 : 0)
     }
 
     /* 点は「やること」の数だけ。会話の場面まで点にすると、読んだだけで進んだように見える。 */
@@ -279,7 +281,7 @@ struct LessonCoachView: View {
     private func smallButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button { SoundBoard.shared.play(.tap); action() } label: {
             Text(title)
-                .font(Chrome.label(12, weight: Chrome.isPop ? .bold : .regular))
+                .font(Chrome.label(12 * Chrome.readBoost, weight: Chrome.isPop ? .bold : .regular))
                 .foregroundStyle(Chrome.isPop ? Chrome.dim : Coach.accent)
                 .lineLimit(1)
                 .fixedSize()
@@ -336,12 +338,12 @@ struct LessonCoachView: View {
             if !runtime.lesson.points.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("このレッスンで覚えること")
-                        .font(Chrome.label(11, weight: .bold))
+                        .font(Chrome.label(11 * Chrome.readBoost, weight: .bold))
                         .foregroundStyle(Coach.faint)
                     ForEach(runtime.lesson.points, id: \.self) { point in
                         HStack(alignment: .firstTextBaseline, spacing: 5) {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: Chrome.s(11)))
+                                .font(.system(size: Chrome.s(11) * Chrome.readBoost))
                                 .foregroundStyle(tint)
                             Text(point.subscripted)
                                 .font(.system(size: Chrome.s(saySize - 1)))
@@ -483,7 +485,7 @@ struct LessonCoachView: View {
     private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button { SoundBoard.shared.play(.tap); action() } label: {
             Text(title)
-                .font(Chrome.label(14, weight: .bold))
+                .font(Chrome.label(14 * Chrome.readBoost, weight: .bold))
                 .foregroundStyle(Chrome.isPop ? Color.white : Chrome.good)
                 .lineLimit(1)
                 .fixedSize()

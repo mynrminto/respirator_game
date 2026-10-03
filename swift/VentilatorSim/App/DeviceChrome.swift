@@ -254,6 +254,8 @@ enum Chrome {
 
     /// iPad は画面が大きく少し離して見るので、文字と文字まわりの寸法をひとまわり大きくする。iPhone は 1 のまま。
     static let uiScale: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 1.25 : 1
+    /// 読ませる文章（レッスン帯のせりふ・物語の台詞）は、iPad ではさらにもう一段大きくする。
+    static let readBoost: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 1.3 : 1
     /// iPhone 向けに決めた寸法を、iPad では uiScale 倍にする。
     static func s(_ size: CGFloat) -> CGFloat { size * uiScale }
 
