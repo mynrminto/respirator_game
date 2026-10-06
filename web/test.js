@@ -1101,6 +1101,28 @@ console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ�
   ok('背景の名前が実在し、表情が絵のある表情', badBg.length === 0 && badMood.length === 0, badBg.concat(badMood).join(' '));
   ok('名前を聞くのはプロローグの 1 回だけで、呼ぶより先', nameLines === 1 && nameAt[0] === 0
     && firstFill && (firstFill[0] > nameAt[0] || firstFill[1] > nameAt[1]));
+  // 研修手帳（いぶき先生のこと・息のことば・できるようになったこと）
+  const NB = ST.NOTEBOOK;
+  const nbBad = NB.filter(n => !ST.sceneById(n.scene) || ['secret', 'lore', 'growth'].indexOf(n.kind) < 0 || !n.title || !n.hint
+    || (n.kind === 'growth' ? !(n.before && n.now) : !n.text) || (n.kind === 'lore' && !n.source)).map(n => n.id);
+  ok('手帳の項目は実在する幕で書き足され、種類ごとに中身がそろう', nbBad.length === 0 && new Set(NB.map(n => n.id)).size === NB.length, nbBad.join(' '));
+  ok('できるようになったことは、どの章の幕にも 1 つずつ',
+    LS.CHAPTERS.every(ch => NB.filter(n => n.kind === 'growth' && n.scene === ch.id + '-close').length === 1));
+  const secrets = NB.filter(n => n.kind === 'secret');
+  const sceneOrder = id => ST.SCENES.findIndex(x => x.id === id);
+  ok('いぶき先生のことは物語の順に、プロローグで始まりエピローグで明かされる',
+    secrets[0].scene === 'prologue' && secrets[secrets.length - 1].scene === 'epilogue'
+    && secrets.every((n, i) => i === 0 || sceneOrder(secrets[i - 1].scene) < sceneOrder(n.scene)));
+  ok('息のことばは、どれもその幕の台詞の中で語られる（手帳だけに書かない）',
+    NB.filter(n => n.kind === 'lore').every(n => ST.sceneById(n.scene).lines.some(l => l.who === 'doc')));
+  ok('幕を見たぶんだけ手帳が書き足される', ST.notesOpen([]).length === 0
+    && ST.notesAdded([], ['prologue']).map(n => n.id).join() === 'secret-1'
+    && ST.notesAdded(['prologue'], ['prologue']).length === 0
+    && ST.notesOpen(ST.SCENES.map(x => x.id)).length === NB.length);
+  const metaWords = /第\s*[0-9０-９一二三四五六七八九十]+\s*章|レッスン|コース|この章|次の章/;
+  const metaHits = [];
+  ST.SCENES.forEach(x => x.lines.forEach(l => { if (l.who !== 'scene' && metaWords.test(l.say)) metaHits.push(x.id + ':' + l.say.slice(0, 16)); }));
+  ok('幕の台詞で教材の構成（章・レッスン・コース）に触れない', metaHits.length === 0, metaHits.join(' '));
   ok('どの背景も、今ある絵のどれかで表示できる', Object.keys(ST.BG).every(k => ST.BG[k].some(n => manifest[n])));
 
   // いつ流すか
@@ -1147,6 +1169,8 @@ console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ�
   ok('セリフの {名前} を主人公の名前で差し込む', /name === '名前'\) return playerName\(\)/.test(app)
     && /\{名前\}/.test(fs.readFileSync(path.join(__dirname, 'lessons.js'), 'utf8')));
   ok('メニューから読み返せる', /'物語を読み返す', function \(\) \{ close\(\); openStoryList\(\); \}/.test(app));
+  ok('メニューとタイトルから研修手帳を開ける', /'研修手帳', function \(\) \{ close\(\); openNotebook\(\); \}/.test(app) && /id === 'notebook'/.test(app)
+    && /ST\.notesAdded\(SV\.seen0, storySeen\(\)\)/.test(app));
 
   // iPhone 版は story.js から書き出した台本を持つ
   const swDir = path.join(__dirname, '..', 'swift', 'VentilatorSim');

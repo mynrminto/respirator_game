@@ -4,7 +4,7 @@ import SwiftUI
 /// 行き先（患者情報・レッスン一覧など）は選ぶとシートを閉じ、閉じきってから呼び出し側が開く。
 /// 音と見た目の切り替えはその場で変わり、シートは開いたまま。
 struct DeviceMenuSheet: View {
-    enum Pick { case patient, course, cases, story, title }
+    enum Pick { case patient, course, cases, story, notebook, title }
 
     /// 見出し（患者の名前と体重）。
     var title: String
@@ -24,6 +24,7 @@ struct DeviceMenuSheet: View {
                     row("レッスン一覧", "list.bullet", .course)
                     row("症例を選ぶ", "person.2", .cases)
                     row("物語を読み返す", "book", .story)
+                    row("研修手帳", "book.closed", .notebook)
                 }
                 Section("音と見た目") {
                     Toggle(isOn: $sound) { Label("音", systemImage: sound ? "speaker.wave.2" : "speaker.slash") }

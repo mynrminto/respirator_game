@@ -485,6 +485,8 @@
     }
     items.push({ id: 'course', glyph: '☰', title: 'コースを選ぶ', sub: LS.CHAPTERS.length + ' 章 ' + n + ' レッスンから選ぶ' });
     items.push({ id: 'cases', glyph: '✚', title: '症例で練習', sub: SC.SCENARIOS.length + ' 症例を自由に操作する' });
+    var notes = ST ? ST.notesOpen(storySeen()).length : 0;
+    if (notes) items.push({ id: 'notebook', glyph: '✎', title: '研修手帳', sub: '書き留めたこと ' + notes + ' / ' + ST.NOTEBOOK.length });
     items.push({ id: 'about', glyph: '?', title: 'この教材について', sub: '免責事項とモデルの説明' });
     return {
       done: d, total: n, items: items, next: next,
@@ -502,6 +504,8 @@
       enter(function () { openCourse(); });
     } else if (id === 'cases') {
       enter(function () { openCases(); });
+    } else if (id === 'notebook') {
+      openNotebook();
     } else {
       openDisclaimer(false);
     }
@@ -1855,6 +1859,7 @@
        ['↺', 'この症例を最初から', function () { close(); loadScenario(S.scen, false); }],
        ['★', '振り返り', function () { close(); openDebrief(); }],
        ['✦', '物語を読み返す', function () { close(); openStoryList(); }],
+       ['✎', '研修手帳', function () { close(); openNotebook(); }],
        ['⌂', 'タイトルへ戻る', function () { close(); endLesson(false); showTitle(); }],
        ['♪', SND.enabled() ? '音：オン（押すと消す）' : '音：オフ（押すと鳴らす）',
         function () { SND.setEnabled(!SND.enabled()); close(); openMenu(); }],
@@ -2396,7 +2401,8 @@
     if (!ids.length) { if (done) done(); return; }
     if (SV) closeStory(false);
     SV = { queue: ids.slice(), run: null, done: done || null, replay: !!(opts && opts.replay),
-      typing: false, shown: 0, full: '', timer: null, stage: null, bgKey: '', final: false };
+      typing: false, shown: 0, full: '', timer: null, stage: null, bgKey: '', final: false,
+      seen0: storySeen(), notes: null, notesShown: false };
     var box = $('story');
     box.hidden = false;
     box.setAttribute('data-theme-dark', currentTheme() === 'device' ? '1' : '0');
@@ -2417,6 +2423,17 @@
   function sceneEnded() {
     markStorySeen(SV.run.scene.id);
     if (SV.queue.length) { nextScene(); return; }
+    storyWrapUp();
+  }
+
+  /* 幕を見終えたあと。手帳に書き足した項目があれば見せ、エピローグなら次の一手を差し出して終える。 */
+  function storyWrapUp() {
+    if (!SV.replay && !SV.notesShown) {
+      SV.notesShown = true;
+      var added = ST.notesAdded(SV.seen0, storySeen());
+      if (added.length) { SV.notes = added; SND.play('confirm'); paintStory(); return; }
+    }
+    SV.notes = null;
     var end = SV.run.scene.end;
     if (end && !SV.final) { SV.final = true; paintStory(); return; }
     closeStory(true);
@@ -2509,6 +2526,31 @@
     card.hidden = true; box.hidden = false;
     act.innerHTML = ''; act.hidden = true;
 
+    if (SV.notes) {
+      /* 手帳に書き足した項目。いぶき先生のこと・息のことば・できるようになったこと。 */
+      paintStoryStage({ who: 'scene' });
+      var nmN = $('sName');
+      nmN.textContent = '研修手帳'; nmN.hidden = false; nmN.className = 'sname w-note';
+      $('sText').className = 'stext scene';
+      setStoryText('手帳に書き留めました。');
+      $('sNext').hidden = true;
+      act.hidden = false;
+      var ul = el('div', 'snotes');
+      SV.notes.forEach(function (n) {
+        var row = el('div', 'snote-row k-' + n.kind);
+        row.appendChild(el('i', '', noteKindLabel(n.kind)));
+        row.appendChild(el('b', '', n.title));
+        ul.appendChild(row);
+      });
+      act.appendChild(ul);
+      var openNb = el('button', 'sbtn', '手帳を開く');
+      openNb.onclick = function (ev) { ev.stopPropagation(); closeStory(true); openNotebook(); };
+      var cont = el('button', 'sbtn go', '続ける');
+      cont.onclick = function (ev) { ev.stopPropagation(); SND.play('tap'); storyWrapUp(); };
+      act.appendChild(openNb); act.appendChild(cont);
+      return;
+    }
+
     if (SV.final) {
       /* エピローグのあと。次にやることを差し出して終える。 */
       var end = sc.end;
@@ -2594,7 +2636,7 @@
 
   function storyTap() {
     if (!SV) return;
-    if (SV.final) return;
+    if (SV.final || SV.notes) return;
     if (SV.typing) { finishTyping(); return; }
     if (SV.run.waiting()) return;
     SND.play('tap');
@@ -2612,7 +2654,8 @@
       if (!r.skip(!!storedName())) { SV.run = r; paintStory(); finishTyping(); return; }
       markStorySeen(id);
     }
-    closeStory(true);
+    SV.final = true;   // 飛ばしたときは、エピローグの次の一手は出さない
+    storyWrapUp();
   }
 
   function bindStory() {
@@ -2620,7 +2663,7 @@
       if (ev.target.closest('button,input,form')) return;
       storyTap();
     });
-    $('sSkip').onclick = function (ev) { ev.stopPropagation(); storySkip(); };
+    $('sSkip').onclick = function (ev) { ev.stopPropagation(); if (SV && (SV.notes || SV.final)) return; storySkip(); };
     document.addEventListener('keydown', function (ev) {
       if (!SV) return;
       if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
@@ -2660,8 +2703,78 @@
     });
   }
 
+  /* ===================== 研修手帳 =====================
+   * 幕を見るたびに書き足される主人公の手帳。中身は story.js の NOTEBOOK、ここは描画だけ。
+   * まだ書いていない欄は、書き足される時期だけを見せる（いぶき先生のこと・息のことばは題も伏せる）。 */
+  var NB_TAB = 'secret';
+
+  function noteKindLabel(kind) {
+    var k = ST.NOTE_KINDS.filter(function (x) { return x.kind === kind; })[0];
+    return k ? k.label : '';
+  }
+
+  function openNotebook(tab) {
+    if (tab) NB_TAB = tab;
+    var seen = storySeen(), name = playerName();
+    var open = ST.notesOpen(seen);
+    modal('研修手帳', function (b) {
+      var head = el('p', 'note nb-lead', name + '先生の手帳。ローテのあいだに見聞きしたことを書き留めていく。');
+      b.appendChild(head);
+      var tabs = el('div', 'nbtabs');
+      ST.NOTE_KINDS.forEach(function (k) {
+        var all = ST.NOTEBOOK.filter(function (n) { return n.kind === k.kind; });
+        var got = all.filter(function (n) { return open.indexOf(n) >= 0; });
+        var t = el('button', 'nbtab' + (NB_TAB === k.kind ? ' on' : ''));
+        t.appendChild(el('b', '', k.tab));
+        t.appendChild(el('i', '', got.length + ' / ' + all.length));
+        t.onclick = function () { NB_TAB = k.kind; paint(); };
+        tabs.appendChild(t);
+      });
+      b.appendChild(tabs);
+      var list = el('div', 'nblist');
+      b.appendChild(list);
+
+      function paint() {
+        Array.prototype.forEach.call(tabs.children, function (t, i) {
+          t.classList.toggle('on', ST.NOTE_KINDS[i].kind === NB_TAB);
+        });
+        list.innerHTML = '';
+        if (NB_TAB === 'growth') {
+          var q = el('div', 'nbfirst');
+          q.appendChild(el('i', '', '初日のわたし'));
+          q.appendChild(el('span', '', '「子どもの呼吸器は、まったく触ったことがなくて」'));
+          list.appendChild(q);
+        }
+        ST.NOTEBOOK.filter(function (n) { return n.kind === NB_TAB; }).forEach(function (n, i) {
+          var got = open.indexOf(n) >= 0;
+          var c = el('div', 'nbitem k-' + n.kind + (got ? '' : ' locked'));
+          var h = el('div', 'nbh');
+          h.appendChild(el('span', 'nbno', String(i + 1)));
+          h.appendChild(el('b', '', got || n.kind === 'growth' ? n.title : '？？？'));
+          c.appendChild(h);
+          if (!got) {
+            c.appendChild(el('p', 'nbhint', 'まだ書いていない（' + n.hint + 'に）'));
+          } else if (n.kind === 'growth') {
+            var g = el('div', 'nbgrow');
+            g.appendChild(el('i', 'was', '初日'));
+            g.appendChild(el('span', 'was', n.before));
+            g.appendChild(el('i', 'now', 'いま'));
+            g.appendChild(el('span', 'now', n.now));
+            c.appendChild(g);
+          } else {
+            c.appendChild(el('p', '', n.text));
+            if (n.source) c.appendChild(el('p', 'nbsrc', '出典：' + n.source));
+          }
+          list.appendChild(c);
+        });
+      }
+      paint();
+    });
+  }
+
   /* 動作確認用。幕を直接流す（web/smoke.js が使う）。 */
-  window.VentStoryUI = { play: function (ids) { playStories(ids); }, list: function () { openStoryList(); } };
+  window.VentStoryUI = { play: function (ids) { playStories(ids); }, list: function () { openStoryList(); },
+    notebook: function (tab) { openNotebook(tab); } };
 
   function openCourse() {
     var done = doneSet();

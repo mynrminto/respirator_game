@@ -52,6 +52,11 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     await p.waitForTimeout(200);
     console.log(vp.n, '名前のあとの台詞:', (await p.locator('#sText').innerText()).trim().slice(0, 20));
     await p.locator('#sSkip').click();
+    await p.waitForTimeout(300);
+    // 飛ばしても、手帳に書き足したことは見せる（プロローグでいぶき先生のことが 1 つ）。
+    console.log(vp.n, '手帳に書き留めた:', (await p.locator('.snote-row').allInnerTexts()).join(' / '));
+    await p.screenshot({ path: `${SHOT}/${vp.n}-2c-notes.png` });
+    await p.getByRole('button', { name: '続ける' }).click();
     await p.waitForTimeout(500);
     console.log(vp.n, '物語を閉じてレッスンへ:', await p.locator('#story').isHidden());
     await p.screenshot({ path: `${SHOT}/${vp.n}-3-lesson.png` });

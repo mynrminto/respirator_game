@@ -47,6 +47,13 @@ struct StoryView: View {
     @State private var instant = false
     /// 主人公の台詞のあいだも、話している相手の立ち絵を残しておく。
     @State private var lastPortrait: StoryLine?
+    /// 研修手帳。流しはじめる前の既読と、見終えたあとに見せる書き足した項目。
+    @State private var seenAtStart: [String] = []
+    @State private var notes: [StoryNote] = []
+    @State private var notesShown = false
+    /// 飛ばしたときは、エピローグの次の一手は出さない。
+    @State private var skippedEnd = false
+    @State private var showingNotebook = false
     @FocusState private var nameFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -71,8 +78,12 @@ struct StoryView: View {
         .onTapGesture { tap() }
         .preferredColorScheme(Chrome.colorScheme)
         .onAppear {
+            seenAtStart = StoryProgress.seen
             queue = ids
             nextScene()
+        }
+        .sheet(isPresented: $showingNotebook) {
+            NotebookView(kind: notes.first?.kind ?? .secret).padTextSize()
         }
     }
 
@@ -131,7 +142,8 @@ struct StoryView: View {
                     .background(Capsule().fill(Color.black.opacity(0.45)))
                     .overlay(Capsule().stroke(Color.white.opacity(0.55), lineWidth: 1))
             }
-            .opacity(finalStep ? 0 : 1)
+            .opacity(finalStep || !notes.isEmpty ? 0 : 1)
+            .disabled(finalStep || !notes.isEmpty)
         }
         .padding(.horizontal, 12)
         .padding(.top, 6)
@@ -264,9 +276,12 @@ struct StoryView: View {
 
     private var dialogBox: some View {
         let line = currentLine
-        let speaker = line.map { StoryLibrary.speakerName($0, name: StoryProgress.playerName) } ?? ""
-        let text = finalStep ? (run?.scene.end?.say ?? "") : String(fullText.prefix(shown))
-        let isScene = finalStep || line?.who == .scene
+        let showingNotes = !notes.isEmpty
+        let speaker = showingNotes ? "研修手帳"
+            : (line.map { StoryLibrary.speakerName($0, name: StoryProgress.playerName) } ?? "")
+        let text = showingNotes ? "手帳に書き留めました。"
+            : (finalStep ? (run?.scene.end?.say ?? "") : String(fullText.prefix(shown)))
+        let isScene = showingNotes || finalStep || line?.who == .scene
         return VStack(alignment: .leading, spacing: 12) {
             Text(text)
                 .font(Chrome.label(16 * Chrome.readBoost, weight: .medium))
@@ -297,13 +312,13 @@ struct StoryView: View {
                     .font(Chrome.label(13.5 * Chrome.readBoost, weight: .heavy))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14).padding(.vertical, 4)
-                    .background(Capsule().fill(nameTint(line?.who ?? .doc)))
+                    .background(Capsule().fill(showingNotes ? NotebookView.gold : nameTint(line?.who ?? .doc)))
                     .overlay(Capsule().stroke(Chrome.ink, lineWidth: Chrome.isPop ? 3 : 0))
                     .offset(x: 16, y: -16)
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if !isTyping && run?.waiting == nil && !finalStep {
+            if !isTyping && run?.waiting == nil && !finalStep && !showingNotes {
                 Text("▼").font(.system(size: Chrome.s(13) * Chrome.readBoost)).foregroundStyle(Chrome.accent)
                     .padding(.trailing, 16).padding(.bottom, 8)
             }
@@ -313,7 +328,32 @@ struct StoryView: View {
 
     @ViewBuilder
     private var actions: some View {
-        if finalStep, let end = run?.scene.end {
+        if !notes.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(notes) { n in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(n.kind.label)
+                            .font(Chrome.label(11, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8).padding(.vertical, 1)
+                            .background(Capsule().fill(NotebookView.tint(n.kind)))
+                        Text(n.title)
+                            .font(Chrome.label(14.5 * Chrome.readBoost, weight: .heavy))
+                            .foregroundStyle(Chrome.ink)
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: Chrome.isPop ? 12 : 4).fill(Chrome.panel2))
+                    .overlay(RoundedRectangle(cornerRadius: Chrome.isPop ? 12 : 4)
+                        .stroke(Chrome.isPop ? Chrome.ink : Chrome.line, lineWidth: Chrome.isPop ? 2 : 1))
+                }
+                HStack(spacing: 8) {
+                    storyButton("手帳を開く", primary: false) { showingNotebook = true }
+                    storyButton("続ける", primary: true) { wrapUp() }
+                }
+                .padding(.top, 4)
+            }
+        } else if finalStep, let end = run?.scene.end {
             HStack(spacing: 8) {
                 storyButton(end.label, primary: true) { finish(openCases: end.action == "cases") }
                 storyButton("閉じる", primary: false) { finish(openCases: false) }
@@ -410,7 +450,23 @@ struct StoryView: View {
         guard let run else { return }
         StoryProgress.markSeen(run.scene.id)
         if !queue.isEmpty { nextScene(); return }
-        if run.scene.end != nil && !finalStep {
+        wrapUp()
+    }
+
+    /// 幕を見終えたあと。手帳に書き足した項目があれば見せ、エピローグなら次の一手を差し出して終える。
+    private func wrapUp() {
+        if !notesShown {
+            notesShown = true
+            let added = StoryLibrary.notesAdded(before: seenAtStart, after: StoryProgress.seen)
+            if !added.isEmpty {
+                notes = added
+                SoundBoard.shared.play(.confirm)
+                version &+= 1
+                return
+            }
+        }
+        notes = []
+        if run?.scene.end != nil && !finalStep && !skippedEnd {
             finalStep = true
             version &+= 1
             return
@@ -419,7 +475,7 @@ struct StoryView: View {
     }
 
     private func tap() {
-        guard let run, !finalStep else { return }
+        guard let run, !finalStep, notes.isEmpty else { return }
         if run.phase == .line && isTyping { shown = fullText.count; return }
         if run.waiting != nil { return }
         SoundBoard.shared.play(.tap)
@@ -446,7 +502,8 @@ struct StoryView: View {
             if !r.skip(hasName: hasName) { self.run = r; instant = true; advanced(); return }
             StoryProgress.markSeen(id)
         }
-        onFinish()
+        skippedEnd = true
+        wrapUp()
     }
 
     private func finish(openCases: Bool) {

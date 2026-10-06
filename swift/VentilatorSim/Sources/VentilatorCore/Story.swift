@@ -90,6 +90,50 @@ public struct StoryScene: Identifiable {
     }
 }
 
+/// 研修手帳の項目。幕を見るたびに書き足される（Web 版 story.js の NOTEBOOK と同じ）。
+public struct StoryNote: Identifiable, Equatable {
+    public enum Kind: String, CaseIterable {
+        /// いぶき先生のこと・息のことば・できるようになったこと
+        case secret, lore, growth
+
+        public var label: String {
+            switch self {
+            case .secret: return "いぶき先生のこと"
+            case .lore: return "息のことば"
+            case .growth: return "できるようになったこと"
+            }
+        }
+
+        /// 手帳のタブに出す短い名前。
+        public var tab: String {
+            switch self {
+            case .secret: return "先生のこと"
+            case .lore: return "息のことば"
+            case .growth: return "できること"
+            }
+        }
+    }
+
+    public let id: String
+    public let kind: Kind
+    /// この幕を見たら書き足される。
+    public let scene: String
+    /// まだ書いていない欄に出す時期。
+    public let hint: String
+    public let title: String
+    public let text: String
+    public let source: String?
+    /// できるようになったこと：初日の自分といま。
+    public let before: String?
+    public let now: String?
+
+    public init(id: String, kind: Kind, scene: String, hint: String, title: String, text: String = "",
+                source: String? = nil, before: String? = nil, now: String? = nil) {
+        self.id = id; self.kind = kind; self.scene = scene; self.hint = hint; self.title = title
+        self.text = text; self.source = source; self.before = before; self.now = now
+    }
+}
+
 public enum StoryLibrary {
 
     public static let defaultName = "春野"
@@ -138,6 +182,16 @@ public enum StoryLibrary {
     public static func speakerName(_ line: StoryLine, name: String?) -> String {
         if line.who == .pt || line.who == .fam { return line.name ?? "" }
         return fill(speakerLabels[line.who] ?? "", name: name)
+    }
+
+    /// 書き足されている手帳の項目（見た幕で決まる）。
+    public static func notesOpen(seen: [String]) -> [StoryNote] {
+        notebook.filter { seen.contains($0.scene) }
+    }
+
+    /// 幕を見る前と後の既読から、新しく書き足された項目を返す。
+    public static func notesAdded(before: [String], after: [String]) -> [StoryNote] {
+        notebook.filter { !before.contains($0.scene) && after.contains($0.scene) }
     }
 
     /// レッスンを始める前に流す幕。見ていないものだけを、物語の順に返す。

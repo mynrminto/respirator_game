@@ -54,3 +54,19 @@ import Testing
     #expect(fresh.skip(hasName: false) == false && fresh.waiting == .name)
     #expect(fresh.skip(hasName: true) == true && fresh.phase == .end)
 }
+
+@Test func notebookGrowsWithTheStory() {
+    let ids = Set(StoryLibrary.scenes.map(\.id))
+    #expect(StoryLibrary.notebook.allSatisfy { ids.contains($0.scene) })
+    #expect(Set(StoryLibrary.notebook.map(\.id)).count == StoryLibrary.notebook.count)
+    // できるようになったことは、どの章の幕にも 1 つずつ
+    for chapter in LessonLibrary.chapters {
+        #expect(StoryLibrary.notebook.filter { $0.kind == .growth && $0.scene == chapter.id + "-close" }.count == 1)
+    }
+    // いぶき先生のことは、プロローグで始まりエピローグで終わる
+    let secrets = StoryLibrary.notebook.filter { $0.kind == .secret }
+    #expect(secrets.first?.scene == "prologue" && secrets.last?.scene == "epilogue")
+    #expect(StoryLibrary.notesOpen(seen: []).isEmpty)
+    #expect(StoryLibrary.notesAdded(before: [], after: ["prologue"]).map(\.id) == ["secret-1"])
+    #expect(StoryLibrary.notesAdded(before: ["prologue"], after: ["prologue"]).isEmpty)
+}

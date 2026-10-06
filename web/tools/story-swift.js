@@ -30,6 +30,15 @@ ${s.lines.map(line).join(',\n')}
         ])`;
 }
 
+function note(n) {
+  const args = [`id: ${q(n.id)}`, `kind: .${n.kind}`, `scene: ${q(n.scene)}`, `hint: ${q(n.hint)}`, `title: ${q(n.title)}`];
+  if (n.text) args.push(`text: ${q(n.text)}`);
+  if (n.source) args.push(`source: ${q(n.source)}`);
+  if (n.before) args.push(`before: ${q(n.before)}`);
+  if (n.now) args.push(`now: ${q(n.now)}`);
+  return `        StoryNote(${args.join(',\n                  ')})`;
+}
+
 function render() {
   return `// このファイルは web/tools/story-swift.js が web/story.js から書き出したもの。手で直さないこと。
 // 台本を直すときは story.js を直し、node web/tools/story-swift.js > このファイル で書き出し直す。
@@ -37,6 +46,11 @@ function render() {
 extension StoryLibrary {
     public static let scenes: [StoryScene] = [
 ${ST.SCENES.map(scene).join(',\n')}
+    ]
+
+    /// 研修手帳（web/story.js の NOTEBOOK）。
+    public static let notebook: [StoryNote] = [
+${ST.NOTEBOOK.map(note).join(',\n')}
     ]
 }
 `;

@@ -18,6 +18,7 @@ struct TitleView: View {
     @State private var pending: (() -> Void)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var floating = false
+    @State private var showingNotebook = false
 
     /// iPad のタイトルは広い画面の中央に置くので、Chrome.uiScale に加えてもう一段大きくする。
     private var titleBoost: CGFloat { Chrome.uiScale > 1 ? 1.2 : 1 }
@@ -57,6 +58,9 @@ struct TitleView: View {
         }
         .background(backdrop.ignoresSafeArea())
         .preferredColorScheme(Chrome.colorScheme)
+        .sheet(isPresented: $showingNotebook) {
+            NotebookView().padTextSize()
+        }
         .sheet(item: $about, onDismiss: runPendingIfAgreed) { mode in
             AboutView(asGate: mode == .gate) {
                 agreed = true
@@ -210,6 +214,12 @@ struct TitleView: View {
             }
             menuItem("✚", icon: "icon_cases", "症例で練習", "\(ScenarioLibrary.all.count) 症例を自由に操作する") {
                 enter { onOpenCases() }
+            }
+            let notes = StoryLibrary.notesOpen(seen: StoryProgress.seen).count
+            if notes > 0 {
+                menuItem("✎", "研修手帳", "書き留めたこと \(notes) / \(StoryLibrary.notebook.count)") {
+                    showingNotebook = true
+                }
             }
             menuItem("?", icon: "icon_about", "この教材について", "免責事項とモデルの説明") {
                 pending = nil

@@ -18,6 +18,7 @@ struct VentilatorScreen: View {
     @State private var showingCourse = false
     @State private var showingCases = false
     @State private var showingStoryList = false
+    @State private var showingNotebook = false
     @State private var showingMenu = false
     @State private var menuPick: DeviceMenuSheet.Pick?
     /// ポーズを離したあと、測った Pplat・total PEEP を波形の上に残しておく期限。
@@ -139,6 +140,9 @@ struct VentilatorScreen: View {
             }
             .padTextSize()
         }
+        .sheet(isPresented: $showingNotebook) {
+            NotebookView().padTextSize()
+        }
         // 物語の幕。プロローグ・章の扉・章の幕・エピローグを機器の上に重ねる。
         .fullScreenCover(isPresented: Binding(
             get: { !controller.storyQueue.isEmpty },
@@ -227,6 +231,7 @@ struct VentilatorScreen: View {
         case .course: showingCourse = true
         case .cases: showingCases = true
         case .story: showingStoryList = true
+        case .notebook: showingNotebook = true
         case .title: onGoToTitle()
         }
     }
