@@ -143,8 +143,8 @@
       /* 波形が文字の下を走る */
       + '<path d="M8 78 h40 l10-26 l10 44 l10-18 h44 l8-12 l8 24 l8-12 h58 l10-20 l10 34 l8-14 h80" '
       + 'stroke="url(#lg)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>'
-      + '<text x="160" y="52" text-anchor="middle" font-size="46" font-weight="800" fill="url(#lg)" '
-      + 'font-family="M PLUS Rounded 1c, Hiragino Maru Gothic ProN, sans-serif">VentaSim</text>'
+      + '<text x="160" y="52" text-anchor="middle" font-size="29" font-weight="800" fill="url(#lg)" '
+      + 'font-family="M PLUS Rounded 1c, Hiragino Maru Gothic ProN, sans-serif">この手で、息をつなぐ</text>'
       + '</svg>';
   }
 
