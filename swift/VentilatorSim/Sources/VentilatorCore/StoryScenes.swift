@@ -351,14 +351,73 @@ extension StoryLibrary {
             StoryLine(.fam, "先生方、本当に、本当にありがとうございました。", name: "あかりちゃんのお母さん"),
             StoryLine(.doc, "{名前}先生。ローテが終わるまで、あと 1 週間です。", mood: "happy")
         ]),
+        StoryScene(id: "ch12-open", kind: "open", chapter: "ch12",
+                   title: "第12章　扉　揺れる保育器",
+                   card: StoryCard(kicker: "第12章", title: "ふるえる息", sub: "4 週目の朝　NICU"),
+                   bg: "nicu", time: "day", end: nil, lines: [
+            StoryLine(.scene, "ローテ最後の週。NICU の奥の保育器にだけ、見慣れない呼吸器がつながっていた。"),
+            StoryLine(.nurse, "{名前}先生、夜中に生まれた子です。在胎 25 週、720 g。いぶき先生がずっとついています。"),
+            StoryLine(.doc, "来ましたね。この子には、ふつうの換気がうまく届きません。"),
+            StoryLine(.puku, "あおい君より、もっと小さい…", mood: "sad"),
+            StoryLine(.doc, "こういう肺のために、揺らす呼吸器があります。最初の報告は 1972 年、ドイツのルンケンハイマーたちです。"),
+            StoryLine(.doc, "気道を細かく揺らすだけで、息をしていない犬の CO₂ が出ていった。小さな揺れも息になる、という発見でした。"),
+            StoryLine(.me, "揺れが、息になる…")
+        ]),
+        StoryScene(id: "ch12-close", kind: "close", chapter: "ch12",
+                   title: "第12章　幕　糸をつむぐ",
+                   card: nil,
+                   bg: "nicu", time: "day", end: nil, lines: [
+            StoryLine(.scene, "生まれて 3 日目の夕方。つむぎちゃんのお母さんが、車いすで初めて NICU に来た。"),
+            StoryLine(.fam, "体がずっと震えてて…。寒いんですか？ 痛くないんですか？", name: "つむぎちゃんのお母さん"),
+            StoryLine(.doc, "{名前}先生、説明してあげてください。"),
+            StoryLine(.me, "（保育器の前で、お母さんの隣にしゃがむ）", pick: "tsumugiMom", choices: [
+                StoryChoice(label: "呼吸器の揺れです。息をしている証拠です", reply: "…震えてるんじゃなくて、息をしてるんですね。", who: .fam, name: "つむぎちゃんのお母さん"),
+                StoryChoice(label: "寒くも痛くもありません。触ってみますか", reply: "（窓から指先で、そっと足に触れる）…あったかい。", who: .fam, name: "つむぎちゃんのお母さん")
+            ]),
+            StoryLine(.doc, "1 秒に 12 回。この子の肺は、小さな揺れの中で少しずつ育っています。", mood: "happy"),
+            StoryLine(.puku, "つむぎって、どういう意味？"),
+            StoryLine(.fam, "糸をつむぐ、の「つむぎ」です。細い糸でも、つないでいけるように。", name: "つむぎちゃんのお母さん"),
+            StoryLine(.doc, "いい名前です。細い息を、明日へつむいでいきましょう。", mood: "happy")
+        ]),
+        StoryScene(id: "ch13-open", kind: "open", chapter: "ch13",
+                   title: "第13章　扉　横隔膜の声",
+                   card: StoryCard(kicker: "第13章", title: "自分のリズム", sub: "4 週目の終わり　NICU"),
+                   bg: "nicu", time: "day", end: nil, lines: [
+            StoryLine(.scene, "生まれて 5 日目。つむぎちゃんは HFO を降りた。胃の管が、先に電極の並んだものに替わっている。"),
+            StoryLine(.doc, "今日からは、つむぎちゃんの呼吸中枢の声を聞いて換気します。"),
+            StoryLine(.puku, "声？ 赤ちゃん、まだしゃべれないよ？", mood: "alert"),
+            StoryLine(.doc, "脳が「吸え」と命じると、横隔膜に電気が流れます。その電気を、食道の電極で拾うんです。"),
+            StoryLine(.doc, "1999 年、シンダービーたちが、この電気で呼吸器を動かす方法を発表しました。NAVA です。"),
+            StoryLine(.me, "機械のほうが、子どもに合わせるんですね。"),
+            StoryLine(.doc, "そうです。息のリズムは、もともとこの子が持っています。", mood: "happy")
+        ]),
+        StoryScene(id: "ch13-close", kind: "close", chapter: "ch13",
+                   title: "第13章　幕　胸の上の息",
+                   card: nil,
+                   bg: "nicu", time: "day", end: nil, lines: [
+            StoryLine(.scene, "4 週目の終わり。つむぎちゃんは鼻のマスクで NAVA を続け、あおい君は細いカニュラで眠っている。"),
+            StoryLine(.fam, "先生、つむぎが吸いたいときに、機械が待っていてくれるんですね。", name: "つむぎちゃんのお母さん"),
+            StoryLine(.fam, "「息をしてる証拠」って言われてから、毎日、揺れを数えていました。", name: "つむぎちゃんのお母さん", when: "tsumugiMom:0"),
+            StoryLine(.fam, "あの日初めて触れた足、今日はちょっと蹴り返してきました。", name: "つむぎちゃんのお母さん", when: "tsumugiMom:1"),
+            StoryLine(.doc, "吸いたいときに、吸いたいだけ。呼吸器は、そのお手伝いです。", mood: "happy"),
+            StoryLine(.scene, "隣の保育器の前では、あおい君のお父さんが、胸にあおい君を抱いている。"),
+            StoryLine(.fam, "{名前}先生が「手を当ててみましょう」と言ってくれた日から、毎日来ています。", name: "あおい君のお父さん", when: "aoiDad:0"),
+            StoryLine(.fam, "大きくなってから、と思っていたけど…抱っこって、こんなに温かいんですね。", name: "あおい君のお父さん", when: "aoiDad:1"),
+            StoryLine(.nurse, "カンガルーケアです。鼻のカニュラにしてから、抱っこがずっと楽になりました。"),
+            StoryLine(.puku, "あおい君、お父さんの胸の上で、自分の息してる！", mood: "excited"),
+            StoryLine(.doc, "{名前}先生。揺らす換気も、合わせる換気も、初日の換気とつながっていましたね。", mood: "happy"),
+            StoryLine(.me, "量、圧、酸素、回数。機械が変わっても、見るものは同じでした。"),
+            StoryLine(.doc, "明日は、ローテの最終日です。")
+        ]),
         StoryScene(id: "epilogue", kind: "epilogue", chapter: nil,
                    title: "エピローグ　ローテーション最終日",
                    card: StoryCard(kicker: "エピローグ", title: "ローテーション最終日", sub: "夕方　PICU"),
-                   bg: "dawn", time: "day", end: StoryEnd(label: "症例で練習する", action: "cases", say: "おつかれさまでした。6 人の子どもたちを、今度はひとりで受け持ってみましょう。"), lines: [
+                   bg: "dawn", time: "day", end: StoryEnd(label: "症例で練習する", action: "cases", say: "おつかれさまでした。7 人の子どもたちを、今度はひとりで受け持ってみましょう。"), lines: [
             StoryLine(.scene, "4 週間のローテーション、最終日。夕方の PICU で、また新しい入院の電話が鳴っている。"),
             StoryLine(.scene, "ベッドの顔ぶれは入れ替わった。ミオちゃんは一般病棟へ移り、そうた君はとうに家へ帰った。"),
             StoryLine(.scene, "あかりちゃんはリハビリで車いすに乗れるようになり、レン君は吸入を続けると約束して退院した。"),
-            StoryLine(.scene, "NICU のあおい君は 1,400 g を超えた。退院したハルト君からは、手紙が届いている。"),
+            StoryLine(.scene, "NICU のあおい君は 1,400 g を超え、つむぎちゃんは鼻のマスクで自分のリズムの息をしている。"),
+            StoryLine(.scene, "退院したハルト君からは、手紙が届いている。"),
             StoryLine(.scene, "封筒には、大きな字で「{名前}せんせいへ」。"),
             StoryLine(.pt, "「ぼくがねてるとき、ずっとそばにいてくれて、ありがとう。またサッカーできたよ。」", name: "ハルト君（手紙）", caseID: "postop"),
             StoryLine(.doc, "{名前}先生。初日に、子どもの呼吸器は触ったことがないと言っていましたね。"),
@@ -386,7 +445,7 @@ extension StoryLibrary {
             StoryLine(.doc, "忘れませんよ。呼吸器の前に立つたびに、「なんで？」と聞く声がするはずです。", mood: "happy"),
             StoryLine(.puku, "…ねえ、{名前}先生のポケット、ちょっとあったかそう。", mood: "happy"),
             StoryLine(.doc, "ふふ。そうかもしれませんね。", mood: "happy"),
-            StoryLine(.doc, "最後に、ひとりで受け持ってみてください。症例は 6 人。わたしは、呼ばれたら行きます。")
+            StoryLine(.doc, "最後に、ひとりで受け持ってみてください。症例は 7 人。わたしは、呼ばれたら行きます。")
         ])
     ]
 
@@ -525,6 +584,20 @@ extension StoryLibrary {
                   title: "鉄の肺",
                   text: "1928 年、ボストンのドリンカーとショウは、首から下を密閉した箱に入れ、箱の中の圧を下げて胸を広げる「鉄の肺」を実用化した。ポリオで呼吸の筋肉がまひした多くの子どもが、その中で回復を待った。",
                   source: "Drinker P, Shaw LA. J Clin Invest 1929;7:229–247"),
+        StoryNote(id: "lore-hfo",
+                  kind: .lore,
+                  scene: "ch12-open",
+                  hint: "4 週目の NICU",
+                  title: "揺れも息になる",
+                  text: "1972 年、ルンケンハイマーらは、息をしていない犬の気管に速い圧の振動を加えるだけで、CO₂ が出ていくことを報告した。一回の量が死腔より小さくてもガスは運ばれる。高頻度振動換気（HFO）の出発点の 1 つ。",
+                  source: "Lunkenheimer PP, et al. Br J Anaesth 1972;44:627"),
+        StoryNote(id: "lore-nava",
+                  kind: .lore,
+                  scene: "ch13-open",
+                  hint: "つむぎちゃんの 5 日目",
+                  title: "横隔膜の電気",
+                  text: "1999 年、シンダービーらは、食道に入れた電極で横隔膜の電気活動（Edi）を拾い、その強さに比例して呼吸器が圧を足す方法（NAVA）を Nature Medicine に発表した。機械が、子どもの呼吸中枢に合わせて動く。",
+                  source: "Sinderby C, et al. Nat Med 1999;5:1433–1436"),
         StoryNote(id: "lore-hikitoru",
                   kind: .lore,
                   scene: "epilogue",
@@ -608,6 +681,20 @@ extension StoryLibrary {
                   hint: "あかりちゃんの 4 週目",
                   title: "休ませながら鍛える",
                   before: "一度だめだった SBT は、失敗だと思っていた。",
-                  now: "弱った呼吸の筋肉を休ませながら鍛え、2 回目の SBT から抜管へつなげられる。")
+                  now: "弱った呼吸の筋肉を休ませながら鍛え、2 回目の SBT から抜管へつなげられる。"),
+        StoryNote(id: "growth-ch12",
+                  kind: .growth,
+                  scene: "ch12-close",
+                  hint: "つむぎちゃんの 3 日目",
+                  title: "揺らして開く",
+                  before: "呼吸器は、一回ずつ空気を押し込むものだと思っていた。",
+                  now: "HFO で MAP から肺を開き、振幅と周波数で CO₂ を合わせ、良くなったら MAP を下げられる。"),
+        StoryNote(id: "growth-ch13",
+                  kind: .growth,
+                  scene: "ch13-close",
+                  hint: "4 週目の終わり",
+                  title: "子どものリズムに合わせる",
+                  before: "呼吸のリズムは、機械が決めるものだと思っていた。",
+                  now: "Edi を読んで NAVA レベルを合わせ、抜管して NIV-NAVA、HFNC へつなげられる。")
     ]
 }

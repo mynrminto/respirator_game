@@ -51,8 +51,8 @@ struct LessonCoachView: View {
                 MascotView(mood: mood == .sad ? .sad : .happy, breathing: false)
             }
         case .patient:
-            FaceArt(AppAssets.patientNames(caseID: controller.scenario.id, tone: patientTone),
-                    focus: CharacterArt.patientFocus(controller.scenario.id),
+            FaceArt(AppAssets.patientNames(caseID: controller.scenario.artID, tone: patientTone),
+                    focus: CharacterArt.patientFocus(controller.scenario.artID),
                     zoom: CharacterArt.patientZoom) {
                 PatientView(tone: patientTone)
             }
@@ -566,7 +566,7 @@ struct LessonCourseView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("PICU と NICU の 6 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。"
+                    Text("PICU と NICU の 7 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。"
                          + "いぶき先生とぷくぷくの会話を追っていくと、そのつど実機を触ることになります。"
                          + "上から順に進めるのが基本です。")
                         .font(.footnote).foregroundStyle(.secondary)

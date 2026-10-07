@@ -158,8 +158,18 @@
     { id: 'PC-AC', label: 'PC-AC' },
     { id: 'SIMV-VC', label: 'SIMV' },
     { id: 'PSV', label: 'PSV' },
-    { id: 'CPAP', label: 'CPAP' }
+    { id: 'CPAP', label: 'CPAP' },
+    { id: 'HFO', label: 'HFO' },
+    { id: 'NAVA', label: 'NAVA' },
+    { id: 'NIV-NAVA', label: 'NIV-NAVA' },
+    { id: 'HFNC', label: 'HFNC' }
   ];
+  /* NICU の呼吸器（症例の modes が 'nicu'）だけが、HFO・NAVA・NIV-NAVA・HFNC を持つ。
+   * ほかの症例の呼吸器には、ふだんの 5 つのモードだけを並べる。 */
+  var NICU_ONLY = { 'HFO': 1, 'NAVA': 1, 'NIV-NAVA': 1, 'HFNC': 1 };
+  function modeOffered(id) {
+    return !NICU_ONLY[id] || !!(S.scen && S.scen.modes === 'nicu') || (S.eng && S.eng.s.mode === id);
+  }
 
   var P = {
     vt:    { k: 'Vt',     u: 'mL',    min: 200, max: 800, step: 10,   get: function (s) { return s.vt; },   set: function (s, v) { s.vt = v; } },
@@ -174,6 +184,11 @@
     trig:  { k: 'トリガ',  u: 'L/min', min: 0.5, max: 8,  step: 0.5, dec: 1, get: function (s) { return s.trigFlow; }, set: function (s, v) { s.trigFlow = v; } },
     esens: { k: '呼気感度', u: '%',    min: 10,  max: 60,  step: 5,   get: function (s) { return Math.round(s.eSens * 100); }, set: function (s, v) { s.eSens = v / 100; } },
     rise:  { k: '立上り',  u: 's',     min: 0.05, max: 0.4, step: 0.05, dec: 2, get: function (s) { return s.rise; }, set: function (s, v) { s.rise = v; } },
+    map:   { k: 'MAP',    u: 'cmH₂O', min: 5,   max: 25,  step: 1,    get: function (s) { return s.hfoMap; }, set: function (s, v) { s.hfoMap = v; } },
+    amp:   { k: 'Amp',    u: 'cmH₂O', min: 5,   max: 60,  step: 1,    get: function (s) { return s.hfoAmp; }, set: function (s, v) { s.hfoAmp = v; } },
+    freq:  { k: 'Freq',   u: 'Hz',    min: 5,   max: 15,  step: 1,    get: function (s) { return s.hfoFreq; }, set: function (s, v) { s.hfoFreq = v; } },
+    nava:  { k: 'NAVA',   u: 'cmH₂O/µV', min: 0, max: 4,  step: 0.1, dec: 1, get: function (s) { return s.navaLevel; }, set: function (s, v) { s.navaLevel = v; } },
+    hflow: { k: 'Flow',   u: 'L/min', min: 1,   max: 8,   step: 0.5, dec: 1, get: function (s) { return s.hfncFlow; }, set: function (s, v) { s.hfncFlow = v; } },
     sed:   { k: '鎮静',    u: '%',     min: 0,   max: 100, step: 5, sim: true,
              get: function () { return Math.round(S.eng.sedation * 100); },
              set: function (s, v) { S.eng.sedation = v / 100; } }
@@ -190,6 +205,9 @@
     }
     put('vt', L.vt); put('rr', L.rr); put('ti', L.ti); put('flow', L.flow);
     put('pause', L.pause); put('trig', L.trig); put('pinsp', L.pinsp); put('ps', L.ps);
+    put('map', L.hfoMap); put('amp', L.hfoAmp); put('freq', L.hfoFreq); put('nava', L.navaLevel);
+    put('hflow', L.hfncFlow);
+    if (L.hfncFlow && L.hfncFlow.dec == null) P.hflow.dec = 0;
   }
 
   var KEYS_BY_MODE = {
@@ -197,7 +215,13 @@
     'PC-AC':   ['pinsp', 'rr', 'peep', 'fio2', 'ti', 'rise', 'trig', 'sed'],
     'SIMV-VC': ['vt', 'rr', 'peep', 'fio2', 'flow', 'ps', 'trig', 'sed'],
     'PSV':     ['ps', 'peep', 'fio2', 'trig', 'esens', 'rise', 'sed'],
-    'CPAP':    ['peep', 'fio2', 'trig', 'sed']
+    'CPAP':    ['peep', 'fio2', 'trig', 'sed'],
+    /* HFO：酸素化は MAP、CO₂ は振幅と周波数。PEEP も回数も持たない。 */
+    'HFO':     ['map', 'amp', 'freq', 'fio2', 'sed'],
+    /* NAVA：P insp・RR・Ti は、Edi が止まったときのバックアップ換気の設定。 */
+    'NAVA':     ['nava', 'peep', 'fio2', 'pinsp', 'rr', 'ti', 'sed'],
+    'NIV-NAVA': ['nava', 'peep', 'fio2', 'pinsp', 'rr', 'ti', 'sed'],
+    'HFNC':    ['hflow', 'fio2', 'sed']
   };
 
   function esc(t) {
@@ -213,7 +237,7 @@
     { k: 'Pplat', u: 'cmH₂O', get: function (e) { return e.m.pplat == null ? '––' : r0(e.m.pplat); }, lim: function (e) { return '≤' + e.nm.platMax; }, tone: function (e) { return e.m.pplat > e.nm.platMax ? 'hi' : ''; } },
     { k: 'PEEP tot', u: 'cmH₂O', get: function (e) { return r1(e.m.peepTot); } },
     { k: 'ΔP', u: 'cmH₂O', get: function (e) { return e.m.dp == null ? '––' : r0(e.m.dp); }, lim: function (e) { return '≤' + e.nm.dpMax; }, tone: function (e) { return e.m.dp > e.nm.dpMax ? 'hi' : ''; } },
-    { k: 'Vte', u: 'mL', get: function (e) { return e.p.pbw < 6 ? r1(e.m.vte) : r0(e.m.vte); }, lim: function (e) { return r1(e.m.vte / e.p.pbw) + ' mL/kg'; }, tone: function (e) { return e.m.vte / e.p.pbw > e.nm.vtPerKg[1] + 1.5 ? 'hi' : ''; } },
+    { k: 'Vte', u: 'mL', get: function (e) { var v = vteShown(e); return e.p.pbw < 6 ? r1(v) : r0(v); }, lim: function (e) { return r1(e.m.vte / e.p.pbw) + ' mL/kg'; }, tone: function (e) { return e.m.vte / e.p.pbw > e.nm.vtPerKg[1] + 1.5 ? 'hi' : ''; } },
     { k: 'MV', u: 'L/min', get: function (e) { return e.p.pbw < 10 ? e.m.mv.toFixed(2) : r1(e.m.mv); }, lim: function (e) { return r0(e.m.mv * 1000 / e.p.pbw) + ' mL/kg/分'; } },
     { k: 'RR tot', u: '/min', get: function (e) { return r0(e.m.rrTotal); }, lim: function (e) {
         /* A/C では患者が吸った呼吸も強制換気として送られるので、「自発」ではなく「トリガ」で数える。 */
@@ -229,8 +253,38 @@
     { k: 'SpO₂', u: '%', get: function (e) { return r0(e.spo2); }, lim: function (e) { return e.nm.spo2[0] + '–' + e.nm.spo2[1] + '%'; }, tone: function (e) { return e.spo2 < e.nm.spo2[0] ? 'hi' : (e.spo2 > e.nm.spo2[1] + 2 ? 'mid' : 'ok'); } },
     { k: 'etCO₂', u: 'mmHg', get: function (e) { return r0(e.etco2); } },
     { k: 'HR', u: '/min', get: function (e) { return r0(e.hr); }, lim: function (e) { return e.nm.hr[0] + '–' + e.nm.hr[1]; }, tone: function (e) { return e.hr < e.nm.hr[0] * 0.8 ? 'hi' : (e.hr > e.nm.hr[1] * 1.15 || e.hr < e.nm.hr[0] ? 'mid' : ''); } },
-    { k: 'ABP mean', u: 'mmHg', get: function (e) { return r0(e.map); }, lim: function (e) { return '≥' + e.nm.mapMin; }, tone: function (e) { return e.map < e.nm.mapMin ? 'hi' : (e.map < e.nm.mapMin + 5 ? 'mid' : ''); } }
+    { k: 'ABP mean', u: 'mmHg', get: function (e) { return r0(e.map); }, lim: function (e) { return '≥' + e.nm.mapMin; }, tone: function (e) { return e.map < e.nm.mapMin ? 'hi' : (e.map < e.nm.mapMin + 5 ? 'mid' : ''); } },
+    /* ---- NICU のモードで出すもの ---- */
+    { k: 'Pmean', u: 'cmH₂O', get: function (e) { return r1(e.m.pmean); } },
+    /* HFO の一回換気量。死腔（約 2 mL/kg）より小さいのがふつう。 */
+    { k: 'VThf', u: 'mL', get: function (e) { return r1(e.m.vtHf); }, lim: function (e) { return r1(e.m.vtHf / e.p.pbw) + ' mL/kg'; } },
+    /* CO₂ を出す力（f × VThf²）。 */
+    { k: 'DCO₂', u: 'mL²/s', get: function (e) { return r0(e.m.dco2); } },
+    /* 経皮 CO₂。HFO と鼻から支えるときは etCO₂ が測れないので、こちらで CO₂ を追う。 */
+    { k: 'tcPCO₂', u: 'mmHg', get: function (e) { return r0(e.tcpco2); } },
+    { k: 'Edi peak', u: 'µV', get: function (e) { return e.m.ediPeak == null ? '––' : r1(e.m.ediPeak); }, lim: function () { return '5–15'; },
+      tone: function (e) { return e.m.ediPeak > 15 ? 'mid' : (e.m.ediPeak != null && e.m.ediPeak < 4 ? 'mid' : ''); } },
+    { k: 'Edi min', u: 'µV', get: function (e) { return e.m.ediMin == null ? '––' : r1(e.m.ediMin); }, lim: function () { return '<4'; },
+      tone: function (e) { return e.m.ediMin >= 4 ? 'mid' : ''; } },
+    { k: 'Leak', u: '%', get: function (e) { return r0((e.m.leak || 0) * 100); } }
   ];
+
+  /* NIV-NAVA は鼻から漏れるので、戻ってくる量（Vte）は肺に入った量より少なく出る。 */
+  function vteShown(e) { return E.isNoninvasive(e.s.mode) ? e.m.vte * (1 - (e.m.leak || 0)) : e.m.vte; }
+
+  /* モードごとに出す計測値。書いていないモードは、ふつうの 16 枚。 */
+  var VALS_BY_MODE = {
+    'HFO':      ['Pmean', 'VThf', 'DCO₂', 'tcPCO₂', 'SpO₂', 'HR', 'ABP mean'],
+    'NAVA':     ['Edi peak', 'Edi min', 'PIP', 'PEEP tot', 'Vte', 'MV', 'RR tot', 'f/VT', 'SpO₂', 'etCO₂', 'HR', 'ABP mean'],
+    'NIV-NAVA': ['Edi peak', 'Edi min', 'PIP', 'Pmean', 'Vte', 'Leak', 'RR tot', 'SpO₂', 'tcPCO₂', 'HR', 'ABP mean'],
+    'HFNC':     ['RR tot', 'SpO₂', 'tcPCO₂', 'HR', 'ABP mean']
+  };
+  var DEFAULT_VALS = ['PIP', 'Pplat', 'PEEP tot', 'ΔP', 'Vte', 'MV', 'RR tot', 'I:E', 'Cstat', 'Raw',
+    'auto-PEEP', 'f/VT', 'SpO₂', 'etCO₂', 'HR', 'ABP mean'];
+  function valsFor(mode) {
+    var names = VALS_BY_MODE[mode] || DEFAULT_VALS;
+    return names.map(function (k) { return VALS.filter(function (d) { return d.k === k; })[0]; });
+  }
 
   /* ===================== 舞台（機器のまわり） =====================
    * 横に広い画面では、機器の左に患者、右にいぶき先生を立たせる。
@@ -294,7 +348,7 @@
    *   patient_<症例ID>[_mid|_bad] → patient_<年齢層>[...] → patient_bed[...] → コード描画 */
   function patientArtName(sc, tone) {
     var kind = patientKind(sc), suf = tone === 'ok' ? '' : '_' + tone;
-    var names = ['patient_' + sc.id + suf, 'patient_' + kind + suf, 'patient_bed' + suf];
+    var names = ['patient_' + sc.id + suf, 'patient_' + (sc.artAs || sc.id) + suf, 'patient_' + kind + suf, 'patient_bed' + suf];
     for (var i = 0; i < names.length; i++) if (AS.has(names[i])) return names[i];
     return null;
   }
@@ -617,13 +671,20 @@
   function syncTabs() {
     var t = $('tabs');
     Array.prototype.forEach.call(t.children, function (b) {
-      if (b.dataset.mode) b.setAttribute('aria-pressed', b.dataset.mode === S.eng.s.mode ? 'true' : 'false');
+      if (b.dataset.mode) {
+        b.setAttribute('aria-pressed', b.dataset.mode === S.eng.s.mode ? 'true' : 'false');
+        b.hidden = !modeOffered(b.dataset.mode);
+      }
       if (b.dataset.scr) b.setAttribute('aria-pressed', b.dataset.scr === S.screen ? 'true' : 'false');
     });
   }
   function setMode(id) {
     if (S.eng.s.mode === id) return;
+    var was = S.eng.s.mode;
     S.eng.s.mode = id;
+    /* 鼻から支えるモードとチューブのモードを行き来するのは、抜管・再挿管にあたる。 */
+    if (E.isNoninvasive(id) && !E.isNoninvasive(was)) S.banner = { t: S.eng.clock, msg: '抜管して、鼻のインターフェースにつなぎました' };
+    else if (!E.isNoninvasive(id) && E.isNoninvasive(was)) S.banner = { t: S.eng.clock, msg: '再挿管して、呼吸器につなぎ直しました' };
     if (S.eng._note) S.eng._note('モード変更: ' + id);
     S.sel = null; S.pend = null;
     buildKeys(); syncTabs(); paintDial();
@@ -631,10 +692,11 @@
   }
 
   /* ===================== 計測値タイル ===================== */
-  var valNodes = [];
+  var valNodes = [], valsMode = null;
   function buildVals() {
     var box = $('vals'); box.innerHTML = ''; valNodes = [];
-    VALS.forEach(function (d) {
+    valsMode = S.eng ? S.eng.s.mode : null;
+    valsFor(valsMode).forEach(function (d) {
       var n = el('div', 'val');
       var v = el('div', 'v'), vs = el('span', '', '––'), u = el('span', 'u', d.u);
       v.appendChild(vs); v.appendChild(u);
@@ -648,6 +710,7 @@
   }
   function paintVals() {
     var e = S.eng;
+    if (valsMode !== e.s.mode) { buildVals(); if (S.lesson) applySpot(S.lesson.spot); }
     for (var i = 0; i < valNodes.length; i++) {
       var o = valNodes[i], txt = o.d.get(e);
       if (o.v.textContent !== txt) o.v.textContent = txt;
@@ -983,10 +1046,10 @@
             sampAcc -= SAMPLE_DT;
             W.paw.push(e.paw);
             W.flow.push(e.flow * 60);
-            W.vol.push((e.V - e.C * e.s.peep) * 1000);
+            W.vol.push(e.volWave());
           }
           if (S.loopCur) {
-            S.loopCur.push([(e.V - e.C * e.s.peep) * 1000, e.paw, e.flow * 60]);
+            S.loopCur.push([e.volWave(), e.paw, e.flow * 60]);
             if (S.loopCur.length > 1600) S.loopCur.shift();
           }
         }
@@ -1044,7 +1107,8 @@
     } else if (S.banner && (S.banner.keep || e.clock - S.banner.t < 25)) {
       msg = S.banner.msg;
     } else {
-      msg = e.extubated ? '抜管済み' : '換気中  ' + e.s.mode;
+      msg = e.extubated ? '抜管済み' : (e.s.mode === 'HFNC' ? '高流量鼻カニュラ  ' + fmtP(P.hflow, e.s.hfncFlow) + ' L/min'
+        : (E.isNava(e.s.mode) && e.navaBackup ? 'バックアップ換気中  ' + e.s.mode : '換気中  ' + e.s.mode));
     }
     if (txt.textContent !== msg) txt.textContent = msg;
     var more = a.length > 1 ? '+' + (a.length - 1) : '';
@@ -1079,6 +1143,13 @@
     var vHi = Math.max(vStep * 2, Math.ceil(vRef / vStep) * vStep);
     /* 流量の目盛りも体重で変える。±80 L/分 固定だと、乳児の流量（数 L/分）は平らな線にしか見えない。 */
     var fRef = Math.max(e.s.flow || 0, Math.abs(e.m.peakInsp || 0), Math.abs(e.m.peakExp || 0), e.p.pbw * 0.6) * 1.25;
+    if (e.s.mode === 'HFO') {
+      /* HFO は振動の流量と VThf で目盛りを決める（ふだんの呼吸の値は残っていても使わない）。 */
+      vRef = Math.max(e.m.vtHf * 2, e.p.pbw * 2);
+      vHi = Math.max(vStep, Math.ceil(vRef / (vStep / 2)) * (vStep / 2));
+      fRef = Math.max(1, e._vAmp * 2 * Math.PI * e.s.hfoFreq * 60 * 1.3);
+      pHi = Math.max(30, Math.ceil((e.s.hfoMap + e.s.hfoAmp / 2 + 4) / 10) * 10);
+    }
     var fStep = fRef <= 12 ? 2 : (fRef <= 40 ? 10 : 20);
     var fHi = Math.max(fStep * 2, Math.ceil(fRef / fStep) * fStep);
     return [{ lo: -5, hi: pHi }, { lo: -fHi, hi: fHi }, { lo: 0, hi: vHi }];
@@ -1088,6 +1159,16 @@
     if (!ctx) return;
     var w = cvW, h = cvH, x = ctx;
     x.fillStyle = PAL.bg; x.fillRect(0, 0, w, h);
+    if (S.eng.s.mode === 'HFNC') {
+      /* HFNC は流すだけの機械なので、気道内圧も流量も換気量も測れない。 */
+      x.fillStyle = PAL.axis; x.textAlign = 'center';
+      x.font = '600 14px "Barlow Semi Condensed", sans-serif';
+      x.fillText('HFNC  ' + fmtP(P.hflow, S.eng.s.hfncFlow) + ' L/min　FiO₂ ' + Math.round(S.eng.s.fio2 * 100) + '%', w / 2, h / 2 - 10);
+      x.font = '12px "Barlow Semi Condensed", sans-serif'; x.fillStyle = PAL.faint;
+      x.fillText('気道内圧・流量・換気量は測れません。呼吸数と SpO₂ を見ます', w / 2, h / 2 + 12);
+      x.textAlign = 'left';
+      return;
+    }
     var padL = 36, padR = 6, padT = 2, padB = 2;
     var lh = (h - padT - padB) / 3;
     var rg = laneRanges();
@@ -1115,7 +1196,7 @@
       x.beginPath(); x.moveTo(padL, zy); x.lineTo(w - padR, zy); x.stroke();
       x.setLineDash([]);
       if (li === 0) {
-        var py = toY(S.eng.s.peep);
+        var py = toY(S.eng.s.mode === 'HFO' ? S.eng.s.hfoMap : S.eng.s.peep);
         x.strokeStyle = PAL.peep; x.setLineDash([2, 5]);
         x.beginPath(); x.moveTo(padL, py); x.lineTo(w - padR, py); x.stroke();
         x.setLineDash([]);
@@ -1528,7 +1609,7 @@
       var face = el('div', 'ptface');
       var art = patientArtName(sc, patientTone(e));
       if (art) {
-        var f = PT_FOCUS[sc.id] || [0.5, 0.28], sz = AS.size(art) || { w: 1, h: 1 };
+        var f = PT_FOCUS[sc.artAs || sc.id] || [0.5, 0.28], sz = AS.size(art) || { w: 1, h: 1 };
         var zx = PT_ZOOM * 0.8, zy = zx * sz.h / sz.w;
         face.style.backgroundImage = 'url("' + AS.url(art) + '")';
         face.style.backgroundSize = (zx * 100).toFixed(0) + '% auto';
@@ -2034,6 +2115,7 @@
     var lesson = LS.lessonById(id);
     if (!lesson) return;
     var sc = SC.SCENARIOS.filter(function (x) { return x.id === lesson.scenario; })[0] || SC.SCENARIOS[0];
+    sc = SC.forLesson(sc, lesson);           // 物語の日にちで体重や肺が変わっている子は、その日の姿で
     loadScenario(sc, false, true);
     var st = lesson.settings || {};
     for (var k in st) if (Object.prototype.hasOwnProperty.call(st, k)) S.eng.s[k] = st[k];
@@ -2131,7 +2213,7 @@
     /* 患者だけは顔の位置を指して拡大するので、img ではなく背景で置く。 */
     var name = who === 'pt' && patientArtName(S.scen, patientTone(S.eng));
     if (name) {
-      var f = PT_FOCUS[S.scen.id] || [0.5, 0.28];
+      var f = PT_FOCUS[S.scen.artAs || S.scen.id] || [0.5, 0.28];
       var sz = AS.size(name) || { w: 1, h: 1 };
       // 幅を基準に拡大するので、縦の倍率は絵の縦横比のぶんだけ変わる。
       var zx = PT_ZOOM, zy = PT_ZOOM * sz.h / sz.w;
@@ -2479,7 +2561,7 @@
     }
     if (line.who === 'pt' && line.case) {
       var sc = SC.SCENARIOS.filter(function (x) { return x.id === line.case; })[0];
-      if (sc) return { key: 'pt:' + sc.id, src: patientArt(sc, 'ok', dark), cls: 'patient', focus: PT_FOCUS[sc.id] };
+      if (sc) return { key: 'pt:' + sc.id, src: patientArt(sc, 'ok', dark), cls: 'patient', focus: PT_FOCUS[sc.artAs || sc.id] };
     }
     return null;
   }
@@ -2798,7 +2880,7 @@
   function openCourse() {
     var done = doneSet();
     modal('学習コース', function (b, close) {
-      b.appendChild(el('p', '', 'PICU と NICU の 6 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。'
+      b.appendChild(el('p', '', 'PICU と NICU の 7 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。'
         + 'いぶき先生とぷくぷくの会話を追っていくと、そのつど実機を触ることになります。上から順に進めるのが基本です。'));
       var n = LS.allLessons().length;
       var nDone = done.filter(function (id) { return LS.lessonById(id); }).length;

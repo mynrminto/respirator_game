@@ -300,7 +300,12 @@ struct VentilatorScreen: View {
             let left = max(0, 1800 - elapsed)
             return String(format: "SBT 実施中  残り %d:%02d", Int(left / 60), Int(left.truncatingRemainder(dividingBy: 60)))
         }
-        return "換気中  \(controller.settings.mode.uiLabel)"
+        let mode = controller.settings.mode
+        if mode == .hfnc {
+            return "高流量鼻カニュラ  " + controller.settings.hfncFlow.formatted(.number.precision(.fractionLength(1))) + " L/min"
+        }
+        if mode.isNava, engine.navaBackup { return "バックアップ換気中  \(mode.uiLabel)" }
+        return "換気中  \(mode.uiLabel)"
     }
 
     // MARK: - 画面
@@ -309,7 +314,8 @@ struct VentilatorScreen: View {
     private func wavePanel(height: CGFloat) -> some View {
         ZStack(alignment: .bottomLeading) {
             switch controller.screen {
-            case .waveforms: scope
+            case .waveforms:
+                if controller.settings.mode == .hfnc { hfncNotice } else { scope }
             case .loops: LoopView(current: controller.currentLoop,
                                   previous: controller.previousLoop,
                                   volumeFloor: volumeCeiling,
@@ -416,6 +422,24 @@ struct VentilatorScreen: View {
         return max(base, needed)
     }
 
+    /// HFNC は流すだけの機械なので、気道内圧も流量も換気量も測れない（Web 版 drawScope と同じ）。
+    private var hfncNotice: some View {
+        let s = controller.settings
+        return VStack(spacing: 6) {
+            Text("HFNC  " + s.hfncFlow.formatted(.number.precision(.fractionLength(1)))
+                 + " L/min　FiO₂ \(Int((s.fio2 * 100).rounded()))%")
+                .font(Chrome.label(14, weight: .semibold))
+                .foregroundStyle(Chrome.screenInk)
+            Text("気道内圧・流量・換気量は測れません。呼吸数と SpO₂ を見ます")
+                .font(Chrome.label(12))
+                .foregroundStyle(Chrome.dim)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(8)
+        .spotlight(controller.isSpotted("wave"), corner: Chrome.corner)
+    }
+
     private var scope: some View {
         let engine = controller.engine
         let trace = controller.trace
@@ -425,7 +449,8 @@ struct VentilatorScreen: View {
             lanes: [
                 .init(label: "Paw", unit: "cmH₂O", color: Chrome.pressure,
                       samples: trace.pressure, range: -5...peakCeiling,
-                      reference: controller.settings.peep),
+                      reference: controller.settings.mode == .hfo
+                        ? controller.settings.hfoMeanPressure : controller.settings.peep),
                 .init(label: "Flow", unit: "L/min", color: Chrome.flow,
                       samples: trace.flow, range: -flow...flow),
                 .init(label: "Volume", unit: "mL", color: Chrome.volume,
@@ -456,7 +481,7 @@ struct VentilatorScreen: View {
     private var valueGrid: some View {
         let engine = controller.engine
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 1)], spacing: 1) {
-            ForEach(Readout.all) { r in
+            ForEach(Readout.shown(for: controller.settings.mode)) { r in
                 ValueTile(caption: r.caption, value: r.value(engine), unit: r.unit,
                           limit: r.limit?(engine), tone: r.tone?(engine),
                           beat: r.caption == "SpO₂" ? controller.pulseBeat : nil)
@@ -473,7 +498,9 @@ struct VentilatorScreen: View {
     private var modeAndScreenTabs: some View {
         VStack(alignment: .leading, spacing: Chrome.isPop ? 3 : 1) {
             FlowLayout(spacing: Chrome.isPop ? 5 : 1, lineSpacing: Chrome.isPop ? 3 : 1) {
-                ForEach(VentilationMode.allCases, id: \.self) { mode in
+                ForEach(VentilationMode.allCases.filter {
+                    controller.scenario.offers($0, current: controller.settings.mode)
+                }, id: \.self) { mode in
                     tab(mode.uiLabel,
                         selected: controller.settings.mode == mode,
                         tint: Chrome.isPop ? Chrome.accent : Chrome.flow) { controller.change(mode: mode) }

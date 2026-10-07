@@ -65,6 +65,10 @@ public struct Patient: Codable, Equatable {
     /// 神経筋疾患の子は、軽い負荷でも数十分かけて少しずつ疲れていく（SBT の後半で崩れる）。
     public var fatigueLoad: Double? = nil
     public var fatigueTau: Double? = nil
+    /// 神経と筋の効率（cmH2O/µV）。Pmus をこれで割ると Edi になる。nil なら 0.5。
+    public var neuroMechanicalEfficiency: Double? = nil
+    /// 鼻から支えるときの漏れ（0〜1）。nil なら 0.3。
+    public var leak: Double? = nil
     public var goals: Goals
 
     /// 小児では身長からの予測体重ではなく実体重を使う。

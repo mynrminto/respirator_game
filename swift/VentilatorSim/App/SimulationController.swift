@@ -408,7 +408,7 @@ final class SimulationController {
         let sampling = (speed == .realtime) && !waveformsFrozen
         for _ in 0..<steps {
             engine.step(dt: dt)
-            let relativeVolume = (engine.volume - engine.patient.compliance * engine.settings.peep) * 1000
+            let relativeVolume = engine.waveVolume      // HFO は振動の谷から、HFNC は鼻の圧での容量から
             if sampling {
                 sampleAccumulator += dt
                 if sampleAccumulator >= trace.sampleInterval {
@@ -524,12 +524,20 @@ final class SimulationController {
 
     func change(mode: VentilationMode) {
         guard engine.settings.mode != mode else { return }
+        let from = engine.settings.mode
         var updated = engine.settings
         updated.mode = mode
         settings = updated
         selectedParameterID = nil
         pendingValue = nil
-        append("モードを \(mode.uiLabel) に変更")
+        // 鼻から支えるモードへ移るのは抜管、戻るのは再挿管（Web 版 setMode と同じ）
+        if mode.isNoninvasive && !from.isNoninvasive {
+            append("抜管し、\(mode.uiLabel) で鼻から支える")
+        } else if !mode.isNoninvasive && from.isNoninvasive {
+            append("再挿管し、\(mode.uiLabel) で換気")
+        } else {
+            append("モードを \(mode.uiLabel) に変更")
+        }
         send(.mode(mode))
     }
 

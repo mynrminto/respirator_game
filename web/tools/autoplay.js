@@ -71,11 +71,40 @@ const SOLVE = {
   ],
   '11-2': [
     ['設定と鎮静を', { set: { fio2: 0.3, peep: 5, sed: 0.2 } }]
+  ],
+  '12-1': [
+    ['MAP を 13', { set: { hfoMap: 14 } }],
+    ['Amp を上げて', { set: { hfoAmp: 28 } }],
+    ['SpO₂ 90〜95% のまま、FiO₂ を 40', { set: { fio2: 0.4 } }]
+  ],
+  '12-2': [
+    ['Amp を上げて', { set: { hfoAmp: 32 } }],
+    ['Freq を 10', { set: { hfoFreq: 10 } }],
+    ['tcPCO₂ が', { set: { hfoAmp: 23 } }]
+  ],
+  '12-3': [
+    ['MAP を 1〜2', { set: { hfoMap: 11 } }],
+    ['SpO₂ 90〜95% のまま、FiO₂ を 30', { set: { fio2: 0.23 } }]
+  ],
+  '13-1': [
+    ['NAVA を 1.5', { set: { navaLevel: 1.5 } }]
+  ],
+  '13-2': [
+    ['PEEP を上げて', { set: { peep: 7 } }],
+    ['NAVA を 1.0', { set: { navaLevel: 1.0 } }]
+  ],
+  '13-3': [
+    ['SpO₂ 90〜95% のまま、Edi', { set: { fio2: 0.25 } }]
+  ],
+  '13-4': [
+    ['Flow を 6', { set: { hfncFlow: 6 } }],
+    ['FiO₂ を下げて', { set: { fio2: 0.25 } }],
+    ['Flow を 4', { set: { hfncFlow: 4 } }]
   ]
 };
 
 function mkEngine(lesson) {
-  const sc = SC.SCENARIOS.find(x => x.id === lesson.scenario);
+  const sc = SC.forLesson(SC.SCENARIOS.find(x => x.id === lesson.scenario), lesson);
   const st = E.defaultSettings();
   Object.assign(st, sc.suggested);
   const nm0 = E.normsFor(sc.patient);
@@ -105,6 +134,7 @@ function play(id, opt) {
     lastAbg: S.abgs.length ? S.abgs[S.abgs.length - 1] : null, sbt: S.sbt, mem: null });
   const L = e.limits;
   const LIM = { vt: L.vt, rr: L.rr, ti: L.ti, flow: L.flow, pinsp: L.pinsp, ps: L.ps,
+    hfoMap: L.hfoMap, hfoAmp: L.hfoAmp, hfoFreq: L.hfoFreq, navaLevel: L.navaLevel, hfncFlow: L.hfncFlow,
     peep: { min: 0, max: 24 }, fio2: { min: 0.21, max: 1 } };
 
   function startSBT() {
@@ -173,7 +203,7 @@ function play(id, opt) {
       e.s[k] = v;
     }
   }
-  const state = () => `SpO2 ${e.spo2.toFixed(0)} MAP ${e.map.toFixed(0)}/${e.nm.mapMin} aP ${e.m.autoPeep.toFixed(1)} PIP ${e.m.pip.toFixed(0)} Pplat ${e.m.pplat == null ? '-' : e.m.pplat.toFixed(0)} Vte/kg ${(e.m.vte / e.p.pbw).toFixed(1)} pH ${e.ph.toFixed(2)} CO2 ${e.paco2.toFixed(0)} RR ${e.m.rrTotal.toFixed(0)}`;
+  const state = () => `VThf/kg ${(e.m.vtHf / e.p.pbw).toFixed(2)} tc ${e.tcpco2.toFixed(0)} Edi ${e.m.ediPeak == null ? '-' : e.m.ediPeak.toFixed(1)}/${e.m.ediMin == null ? '-' : e.m.ediMin.toFixed(1)} SpO2 ${e.spo2.toFixed(0)} MAP ${e.map.toFixed(0)}/${e.nm.mapMin} aP ${e.m.autoPeep.toFixed(1)} PIP ${e.m.pip.toFixed(0)} Pplat ${e.m.pplat == null ? '-' : e.m.pplat.toFixed(0)} Vte/kg ${(e.m.vte / e.p.pbw).toFixed(1)} pH ${e.ph.toFixed(2)} CO2 ${e.paco2.toFixed(0)} RR ${e.m.rrTotal.toFixed(0)}`;
   const steps = SOLVE[id] || [];
   let guard = 0;
   while (!rt.finished && guard++ < 400) {
@@ -217,7 +247,7 @@ function play(id, opt) {
         + ` [Vte ${m.vte.toFixed(1)} / ${(m.vte / e.p.pbw).toFixed(1)} mL/kg, PIP ${m.pip.toFixed(0)}, Pplat ${m.pplat == null ? '-' : m.pplat.toFixed(0)},`
         + ` ΔP ${m.dp == null ? '-' : m.dp.toFixed(0)}, autoPEEP ${m.autoPeep.toFixed(1)}, SpO2 ${e.spo2.toFixed(0)}, MAP ${e.map.toFixed(0)}/${e.nm.mapMin},`
         + ` pH ${e.ph.toFixed(2)}, PaCO2 ${e.paco2.toFixed(0)}, PaO2 ${e.pao2.toFixed(0)}, RR ${m.rrTotal.toFixed(0)}, f/VT ${m.rsbiKg == null ? '-' : m.rsbiKg.toFixed(1)},`
-        + ` sbt ${S.sbt ? S.sbt.done + ' ' + S.sbt.failMsg : '-'}]`);
+        + ` sbt ${S.sbt ? S.sbt.done + ' ' + S.sbt.failMsg : '-'}, Edi ${m.ediPeak == null ? '-' : m.ediPeak.toFixed(1)}]`);
     }
   }
   return { id, ok: rt.finished, log, ext: S.ext, final: { spo2: e.spo2, map: e.map, ph: e.ph, paco2: e.paco2 } };

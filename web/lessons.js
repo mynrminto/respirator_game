@@ -3790,7 +3790,653 @@
     ]
   };
 
-  var CHAPTERS = [CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, CH9, CH10, CH11];
+  /* ===================== 第12章 ふるえる息（HFO） ===================== */
+  /* 在胎 25 週・720 g のつむぎちゃん。従来の換気では CO₂ が下がらず、HFO に切り替える。
+   * HFO の 3 つのつまみ：酸素化は MAP、CO₂ は振幅（Amp）と周波数（Freq）。
+   * 周波数を下げると一回の揺れが大きくなり、かえって CO₂ が下がる（engine.js の _stepHFO）。 */
+  function vtHfKg(c) { return c.m.vtHf / c.pbw; }
+
+  var CH12 = {
+    id: 'ch12', title: '第12章　ふるえる息', tag: 'HFO',
+    sub: '在胎 25 週の肺を、高頻度振動換気（HFO）で開く。',
+    lessons: [
+
+      {
+        id: '12-1', title: '揺らして、ひらく', minutes: 9,
+        scenario: 'micro',
+        settings: { mode: 'PC-AC', pinsp: 20, peep: 6, rr: 55, fio2: 0.7, ti: 0.3,
+          hfoMap: 10, hfoAmp: 15, hfoFreq: 12 },
+        sedation: 0.85,
+        brief: [
+          'HFO（高頻度振動換気）は、平均気道内圧 MAP のまわりで、1 秒に 10〜15 回の小さな揺れを送る。',
+          '1 回の量（VThf）は死腔より小さい。肺を大きく膨らませたりしぼませたりしないので、傷めにくい。',
+          '始めは MAP を、従来の換気の平均気道内圧より 2〜3 cmH₂O 高く。酸素化は MAP で決まる。',
+          '振幅（Amp）は、胸の揺れがおへそのあたりまで見える大きさから。VThf は 1.5〜2.5 mL/kg が目安。'
+        ],
+        points: ['HFO は MAP のまわりの小さく速い揺れ', 'MAP は従来の換気の平均気道内圧 ＋2〜3 から',
+          'VThf 1.5〜2.5 mL/kg、胸がおへそまで揺れる振幅'],
+        tasks: [
+          {
+            talk: true, who: 'scene',
+            say: '4 週目の朝。NICU の奥の保育器に、在胎 25 週で生まれた女の子がいる。体重 720 g。つむぎちゃん。'
+          },
+          {
+            talk: true, who: 'scene',
+            say: 'サーファクタントは 2 回入った。それでも胸はほとんど上がらず、酸素は 70% のままだ。'
+          },
+          {
+            look: ['val:PIP', 'val:Vte'],
+            talk: true, who: 'doc',
+            say: 'P insp を上げても、思うほど量が入りません。肺が硬く、圧を上げるほど、肺の傷（空気の漏れ）が増えていきます。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'じゃあ、どうするの？ もっと押すの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '押すのをやめて、揺らします。高頻度振動換気、HFO。1 秒に 10〜15 回、小さな揺れを送り続ける呼吸器です。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '肺は、平均気道内圧（MAP）で膨らんだまま保たれます。いまの換気の平均は {Pmean} cmH₂O。HFO の MAP は、これより 2〜3 高く始めます。'
+          },
+          {
+            say: 'モードを HFO に切り替えてください。',
+            spot: 'mode:HFO',
+            event: 'mode:HFO',
+            why: '波形が細かく震えはじめました。圧の波形の真ん中の点線が MAP です。'
+          },
+          {
+            say: 'MAP を 13 cmH₂O 以上にして確定してください。',
+            hint: '従来の換気の平均気道内圧より 2〜3 高く。MAP のキーで回します。',
+            spot: 'key:map', watch: ['Pmean', 'SpO₂'],
+            check: function (c) { return c.s.hfoMap >= 13; },
+            hold: 10,
+            why: '肺胞を開いたまま保つ圧を、少し高く据えました。酸素化はここから上がってきます。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'Amp と Freq は？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'Amp は振幅、揺れの大きさ（cmH₂O）。Freq は周波数、1 秒に何回揺らすか（Hz）です。1 回の揺れで動く量が VThf。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '口から肺胞までの、ガス交換をしない通り道を死腔と言います。新生児でおよそ 2 mL/kg。VThf は、それより小さいのがふつうです。'
+          },
+          {
+            say: 'Amp を上げて、VThf を 1.5〜2.5 mL/kg に入れてください。',
+            hint: function (c) { return '体重 ' + c.pbw + ' kg なので ' + mlkg(c, 1.5) + '〜' + mlkg(c, 2.5) + ' mL。VThf のタイルの右上が mL/kg です。'; },
+            spot: 'key:amp', watch: ['VThf', 'DCO₂'],
+            check: function (c) { var x = vtHfKg(c); return x >= 1.5 && x <= 2.5; },
+            hold: 10,
+            why: 'つむぎちゃんの胸が、おへそのあたりまで細かく揺れています。ベッドサイドでは、この揺れを見て振幅を合わせます。'
+          },
+          {
+            quiz: {
+              q: 'VThf は死腔より小さいのに、CO₂ が出ていくのはなぜですか。',
+              choices: ['速い揺れで気道のガスがかき混ぜられ、少しずつ運ばれるから', '肺胞で CO₂ が消えるから',
+                '酸素が CO₂ を押し出すから', '実は出ていない'],
+              answer: 0,
+              miss: [null, 'CO₂ は体から出ていかなければ消えません。', '酸素が押し出すわけではありません。',
+                'HFO でも CO₂ はきちんと下がります。'],
+              why: '気道の中で、揺れがガスを混ぜて運びます。CO₂ の出ていく量は「周波数 × VThf の 2 乗」に比例します。'
+                + 'これを DCO₂ と呼びます。'
+            }
+          },
+          {
+            talk: true, who: 'doc',
+            say: '酸素化は MAP で決まります。肺が開いてきたら、FiO₂ から下げます。早産児の SpO₂ の目標は 90〜95% でしたね。'
+          },
+          {
+            say: 'SpO₂ 90〜95% のまま、FiO₂ を 40% 以下に。',
+            hint: 'SpO₂ が 90% に届かなければ、MAP を 1〜2 上げてから FiO₂ を下げます。',
+            spot: ['key:fio2', 'key:map'], watch: ['SpO₂', 'Pmean', 'ABP mean'],
+            check: function (c) { return c.s.fio2 <= 0.41 && c.e.spo2 >= 90 && c.e.spo2 <= 95; },
+            hold: 30,
+            why: '70% だった酸素が {FiO₂}% まで下がりました。押さずに、開いて揺らす。これが HFO です。'
+          }
+        ]
+      },
+
+      {
+        id: '12-2', title: 'CO₂ は揺れの大きさで', minutes: 9,
+        scenario: 'micro',
+        settings: { mode: 'HFO', hfoMap: 14, hfoAmp: 22, hfoFreq: 15, fio2: 0.4 },
+        sedation: 0.85,
+        brief: [
+          'HFO の CO₂ は、振幅（Amp）を上げると下がる。CO₂ の出ていく量は 周波数 × VThf² に比例する（DCO₂）。',
+          '周波数を下げると、1 回の揺れが長くなって VThf が増え、CO₂ はかえって下がる。従来の換気と逆向き。',
+          'HFO 中は etCO₂ が測れない。経皮 CO₂（tcPCO₂）で流れを追い、血液ガスで確かめる。',
+          'CO₂ の下がりすぎは、早産児の脳の血流を減らす。目標は PaCO₂ 45〜55 前後。'
+        ],
+        points: ['CO₂ は Amp で下げる', '周波数を下げると VThf が増え、CO₂ が下がる',
+          'tcPCO₂ で追い、血液ガスで確かめる'],
+        tasks: [
+          {
+            talk: true, who: 'scene',
+            say: '生まれて 1 日目の夜。つむぎちゃんは HFO の上で、小さく揺れ続けている。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'HFO では、吐き出す息の CO₂（etCO₂）が測れません。代わりに、皮膚を温めて CO₂ を測る経皮 CO₂（tcPCO₂）を見ます。'
+          },
+          {
+            look: ['val:tcPCO₂'],
+            talk: true, who: 'puku',
+            say: 'tcPCO₂ が {tcPCO₂} …高くない？'
+          },
+          {
+            say: '「血液ガス」キーで採血してください。',
+            spot: 'hard:kAbg',
+            event: 'abg:order',
+            why: ''
+          },
+          {
+            say: '結果が返るまで待ちます。',
+            watch: ['tcPCO₂', 'VThf'],
+            check: function (c) { return c.abgs.length >= 1; },
+            why: function (c) {
+              return 'PaCO₂ ' + c.lastAbg.paco2.toFixed(0) + ' mmHg、pH ' + c.lastAbg.ph.toFixed(2) + '。'
+                + (c.lastAbg.paco2 > 55 ? 'CO₂ が溜まっています。' : 'tcPCO₂ と同じ向きの値です。');
+            }
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'CO₂ を出すのは揺れです。まず振幅（Amp）を上げます。2〜3 cmH₂O ずつ、VThf と tcPCO₂ を見ながら。'
+          },
+          {
+            say: 'Amp を上げて、VThf を 1.6 mL/kg 以上にしてください。',
+            hint: function (c) { return '体重 ' + c.pbw + ' kg なので ' + mlkg(c, 1.6) + ' mL 以上。'; },
+            spot: 'key:amp', watch: ['VThf', 'DCO₂', 'tcPCO₂'],
+            check: function (c) { return vtHfKg(c) >= 1.6; },
+            hold: 10,
+            why: 'VThf と DCO₂ が増えました。tcPCO₂ は数分遅れて下がってきます。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'じゃあ周波数は？ 従来の換気なら、回数を上げると CO₂ が下がったよね。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'HFO では逆です。周波数を上げると 1 回の揺れが短くなり、細いチューブの先まで届く揺れが小さくなります。'
+          },
+          {
+            say: 'Freq を 10 Hz に下げて、VThf の変化を見ます。',
+            spot: 'key:freq', watch: ['VThf', 'DCO₂', 'tcPCO₂'],
+            check: function (c) { return c.s.hfoFreq <= 10; },
+            hold: 10,
+            why: '振幅は同じなのに、VThf が増えました。1 回の揺れが長いほど、チューブの先まで届くからです。'
+              + 'このままでは CO₂ が下がりすぎるかもしれません。'
+          },
+          {
+            quiz: {
+              q: '振幅をこれ以上上げたくない。CO₂ がまだ高い。周波数は？',
+              choices: ['下げる', '上げる', '変えない', '0 にする'],
+              answer: 0,
+              miss: [null, '上げると VThf が減り、CO₂ はかえって溜まります。',
+                '周波数も、CO₂ を動かすつまみです。', '揺れが止まります。'],
+              why: '周波数を下げると VThf が増え、CO₂ が出ます。従来の換気の「回数」と、向きが逆になるのが HFO です。'
+            }
+          },
+          {
+            say: 'tcPCO₂ が 45〜58 mmHg に入るまで待ちます。',
+            hint: '下がりすぎたら Amp を下げます。CO₂ の下がりすぎは、早産児の脳の血流を減らします。',
+            spot: ['key:amp', 'key:freq'], watch: ['tcPCO₂', 'VThf'],
+            check: function (c) { return c.e.tcpco2 >= 45 && c.e.tcpco2 <= 58; },
+            hold: 20,
+            why: 'CO₂ が目標に入りました。HFO の CO₂ は振幅と周波数、酸素化は MAP。つまみの役割が分かれています。'
+          },
+          {
+            say: 'もう一度採血して、PaCO₂ を確かめてください。',
+            hint: '「血液ガス」キーで採血し、結果が返るまで待ちます。',
+            spot: 'hard:kAbg', watch: ['tcPCO₂'],
+            check: function (c) { return c.abgs.length >= 2 && c.lastAbg.paco2 >= 40 && c.lastAbg.paco2 <= 58; },
+            why: function (c) {
+              return 'PaCO₂ ' + c.lastAbg.paco2.toFixed(0) + ' mmHg、pH ' + c.lastAbg.ph.toFixed(2)
+                + '。tcPCO₂ は流れを追うもの、答え合わせは血液ガスです。';
+            }
+          }
+        ]
+      },
+
+      {
+        id: '12-3', title: '肺が開いたら、MAP を下げる', minutes: 9,
+        scenario: 'micro',
+        settings: { mode: 'HFO', hfoMap: 15, hfoAmp: 26, hfoFreq: 12, fio2: 0.35 },
+        sedation: 0.8,
+        brief: [
+          '肺が良くなると、同じ MAP では膨らみすぎる。胸部X線で横隔膜が第 9 後肋骨より下がっていたら過膨張。',
+          '過膨張は心臓への血の戻りを妨げ、血圧を下げる。酸素化もかえって悪くなる。',
+          'HFO からの離脱は、FiO₂ を 30% 前後まで下げてから、MAP を 1〜2 ずつ下げていく。'
+        ],
+        points: ['肺が良くなったら MAP を下げる', '過膨張は血圧を下げる',
+          'FiO₂ を先に、MAP はそのあと少しずつ'],
+        tasks: [
+          {
+            talk: true, who: 'scene',
+            say: '生まれて 3 日目の朝。胸部X線の肺は、白さがずいぶん抜けてきた。横隔膜は、背中側の肋骨で 10 本目まで下がっている。',
+            onStart: function (c) {
+              c.e.C = 0.00034;
+              c.e.p.shunt0 = 0.32; c.e.p.shuntMin = 0.15; c.e.p.recruitP = 8; c.e.p.recruitK = 1.6;
+              c.e.p.vdAlvFrac = 0.08;
+              c.e._recomputeDrive();
+            }
+          },
+          {
+            talk: true, who: 'doc',
+            say: '早産児の肺は、横隔膜が背中側の肋骨で 8〜9 本目にあるのがちょうどいい広がりです。10 本目は、膨らみすぎ。'
+          },
+          {
+            look: ['val:ABP mean', 'val:SpO₂'],
+            talk: true, who: 'puku',
+            say: '良くなったのに、血圧が下がってきてるよ…？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '肺が柔らかくなって、同じ MAP では膨らみすぎたんです。膨らんだ肺が心臓を押し、血が戻りにくくなります。'
+          },
+          {
+            say: 'MAP を 1〜2 ずつ下げ、平均血圧を保ってください。',
+            hint: 'MAP を 11 前後まで。SpO₂ が 90% を切るなら下げすぎです。',
+            spot: 'key:map', watch: ['ABP mean', 'SpO₂', 'Pmean'],
+            check: function (c) { return c.s.hfoMap <= 12 && c.e.map >= c.e.nm.mapMin + 2 && c.e.spo2 >= 90; },
+            hold: 20,
+            why: '膨らみすぎがとれて、血圧が戻りました。酸素化も落ちていません。'
+          },
+          {
+            quiz: {
+              q: 'HFO から降りる準備。先に下げるのはどれですか。',
+              choices: ['FiO₂ を 30% 前後まで', 'MAP を一気に 6 まで', '周波数を 5 Hz まで', '振幅を 0 まで'],
+              answer: 0,
+              miss: [null, 'MAP を急に下げると、開いた肺がまたしぼみます。', '周波数は CO₂ のつまみです。',
+                '振幅が 0 では、CO₂ が出ていきません。'],
+              why: '酸素を先に、MAP はそのあと 1〜2 ずつ。開いた肺をしぼませないように、ゆっくり降ります。'
+            }
+          },
+          {
+            say: 'SpO₂ 90〜95% のまま、FiO₂ を 30% 以下に。',
+            spot: 'key:fio2', watch: ['SpO₂', 'Pmean'],
+            check: function (c) { return c.s.fio2 <= 0.31 && c.e.spo2 >= 90 && c.e.spo2 <= 95; },
+            hold: 30,
+            why: '酸素は {FiO₂}%、MAP は {MAP}。HFO を降りる日が見えてきました。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '数日のうちに、ふつうの換気に戻します。そのとき使うのは、つむぎちゃん自身の呼吸の合図に合わせる呼吸器です。'
+          }
+        ]
+      }
+    ]
+  };
+
+  /* ===================== 第13章 自分のリズム（NAVA・NIV-NAVA・HFNC） ===================== */
+  /* つむぎちゃんの日齢 5〜7（NAVA → 抜管して NIV-NAVA）と、同じ日のあおい君（HFNC）。
+   * NAVA は横隔膜の電気活動 Edi に比例して圧を足す。トリガも吸い終わりも Edi が決める。
+   * NAVA レベルを上げると、呼吸中枢が力を抜き、Edi が下がる（Vte はあまり変わらない）。 */
+  var NAVA_DAY5 = { ageLabel: '在胎25週 日齢5', weightKg: 0.75,
+    compliance: 0.00045, shunt0: 0.18, shuntMin: 0.06, recruitP: 8, recruitK: 2.0, vdAlvFrac: 0.06,
+    hco3: 24, hco3Base: 24, paco2: 50, pao2: 60, sedation: 0.2, driveGain: 1.2, maxPmus: 9, map: 36 };
+
+  var CH13 = {
+    id: 'ch13', title: '第13章　自分のリズム', tag: 'NAVA・HFNC',
+    sub: '横隔膜の声を聞く NAVA から、鼻の NIV-NAVA、HFNC へ。',
+    lessons: [
+
+      {
+        id: '13-1', title: '横隔膜の声を聞く', minutes: 8,
+        scenario: 'micro',
+        patient: NAVA_DAY5,
+        settings: { mode: 'PC-AC', pinsp: 12, peep: 6, rr: 40, fio2: 0.3, ti: 0.3, navaLevel: 0.5 },
+        sedation: 0.2,
+        brief: [
+          'Edi は横隔膜の電気活動（µV）。胃管の先の電極で測る、呼吸中枢の「吸え」という指令そのもの。',
+          'NAVA は Edi に比例した圧を足す。NAVA レベル（cmH₂O/µV）は、Edi 1 µV あたりに足す圧。',
+          'トリガも吸い終わりも Edi が決めるので、呼吸器が子どものリズムにぴったり合う。',
+          'NAVA レベルを上げると Edi が下がり、Vte はあまり変わらない。Edi peak 5〜15 µV が目安。'
+        ],
+        points: ['Edi ＝ 呼吸中枢の指令', 'NAVA は Edi に比例して圧を足す',
+          'レベルを上げると Edi が下がる。Edi peak 5〜15'],
+        tasks: [
+          {
+            talk: true, who: 'scene',
+            say: '生まれて 5 日目。つむぎちゃんは HFO を降り、ふつうの換気に戻った。鎮静も浅くなり、自分でも吸おうとしている。'
+          },
+          {
+            talk: true, who: 'scene',
+            say: '胃に入っている管が、先に電極のついたものに替わった。画面の端に、見慣れない「Edi」の文字。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'Edi は横隔膜の電気活動です。脳の呼吸中枢が「吸え」と命じた強さが、そのまま µV（マイクロボルト）で出ます。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '赤ちゃんが、どれだけ吸いたいか分かるってこと？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'そうです。その Edi に比例して圧を足すのが NAVA。吸いはじめも、吸い終わりも、つむぎちゃんの呼吸中枢が決めます。'
+          },
+          {
+            say: 'モードを NAVA に切り替えてください。',
+            spot: 'mode:NAVA',
+            event: 'mode:NAVA',
+            why: 'NAVA のキーは、NAVA レベルと PEEP、FiO₂。P insp・RR・Ti は、息が止まったときのバックアップ換気の設定です。'
+          },
+          {
+            say: 'Edi peak が出るまで待ちます。',
+            spot: 'val:Edi peak', watch: ['Edi peak', 'Edi min', 'PIP', 'RR tot'],
+            check: function (c) { return c.m.ediPeak != null && c.e.clock > 20; },
+            hold: 15,
+            why: 'Edi peak は 1 回の吸気の山、Edi min は吐いているときの谷です。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'NAVA レベルは、Edi 1 µV あたりに足す圧（cmH₂O/µV）。いまは {NAVA}。手伝いが少ないので、Edi peak が {Edi peak} µV と高めです。'
+          },
+          {
+            say: 'NAVA を 1.5 に上げて、Edi と Vte を見ます。',
+            spot: 'key:nava', watch: ['Edi peak', 'Vte', 'PIP', 'RR tot'],
+            check: function (c) { return c.s.navaLevel >= 1.45; },
+            hold: 40,
+            why: 'PIP は上がり、Edi peak は下がりました。Vte はあまり変わっていません。'
+          },
+          {
+            quiz: {
+              q: 'NAVA レベルを上げたら Edi peak が下がりました。なぜですか。',
+              choices: ['機械が手伝う分、呼吸中枢が力を抜いたから', '電極がずれたから',
+                '肺が硬くなったから', '鎮静が深くなったから'],
+              answer: 0,
+              miss: [null, 'ずれたなら、Edi は急に消えたり乱れたりします。', '肺の硬さは変わっていません。',
+                '鎮静は触っていません。'],
+              why: '子どもは、必要な量だけ吸おうとします。機械が手伝うほど、自分の力は少なくて済む。Edi はその「がんばり」の目盛りです。'
+            }
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'Edi peak が 15 µV を超えるなら手伝い不足、5 µV を切るなら手伝いすぎ。その間に入る NAVA レベルを探します。'
+          },
+          {
+            say: 'Edi peak を 5〜15 µV に入れて、保ってください。',
+            hint: 'NAVA レベルは 0.5〜2 cmH₂O/µV が目安です。',
+            spot: 'key:nava', watch: ['Edi peak', 'Vte', 'SpO₂'],
+            check: function (c) { return c.m.ediPeak >= 5 && c.m.ediPeak <= 15 && c.e.spo2 >= 90; },
+            hold: 30,
+            why: 'つむぎちゃんのがんばりと、機械の手伝いの釣り合いがとれました。'
+          }
+        ]
+      },
+
+      {
+        id: '13-2', title: '息が止まっても', minutes: 9,
+        scenario: 'micro',
+        patient: NAVA_DAY5,
+        settings: { mode: 'NAVA', navaLevel: 1.5, peep: 4, fio2: 0.3, pinsp: 12, rr: 30, ti: 0.3 },
+        sedation: 0.2,
+        brief: [
+          'Edi min は吐いているときの横隔膜の緊張。高いのは、肺がしぼまないよう横隔膜がブレーキをかけている印。',
+          'Edi min が高ければ PEEP を上げる。肺を PEEP で支えると、横隔膜が休める。',
+          '早産児は呼吸中枢が未熟で、息が止まる（無呼吸発作）。Edi が平らになるのが目印。',
+          'NAVA は Edi が止まると、設定の P insp・RR でバックアップ換気をする。戻れば NAVA に戻る。'
+        ],
+        points: ['Edi min が高ければ PEEP を上げる', '無呼吸では Edi が平らになる',
+          'バックアップ換気が安全網'],
+        tasks: [
+          {
+            talk: true, who: 'scene',
+            say: '生まれて 6 日目の夜。つむぎちゃんの呼吸は、速くなったり、間があいたりをくり返している。',
+            onStart: function (c) { c.e.p.recruitP = 9; }
+          },
+          {
+            look: ['val:Edi min'],
+            talk: true, who: 'doc',
+            say: 'Edi min を見てください。吐いているあいだも、横隔膜が {Edi min} µV 働いています。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: '吐いてるときなのに、どうして働くの？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '肺がしぼみかけていると、吐ききらないよう横隔膜がブレーキをかけます。PEEP で支えてあげれば、そのブレーキが要らなくなります。'
+          },
+          {
+            say: 'PEEP を上げて、Edi min を 3 µV 未満にしてください。',
+            hint: 'PEEP を 1 ずつ。6〜7 が目安です。',
+            spot: 'key:peep', watch: ['Edi min', 'Edi peak', 'SpO₂'],
+            check: function (c) { return c.m.ediMin != null && c.m.ediMin < 3; },
+            hold: 20,
+            why: 'Edi min が下がりました。横隔膜が、吐くたびにブレーキをかけなくてよくなりました。'
+          },
+          {
+            talk: true, who: 'scene',
+            say: 'そのとき、Edi の線が、すっと平らになった。つむぎちゃんの胸が止まっている。',
+            onStart: function (c) { c.e.centralApnea(25); }
+          },
+          {
+            say: '画面の変化を見ます。',
+            spot: 'val:Edi peak', watch: ['RR tot', 'SpO₂', 'HR'],
+            check: function (c) { return c.e.navaBackup === true; },
+            why: 'Edi が止まって 5 秒。呼吸器が、設定の P insp と RR でバックアップ換気を始めました。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '無呼吸発作です。早産の子は呼吸中枢が未熟で、ときどき「吸え」を出し忘れます。だから Edi が平らになる。'
+          },
+          {
+            say: 'つむぎちゃんの呼吸が戻るまで待ちます。',
+            watch: ['RR tot', 'SpO₂', 'HR'],
+            check: function (c) { return c.e.navaBackup === false && c.e.clock > c.e.apneaUntil + 5; },
+            why: 'Edi が戻ると、呼吸器は NAVA に戻りました。バックアップは、止まったときだけの安全網です。'
+          },
+          {
+            quiz: {
+              q: 'Edi はしっかり出ているのに、Vte がほとんど入りません。何を疑いますか。',
+              choices: ['チューブが痰で詰まっている', '無呼吸発作', '鎮静が深すぎる', 'NAVA レベルが高すぎる'],
+              answer: 0,
+              miss: [null, '無呼吸なら Edi も平らになります。', '鎮静が深ければ Edi も小さくなります。',
+                'レベルが高ければ、Vte はむしろ増えます。'],
+              why: '「吸え」は出ているのに空気が入らない。通り道の問題です。Edi が平らか、出ているかで、止まった理由が分かれます。'
+            }
+          },
+          {
+            talk: true, who: 'doc',
+            say: '無呼吸がくり返すなら、カフェインを確かめます。抜管の前にも欠かせない薬でした。'
+          },
+          {
+            say: 'NAVA を 1.0 に下げ、Edi peak 5〜15 µV を保ちます。',
+            hint: 'NAVA レベルを下げても Edi が 15 を超えなければ、つむぎちゃんの力が戻ってきた印です。',
+            spot: 'key:nava', watch: ['Edi peak', 'RR tot', 'SpO₂'],
+            check: function (c) { return c.s.navaLevel <= 1.05 && c.m.ediPeak >= 5 && c.m.ediPeak <= 15 && c.e.spo2 >= 90; },
+            hold: 30,
+            why: '少ない手伝いで、自分の力で吸えています。チューブを抜く準備ができてきました。'
+          }
+        ]
+      },
+
+      {
+        id: '13-3', title: 'チューブを抜いても', minutes: 8,
+        scenario: 'micro',
+        patient: { ageLabel: '在胎25週 日齢7', weightKg: 0.78,
+          compliance: 0.0005, shunt0: 0.30, shuntMin: 0.15, recruitP: 7, recruitK: 2.0, vdAlvFrac: 0.05,
+          hco3: 24, hco3Base: 24, paco2: 50, pao2: 60, sedation: 0.1, driveGain: 1.2, maxPmus: 9, map: 37, leak: 0.35 },
+        settings: { mode: 'NAVA', navaLevel: 1.0, peep: 6, fio2: 0.3, pinsp: 12, rr: 30, ti: 0.3 },
+        sedation: 0.1,
+        brief: [
+          'NIV-NAVA は、抜管したあと鼻のマスクやプロングから NAVA を続ける方法。',
+          '鼻からは必ず漏れる（リーク）。流量でトリガする呼吸器は、漏れで空振りしたり、勝手に吸気を始めたりする。',
+          'Edi は漏れに関係ないので、NIV-NAVA はリークがあっても吸いはじめと吸い終わりがずれない。',
+          '鼻からでは Vte は漏れた分だけ少なく出る。Edi と呼吸数、SpO₂ で見る。'
+        ],
+        points: ['抜管後も NAVA を鼻から続けられる', 'リークがあっても Edi のトリガはずれない',
+          'Vte より Edi・呼吸数・SpO₂ を見る'],
+        tasks: [
+          {
+            talk: true, who: 'scene',
+            say: '生まれて 7 日目の朝。つむぎちゃんの Edi は落ち着き、NAVA レベルは 1 まで下がった。今日、チューブを抜く。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '抜いたあとも、Edi のカテーテルは胃に残します。鼻のマスクから、同じ NAVA を続けられる。NIV-NAVA です。'
+          },
+          {
+            talk: true, who: 'puku',
+            say: 'NIV って？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '非侵襲的換気。チューブを入れずに、鼻や顔のマスクから呼吸を支えることです。'
+          },
+          {
+            say: '抜管して、モードを NIV-NAVA にしてください。',
+            spot: 'mode:NIV-NAVA',
+            event: 'mode:NIV-NAVA',
+            why: 'チューブが抜けて、鼻のマスクにつながりました。'
+          },
+          {
+            say: 'リークと Vte を見ます。',
+            spot: 'val:Leak', watch: ['Leak', 'Vte', 'Edi peak', 'RR tot'],
+            check: function (c) { return c.m.leak > 0.2 && c.m.ediPeak != null && c.e.clock > 15; },
+            hold: 15,
+            why: '{Leak}% が漏れています。Vte は、肺に入った量より少なく出ます。'
+          },
+          {
+            quiz: {
+              q: '鼻からの換気で漏れが多いと、流量でトリガする呼吸器はどうなりますか。',
+              choices: ['空振りしたり、勝手に吸気を始めたりする', '何も変わらない',
+                'もっと正確になる', '吸気が長くなるだけ'],
+              answer: 0,
+              miss: [null, '漏れは流量のトリガを狂わせます。', '漏れは雑音です。正確にはなりません。',
+                'それだけでは済みません。'],
+              why: '漏れた空気を「吸った」と勘違いしたり、本当の吸気を見落としたりします。'
+                + 'Edi は漏れに関係ないので、NIV-NAVA は合図がずれません。'
+            }
+          },
+          {
+            talk: true, who: 'doc',
+            say: '鼻からでは、量で見るのは難しい。Edi peak、呼吸数、SpO₂ で、手伝いが足りているかを見ます。'
+          },
+          {
+            say: 'SpO₂ 90〜95% のまま、Edi peak 5〜15 µV を保ちます。',
+            hint: 'Edi が 15 を超えるなら NAVA レベルを上げ、SpO₂ が高ければ FiO₂ を下げます。',
+            spot: ['key:nava', 'key:fio2'], watch: ['Edi peak', 'RR tot', 'SpO₂'],
+            check: function (c) { return c.m.ediPeak >= 5 && c.m.ediPeak <= 15 && c.e.spo2 >= 90 && c.e.spo2 <= 95; },
+            hold: 30,
+            why: 'チューブがなくても、つむぎちゃんの合図で呼吸器が動いています。'
+          },
+          {
+            quiz: {
+              q: 'NIV-NAVA で Edi peak 25 µV、呼吸数 90 回/分。まず考えることは？',
+              choices: ['手伝い不足。NAVA レベルを上げ、悪ければ再挿管も考える', '手伝いすぎ。NAVA レベルを下げる',
+                '電極を抜く', 'そのまま様子を見る'],
+              answer: 0,
+              miss: [null, 'Edi が高いのは、がんばりすぎの印です。', 'Edi は、いちばん大事な目盛りです。',
+                'このまま続けば疲れきってしまいます。'],
+              why: 'Edi が高く呼吸が速いのは、がんばりすぎ。手伝いを増やし、それでも足りなければチューブに戻ります。'
+            }
+          }
+        ]
+      },
+
+      {
+        id: '13-4', title: '鼻から流れる風', minutes: 8,
+        scenario: 'rds',
+        patient: { ageLabel: '在胎28週 日齢21（修正31週）', weightKg: 1.4,
+          compliance: 0.0016, shunt0: 0.32, shuntMin: 0.05, recruitP: 4, recruitK: 1.5, vdAlvFrac: 0.04,
+          hco3: 24, hco3Base: 24, paco2: 48, pao2: 60, sedation: 0, driveGain: 1.1, maxPmus: 12,
+          vco2: 7.6, co: 0.28, map: 38, fatigueLoad: 1.0, fatigueTau: 600 },
+        settings: { mode: 'HFNC', hfncFlow: 2, fio2: 0.3 },
+        sedation: 0,
+        brief: [
+          'HFNC（高流量鼻カニュラ）は、温めて加湿したガスを鼻から大きな流量で流す。早産児なら 4〜8 L/分。',
+          '流れが鼻と喉の死腔を洗い流し、少しの圧で肺胞を支える。その圧は測れず、流量・口の開き・鼻の隙間で変わる。',
+          'カニュラは鼻の穴の半分ほどの太さに。隙間がないと、思わぬ高い圧がかかる。',
+          '呼吸を送る機械ではない。無呼吸は助けない。まず刺激、戻らなければバッグで換気する。'
+        ],
+        points: ['HFNC は温めた大流量で死腔を洗い、肺胞を少し支える', '圧は測れない。カニュラは鼻の穴の半分',
+          '無呼吸は助けない'],
+        tasks: [
+          {
+            talk: true, who: 'scene',
+            say: '同じ日の午後。隣の保育器のあおい君は、生まれて 3 週。体重は 1,400 g になった。'
+          },
+          {
+            talk: true, who: 'scene',
+            say: '鼻の CPAP の当たるところが赤くなっている。今朝から、鼻の管は細くて柔らかいカニュラに替わった。'
+          },
+          {
+            talk: true, who: 'doc',
+            say: '高流量鼻カニュラ、HFNC です。温めて加湿したガスを、鼻から大きな流量で流し続けます。鼻にやさしく、抱っこもしやすい。'
+          },
+          {
+            look: ['wave'],
+            talk: true, who: 'puku',
+            say: 'あれ、波形が出てないよ？'
+          },
+          {
+            talk: true, who: 'doc',
+            say: 'HFNC は流すだけの機械なので、圧も換気量も測れません。見るのは呼吸数、SpO₂、それに陥没呼吸や鼻翼呼吸です。'
+          },
+          {
+            look: ['val:RR tot', 'val:SpO₂'],
+            talk: true, who: 'doc',
+            say: '朝につないだときの流量のままです。早産児なら 4〜8 L/分。この流量では、鼻と喉の死腔が洗いきれていません。'
+          },
+          {
+            say: 'Flow を 6 L/min に上げてください。',
+            spot: 'key:hflow', watch: ['RR tot', 'SpO₂', 'tcPCO₂'],
+            check: function (c) { return c.s.hfncFlow >= 6; },
+            hold: 30,
+            why: '呼吸数が落ち着き、SpO₂ が上がりました。流れが死腔を洗い、少しの圧で肺胞を支えています。'
+          },
+          {
+            quiz: {
+              q: 'HFNC のカニュラの太さは？',
+              choices: ['鼻の穴の半分くらい', '鼻の穴をぴったりふさぐ', '太いほどよい', '細いほど圧が高い'],
+              answer: 0,
+              miss: [null, 'ふさぐと逃げ道がなくなり、思わぬ高い圧がかかります。', '太いほど隙間がなくなります。',
+                '細いと圧は逃げやすくなります。'],
+              why: '隙間から余分な流れが逃げるので、圧が上がりすぎません。HFNC の圧は測れないぶん、逃げ道を残しておきます。'
+            }
+          },
+          {
+            say: 'FiO₂ を下げて、SpO₂ 90〜95% を 30 秒保ってください。',
+            spot: 'key:fio2', watch: ['SpO₂', 'RR tot'],
+            check: function (c) { return c.s.fio2 <= 0.29 && c.e.spo2 >= 90 && c.e.spo2 <= 95; },
+            hold: 30,
+            why: '酸素も下がりました。この流量なら、薄い酸素でも足ります。'
+          },
+          {
+            quiz: {
+              q: 'HFNC 中に 20 秒息が止まり、心拍が 80 に。まずすることは？',
+              choices: ['体をさすって刺激し、戻らなければバッグで換気する', '流量を上げる', 'FiO₂ を 100% にする', '様子を見る'],
+              answer: 0,
+              miss: [null, 'HFNC は呼吸を送りません。流量を上げても息は戻りません。',
+                '息が止まっていては、酸素は肺に入りません。', '無呼吸と徐脈は待てません。'],
+              why: 'HFNC は自分で息をする子を支えるだけ。止まった息は、刺激とバッグで戻します。NAVA のバックアップとの違いです。'
+            }
+          },
+          {
+            talk: true, who: 'doc',
+            say: '良くなってきたら、流量を 1 L/分ずつ下げていきます。呼吸数と SpO₂ が変わらなければ、次の段へ。'
+          },
+          {
+            say: 'Flow を 4 L/min まで下げ、SpO₂ 90% 以上を保ちます。',
+            spot: 'key:hflow', watch: ['SpO₂', 'RR tot'],
+            check: function (c) { return c.s.hfncFlow <= 4 && c.e.spo2 >= 90; },
+            hold: 30,
+            why: 'あおい君は、4 L/分でも落ち着いています。鼻から流れる風だけで、自分の息を続けています。'
+          }
+        ]
+      }
+    ]
+  };
+
+  var CHAPTERS = [CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, CH9, CH10, CH11, CH12, CH13];
 
   function allLessons() {
     var out = [];
@@ -3959,10 +4605,11 @@
    * 課題に look: [...] があればそれを優先する（look: [] で光らせない）。
    * iPhone 版 Lessons.swift の monitorSpots(in:) が同じ規則を持つ。片方を変えたらもう片方も。 */
   var MONITOR_VALS = ['PIP', 'Pplat', 'PEEP tot', 'ΔP', 'Vte', 'MV', 'RR tot', 'I:E', 'Cstat', 'Raw',
-    'auto-PEEP', 'f/VT', 'SpO₂', 'etCO₂', 'HR', 'ABP mean'];
+    'auto-PEEP', 'f/VT', 'SpO₂', 'etCO₂', 'HR', 'ABP mean',
+    'Pmean', 'VThf', 'DCO₂', 'tcPCO₂', 'Edi peak', 'Edi min', 'Leak'];
   /* 日本語で呼んだときの言い方。[言い方, タイルの名前] */
   var MONITOR_ALIAS = [['SpO2', 'SpO₂'], ['心拍', 'HR'], ['血圧', 'ABP mean'], ['総 PEEP', 'PEEP tot'],
-    ['分時換気量', 'MV']];
+    ['分時換気量', 'MV'], ['経皮 CO₂', 'tcPCO₂'], ['リーク', 'Leak']];
   /* 波形の段。[言い方, 段] 。どれにも当たらず「波形」とだけ言ったら波形の画面全体。 */
   var MONITOR_LANES = [['圧波形', 'paw'], ['圧の波形', 'paw'], ['気道内圧', 'paw'],
     ['流量', 'flow'], ['換気量波形', 'vol'], ['換気量の波形', 'vol']];

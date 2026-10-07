@@ -165,11 +165,12 @@ public enum StoryLibrary {
     /// レッスンの最中に流す BGM。章の舞台の時刻（web/story.js の CHAPTER_TIME と同じ）。
     public static let chapterTime: [String: String] = [
         "ch1": "night", "ch2": "day", "ch3": "day", "ch4": "day", "ch5": "night", "ch6": "day",
-        "ch7": "day", "ch8": "day", "ch9": "night", "ch10": "night", "ch11": "day"
+        "ch7": "day", "ch8": "day", "ch9": "night", "ch10": "night", "ch11": "day",
+        "ch12": "day", "ch13": "day"
     ]
 
     /// エピローグを流す章。研修の最終日（web/story.js の LAST_CHAPTER）。
-    public static let lastChapter = "ch11"
+    public static let lastChapter = "ch13"
 
     /// 名札。{名前} は主人公の名前。患者・家族は行の name を使う。
     static let speakerLabels: [StorySpeaker: String] = [

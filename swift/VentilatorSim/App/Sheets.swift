@@ -351,8 +351,8 @@ struct PatientInfoSheet: View {
     private func header(_ scenario: Scenario, _ profile: PatientProfile) -> some View {
         HStack(spacing: 12) {
             CharacterBadge(size: 64, zoom: 1, ring: Chrome.accent.opacity(0.5), background: Chrome.panel2) {
-                FaceArt(AppAssets.patientNames(caseID: scenario.id, tone: tone),
-                        focus: CharacterArt.patientFocus(scenario.id),
+                FaceArt(AppAssets.patientNames(caseID: scenario.artID, tone: tone),
+                        focus: CharacterArt.patientFocus(scenario.artID),
                         zoom: CharacterArt.patientZoom) {
                     PatientView(tone: tone)
                 }
