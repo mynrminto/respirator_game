@@ -21,6 +21,10 @@ import Foundation
 /// 音全体（SoundBoard.isEnabled）を切ると BGM も止まる。BGM だけ切ることもできる（メニュー）。
 /// オーディオセッションは SoundBoard と同じ .ambient なので、マナーモードでは鳴らない。
 ///
+/// 録音した曲（Suno で作った曲）が `Bundle.main/assets/bgm/bgm_<曲>.m4a` にあれば、合成の代わりにそれを流す
+/// （web/assets/bgm をフォルダ参照で同梱。44.1 kHz・ステレオ、小節の頭で切ったループ、音量は合成の曲にそろえてある）。
+/// 末尾の AAC の詰め物は bgm.json のフレーム数で切り落とす。ファイルが無い曲は今までどおり合成する。
+///
 /// 楽譜と音色の数値は BGMScore.swift（web/tools/bgm-swift.js が bgm.js から書き出す）。
 /// 1 曲分（30〜55 秒）を裏で合成してループで流す。場面に入った瞬間に鳴るよう、起動直後（prepareAll）に
 /// 全曲を並べて作り始め、できた波形は端末のキャッシュに取っておく（2 回目からは読むだけ）。
@@ -46,9 +50,12 @@ final class BGMPlayer {
     }
 
     private let format = AVAudioFormat(standardFormatWithSampleRate: BGMScore.rate, channels: 2)!
+    /// 録音した曲の形式。プレイヤーは形式ごとに 2 本ずつ持つ（0・1 が合成、2・3 が録音）。
+    private static let fileRate: Double = 44100
+    private let fileFormat = AVAudioFormat(standardFormatWithSampleRate: BGMPlayer.fileRate, channels: 2)!
     private let bus = AVAudioMixerNode()
     private var nodes: [AVAudioPlayerNode] = []
-    private var nodeTrack: [String?] = [nil, nil]
+    private var nodeTrack: [String?] = [nil, nil, nil, nil]
     private var active = 0
     private var buffers: [String: AVAudioPCMBuffer] = [:]
     private var rendering: Set<String> = []
@@ -68,10 +75,10 @@ final class BGMPlayer {
         engine.attach(bus)
         engine.connect(bus, to: engine.mainMixerNode, format: nil)
         bus.outputVolume = BGMScore.gain * (ducked ? BGMScore.duck : 1)
-        for _ in 0..<2 {
+        for f in [format, format, fileFormat, fileFormat] {
             let n = AVAudioPlayerNode()
             engine.attach(n)
-            engine.connect(n, to: bus, format: format)
+            engine.connect(n, to: bus, format: f)
             n.volume = 0
             nodes.append(n)
         }
@@ -84,7 +91,7 @@ final class BGMPlayer {
 
     /// 流したい曲を伝える（"title" / "day" / "night" / "alarm" / nil）。何度呼んでもよい。
     func want(_ track: String?) {
-        let track = track.flatMap { BGMScore.songs[$0] == nil ? nil : $0 }
+        let track = track.flatMap { BGMScore.songs[$0] == nil && Self.fileURL($0) == nil ? nil : $0 }
         let now = ProcessInfo.processInfo.systemUptime
         if track == "alarm" {
             lastAlarm = now
@@ -119,7 +126,9 @@ final class BGMPlayer {
         let old = active
         playing = target
         if let target, let buffer = buffers[target] {
-            active = 1 - old
+            // 曲の形式に合うプレイヤー 2 本のうち、いま鳴っていないほう
+            let pair = buffer.format.sampleRate == fileFormat.sampleRate ? [2, 3] : [0, 1]
+            active = pair[0] == old ? pair[1] : pair[0]
             let n = nodes[active]
             n.stop()
             n.volume = 0
@@ -130,25 +139,45 @@ final class BGMPlayer {
         crossfade(from: old, to: target == nil ? nil : active)
     }
 
+    /// new を上げ、ほかの鳴っているプレイヤーはすべて下げて止める（途中で次の切り替えが来ても置き去りにしない）。
     private func crossfade(from old: Int, to new: Int?) {
         fadeTimer?.invalidate()
         let start = Date()
-        let oldStart = nodes[old].volume
+        let outs = nodes.indices.filter { $0 != new && (nodes[$0].isPlaying || nodes[$0].volume > 0 || $0 == old) }
+        let outStart = outs.map { nodes[$0].volume }
         let newStart = new.map { nodes[$0].volume } ?? 0
         fadeTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
             let k = Float(min(1, Date().timeIntervalSince(start) / BGMScore.fade))
-            if old != new { self.nodes[old].volume = oldStart * (1 - k) }
+            for (i, n) in outs.enumerated() { self.nodes[n].volume = outStart[i] * (1 - k) }
             if let new { self.nodes[new].volume = newStart + (1 - newStart) * k }
             if k >= 1 {
                 timer.invalidate()
-                if old != new { self.nodes[old].stop(); self.nodeTrack[old] = nil }
+                for n in outs { self.nodes[n].stop(); self.nodeTrack[n] = nil }
             }
         }
     }
 
     /// 裏で 1 曲作る（端末に取ってあれば読むだけ）。曲ごとに別々に走るので、4 曲が並んで進む。
     private func prepare(_ track: String) {
+        guard buffers[track] == nil, !rendering.contains(track) else { return }
+        if let url = Self.fileURL(track) {
+            rendering.insert(track)
+            let frames = Self.fileFrames[track]
+            DispatchQueue.global(qos: track == "title" ? .userInitiated : .utility).async {
+                let buffer = Self.read(url, frames: frames)
+                DispatchQueue.main.async {
+                    self.rendering.remove(track)
+                    if let buffer { self.buffers[track] = buffer; self.apply() }
+                    else { self.synthesize(track) }   // 読めなければ合成に落ちる
+                }
+            }
+            return
+        }
+        synthesize(track)
+    }
+
+    private func synthesize(_ track: String) {
         guard buffers[track] == nil, !rendering.contains(track), let song = BGMScore.songs[track] else { return }
         rendering.insert(track)
         let format = self.format
@@ -168,6 +197,31 @@ final class BGMPlayer {
                 self.apply()
             }
         }
+    }
+
+    // MARK: 録音した曲（Bundle.main/assets/bgm）
+
+    private static func fileURL(_ track: String) -> URL? {
+        Bundle.main.url(forResource: "bgm_\(track)", withExtension: "m4a", subdirectory: "assets/bgm")
+    }
+
+    /// 曲ごとのループの長さ（44.1 kHz のフレーム数）。bgm.json に書いてある。
+    private static let fileFrames: [String: Int] = {
+        guard let url = Bundle.main.url(forResource: "bgm", withExtension: "json", subdirectory: "assets/bgm"),
+              let data = try? Data(contentsOf: url),
+              let table = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let frames = table["frames"] as? [String: NSNumber] else { return [:] }
+        return frames.mapValues { $0.intValue }
+    }()
+
+    /// 1 曲を丸ごと読む。末尾の詰め物は frames で切る。44.1 kHz・ステレオでなければ使わない。
+    private static func read(_ url: URL, frames: Int?) -> AVAudioPCMBuffer? {
+        guard let file = try? AVAudioFile(forReading: url),
+              file.processingFormat.sampleRate == fileRate, file.processingFormat.channelCount == 2,
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),
+              (try? file.read(into: buffer)) != nil, buffer.frameLength > 0 else { return nil }
+        if let frames, frames > 0, frames < Int(buffer.frameLength) { buffer.frameLength = AVAudioFrameCount(frames) }
+        return buffer
     }
 
     private static func buffer(_ l: [Float], _ r: [Float], format: AVAudioFormat) -> AVAudioPCMBuffer? {
