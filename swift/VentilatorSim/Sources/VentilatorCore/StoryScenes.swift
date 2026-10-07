@@ -238,6 +238,9 @@ extension StoryLibrary {
                    bg: "picu", time: "day", end: nil, lines: [
             StoryLine(.scene, "3 番ベッドのミオちゃんは、呼吸器につながって 9 日目。酸素の量が減り、熱も下がりはじめた。"),
             StoryLine(.fam, "先生、昨日より顔色がいいって、看護師さんが。", name: "ミオちゃんのお母さん"),
+            StoryLine(.fam, "「休ませて、治るのを待っている」と聞いてから、待つのが少し楽になりました。", name: "ミオちゃんのお母さん", when: "mioMom:0"),
+            StoryLine(.fam, "「まだ分からない」と正直に言ってもらえたから、いまの「良くなっている」を信じられます。", name: "ミオちゃんのお母さん", when: "mioMom:1"),
+            StoryLine(.fam, "「きっと治る」と言ってもらえた日から、ずっとそれを支えにしていました。", name: "ミオちゃんのお母さん", when: "mioMom:2"),
             StoryLine(.doc, "はい。肺が少しずつ戻ってきています。ここからは、良くなるほうの話をしましょう。", mood: "happy"),
             StoryLine(.nurse, "では、床ずれ予防の体位変換をしますね。{名前}先生、チューブを見ていてください。"),
             StoryLine(.puku, "ぼくも見張ってる！", mood: "excited")
@@ -256,7 +259,7 @@ extension StoryLibrary {
             StoryLine(.doc, "1952 年のコペンハーゲンでは、ポリオの子たちのために、医学生が交代で何週間もバッグを押し続けました。"),
             StoryLine(.doc, "千人を超える学生の手が、多くの命をつないだ。集中治療室は、そこから始まったといわれます。"),
             StoryLine(.me, "量、PEEP、酸素、回数。順番を覚えていたから、手が動きました。"),
-            StoryLine(.doc, "それが「覚えた」ということです。来週から、{名前}先生は NICU に入ります。", mood: "happy"),
+            StoryLine(.doc, "それが「覚えた」ということです。明日から、{名前}先生は NICU に入ります。", mood: "happy"),
             StoryLine(.puku, "NICU って、あのちっちゃい子たちのところ？", mood: "excited")
         ]),
         StoryScene(id: "ch9-open", kind: "open", chapter: "ch9",
@@ -608,6 +611,6 @@ extension StoryLibrary {
                   hint: "あかりちゃんの 4 週目",
                   title: "休ませながら鍛える",
                   before: "一度だめだった SBT は、失敗だと思っていた。",
-                  now: "弱った呼吸の筋肉を休ませながら鍛え、2 回目の SBT から抜管へつなげられる。")
+                  now: "弱った呼吸の筋肉を休ませながら鍛え、3 回目の SBT で抜管へつなげられる。")
     ]
 }

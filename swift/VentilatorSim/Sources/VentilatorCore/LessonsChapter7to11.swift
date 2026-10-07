@@ -326,6 +326,7 @@ extension LessonLibrary {
             },
             .talk(.scene, "呼吸器のアラーム。Vte が急に小さくなり、etCO₂ の波が消えた。口元から、かすれた泣き声が聞こえる。"),
             .talk(.puku, "泣き声？ チューブが入ってたら、声は出ないはずじゃ…"),
+            .talk(.doctor, "etCO₂ は、吐いた息に含まれる CO₂ です。チューブを通って息が出入りしていれば、画面に波が出ます。"),
             .quiz("Vte が急に減り、etCO₂ の波が消え、声が出ています。何が起きましたか。",
                   ["チューブが抜けた（事故抜管）",
                    "痰づまり",
@@ -623,7 +624,7 @@ extension LessonLibrary {
                    "血糖とは直接関係しません。",
                    "低すぎる CO₂ は、早産児では見逃せない害があります。"],
                   why: "CO₂ が下がると脳の血管が縮み、血流が減ります。早産児の脳はこれに弱く、脳室周囲白質軟化症の原因になります。入れすぎないことも、守ることのうちです。"),
-            .talk(.doctor, "PEEP は肺胞の支え。サーファクタントが足りない肺は、吐くたびにしぼもうとします。RDS では 5〜7 が目安です。"),
+            .talk(.doctor, "PEEP は肺胞の支え。サーファクタント不足で肺胞がしぼむ病気を呼吸窮迫症候群（RDS）と言い、PEEP 5〜7 が目安です。"),
             .step("PEEP を 7 に上げて確定してください。",
                   hold: 10,
                   why: "しぼみかけた肺胞が支えられ、酸素化が良くなりはじめます。",
@@ -858,7 +859,7 @@ extension LessonLibrary {
             .talk(.doctor, "次は吸気流量。速く入れれば、吸う時間が短くなり、そのぶん吐く時間が伸びます。"),
             .step("吸気流量を 40 L/分 に上げて確定してください。",
                   hold: 6,
-                  why: "I:E の吐く側が伸びました。かわりに PIP は上がっています。",
+                  why: "吸う時間と吐く時間の比（I:E）の、吐く側が伸びました。かわりに PIP は上がっています。",
                   check: { $0.settings.inspiratoryFlow >= 40 })
                 .spotting(["key:flow"]).watching(["PIP", "Pplat", "I:E"]),
             .talk(.puku, "PIP がすごく高いよ！ 大丈夫なの？"),
@@ -1062,7 +1063,7 @@ extension LessonLibrary {
                  "PS を下げて、RR と f/VT で限界を見る",
                  "浅く速くなったら PS を戻して休ませる"],
         tasks: [
-            .talk(.scene, "3 週目。あかりちゃんは挿管から 4 週間を過ぎた。手で物をつかめるようになったが、SBT はこれまで 2 回、後半で崩れている。"),
+            .talk(.scene, "3 週目。あかりちゃんは挿管から 4 週間を過ぎた。手で物をつかめるようになった。最初の SBT のあとは熱と痰で抜管を見送り、2 回目の SBT は 18 分で崩れた。"),
             .talk(.doctor, "あかりちゃんの肺はきれいです。足りないのは筋力だけ。だから、休ませながら鍛えます。"),
             .talk(.puku, "休ませながら、鍛える？ どっちなの？"),
             .talk(.doctor, "両方です。筋肉は、使わなければ衰え、使いすぎれば疲れます。その間の、ちょうどいい負荷を探します。"),
@@ -1114,7 +1115,7 @@ extension LessonLibrary {
         ])
 
     static let lesson11_2 = Lesson(
-        id: "11-2", title: "二度目の SBT と抜管", minutes: 10, scenarioID: "gbs",
+        id: "11-2", title: "三度目の SBT と抜管", minutes: 10, scenarioID: "gbs",
         prepare: { s in
             s.mode = .pressureSupport
             s.pressureSupport = 8; s.peep = 5; s.fio2 = 0.3; s.respiratoryRate = 16
