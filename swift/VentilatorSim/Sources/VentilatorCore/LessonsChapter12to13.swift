@@ -36,7 +36,7 @@ extension LessonLibrary {
                 .looking(["val:PIP", "val:Vte"]),
             .talk(.puku, "じゃあ、どうするの？ もっと押すの？"),
             .talk(.doctor, "押すのをやめて、揺らします。高頻度振動換気、HFO。1 秒に 10〜15 回、小さな揺れを送り続ける呼吸器です。"),
-            .talk(.doctor, "肺は、平均気道内圧（MAP）で膨らんだまま保たれます。いまの換気の平均は {Pmean} cmH₂O。HFO の MAP は、これより 2〜3 高く始めます。"),
+            .talk(.doctor, "肺は、平均気道内圧（MAP）で膨らんだまま保たれます。血圧の平均（ABP mean）とは別物です。いまの換気の平均気道内圧は {Pmean} cmH₂O。HFO の MAP は、これより 2〜3 高く始めます。"),
             .key("モードを HFO に切り替えてください。",
                  event: .modeHFO,
                  why: "波形が細かく震えはじめました。圧の波形の真ん中の点線が MAP です。")
@@ -48,7 +48,7 @@ extension LessonLibrary {
                   check: { $0.settings.hfoMeanPressure >= 13 })
                 .spotting(["key:map"]).watching(["Pmean", "SpO₂"]),
             .talk(.puku, "Amp と Freq は？"),
-            .talk(.doctor, "Amp は振幅、揺れの大きさ（cmH₂O）。Freq は周波数、1 秒に何回揺らすか（Hz）です。1 回の揺れで動く量が VThf。"),
+            .talk(.doctor, "Amp は振幅、揺れの大きさ（cmH₂O）。Freq は周波数、1 秒に何回揺らすか（Hz）です。1 回の揺れで動く量が VThf。CO₂ を出す力は「周波数 × VThf の 2 乗」で、これを DCO₂ と呼びます。"),
             .talk(.doctor, "口から肺胞までの、ガス交換をしない通り道を死腔と言います。新生児でおよそ 2 mL/kg。VThf は、それより小さいのがふつうです。"),
             .step("Amp を上げて、VThf を 1.5〜2.5 mL/kg に入れてください。",
                   hold: 10,
@@ -71,7 +71,7 @@ extension LessonLibrary {
                    "CO₂ は体から出ていかなければ消えません。",
                    "酸素が押し出すわけではありません。",
                    "HFO でも CO₂ はきちんと下がります。"],
-                  why: "気道の中で、揺れがガスを混ぜて運びます。CO₂ の出ていく量は「周波数 × VThf の 2 乗」に比例します。これを DCO₂ と呼びます。"),
+                  why: "気道の中で、揺れがガスを混ぜて運びます。CO₂ の出ていく量は DCO₂、つまり「周波数 × VThf の 2 乗」に比例します。画面の DCO₂ がその目安です。"),
             .talk(.doctor, "酸素化は MAP で決まります。肺が開いてきたら、FiO₂ から下げます。早産児の SpO₂ の目標は 90〜95% でしたね。"),
             .step("SpO₂ 90〜95% のまま、FiO₂ を 40% 以下に。",
                   hint: "SpO₂ が 90% に届かなければ、MAP を 1〜2 上げてから FiO₂ を下げます。",
@@ -184,8 +184,8 @@ extension LessonLibrary {
             .talk(.doctor, "早産児の肺は、横隔膜が背中側の肋骨で 8〜9 本目にあるのがちょうどいい広がりです。10 本目は、膨らみすぎ。"),
             .talk(.puku, "良くなったのに、血圧が下がってきてるよ…？")
                 .looking(["val:ABP mean", "val:SpO₂"]),
-            .talk(.doctor, "肺が柔らかくなって、同じ MAP では膨らみすぎたんです。膨らんだ肺が心臓を押し、血が戻りにくくなります。"),
-            .step("MAP を 1〜2 ずつ下げ、平均血圧を保ってください。",
+            .talk(.doctor, "肺が柔らかくなって、同じ MAP（平均気道内圧）では膨らみすぎたんです。膨らんだ肺が心臓を押し、血が戻りにくくなります。"),
+            .step("MAP（平均気道内圧）を 1〜2 ずつ下げ、血圧（ABP mean）を保ってください。",
                   hint: "MAP を 11 前後まで。SpO₂ が 90% を切るなら下げすぎです。",
                   hold: 20,
                   why: "膨らみすぎがとれて、血圧が戻りました。酸素化も落ちていません。",
