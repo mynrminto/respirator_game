@@ -10,6 +10,12 @@ struct NotebookView: View {
 
     var body: some View {
         let open = StoryLibrary.notesOpen(seen: StoryProgress.seen)
+        content(open)
+            .onAppear { BGMPlayer.shared.overlay = "notebook" }   // 手帳を読むあいだは研修手帳の曲
+            .onDisappear { BGMPlayer.shared.overlay = nil }
+    }
+
+    @ViewBuilder private func content(_ open: [StoryNote]) -> some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {

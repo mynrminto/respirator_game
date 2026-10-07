@@ -407,6 +407,7 @@
    *   物語の幕 … 幕の time　／　タイトル … タイトルの曲　／　レッスン … 章の時刻　／　症例で練習 … 端末の時計
    *   レッスン・症例でアラーム（黄・赤）が出ているあいだ … アラームの曲（消音中も、アラームが続くあいだは） */
   function bgmTrack() {
+    if (document.querySelector('#modals .nbmodal')) return 'notebook';   // 研修手帳を開いているあいだ
     if (SV && SV.run) return SV.run.track();
     if (!$('title').hidden) return 'title';
     var e = S.eng;
@@ -2737,7 +2738,7 @@
     if (tab) NB_TAB = tab;
     var seen = storySeen(), name = playerName();
     var open = ST.notesOpen(seen);
-    modal('研修手帳', function (b) {
+    var nb = modal('研修手帳', function (b) {
       var head = el('p', 'note nb-lead', name + '先生の手帳。ローテのあいだに見聞きしたことを書き留めていく。');
       b.appendChild(head);
       var tabs = el('div', 'nbtabs');
@@ -2790,6 +2791,7 @@
       }
       paint();
     });
+    nb.classList.add('nbmodal');
   }
 
   /* 動作確認用。幕を直接流す（web/smoke.js が使う）。 */

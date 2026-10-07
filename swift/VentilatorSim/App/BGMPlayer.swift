@@ -53,7 +53,7 @@ final class BGMPlayer {
     /// 録音した曲の形式。プレイヤーは形式ごとに 2 本ずつ持つ（0・1 が合成、2・3 が録音）。
     private static let fileRate: Double = 44100
     /// 録音しかない曲が読めないときに代わりに合成する曲（bgm.js の FALLBACK と同じ）。
-    static let fallback: [String: String] = ["breath": "day", "nicu": "night", "memory": "night", "epilogue": "day", "morning": "day", "urgent": "day", "dawn": "day"]
+    static let fallback: [String: String] = ["breath": "day", "nicu": "night", "memory": "night", "epilogue": "day", "morning": "day", "urgent": "day", "dawn": "day", "notebook": "day"]
     private let fileFormat = AVAudioFormat(standardFormatWithSampleRate: BGMPlayer.fileRate, channels: 2)!
     private let bus = AVAudioMixerNode()
     private var nodes: [AVAudioPlayerNode] = []
@@ -88,7 +88,7 @@ final class BGMPlayer {
 
     /// 起動直後に一度呼ぶ。全曲を裏で作り始める（タイトルの曲を先に）。何度呼んでもよい。
     func prepareAll() {
-        for track in ["title", "day", "night", "alarm", "breath", "nicu", "memory", "epilogue", "morning", "urgent", "dawn"] { prepare(track) }
+        for track in ["title", "day", "night", "alarm", "breath", "nicu", "memory", "epilogue", "morning", "urgent", "dawn", "notebook"] { prepare(track) }
     }
 
     /// 流したい曲を伝える（"title" / "day" / "night" / "alarm" / nil）。何度呼んでもよい。
@@ -104,6 +104,11 @@ final class BGMPlayer {
         apply()
     }
 
+    /// 画面の上にかぶせて流す曲（研修手帳を開いているあいだ "notebook"）。nil で元の曲に戻る。
+    var overlay: String? {
+        didSet { if overlay != oldValue { apply() } }
+    }
+
     /// アラームが鳴っているあいだは下げる。
     func duck(_ on: Bool) {
         guard on != ducked else { return }
@@ -113,7 +118,7 @@ final class BGMPlayer {
 
     /// 音の設定が変わったとき・画面が変わったときに呼ぶ。
     func apply() {
-        let target = isEnabled && SoundBoard.shared.isEnabled ? wanted : nil
+        let target = isEnabled && SoundBoard.shared.isEnabled ? (overlay ?? wanted) : nil
         attach()
         // エンジンが止まって再開した（着信・バックグラウンドなど）ときは、流していた曲をかけ直す
         if let playing, playing == target, !nodes[active].isPlaying, let buffer = buffers[playing] {
