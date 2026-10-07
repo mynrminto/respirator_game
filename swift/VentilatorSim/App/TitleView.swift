@@ -143,13 +143,15 @@ struct TitleView: View {
                     .stroke(gradient, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     .frame(height: Chrome.s(compact ? 26 : 32) * titleBoost)
                     .opacity(0.55)
-                    .offset(y: Chrome.s(compact ? 16 : 20) * titleBoost)
+                    .offset(y: Chrome.s(compact ? 10 : 12) * titleBoost)
                 Text("この手で、息をつなぐ")
                     .font(.system(size: Chrome.s(compact ? 28 : 32) * titleBoost, weight: .black, design: .rounded))
                     .foregroundStyle(gradient)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
+            // 題を和文にして文字が低くなったぶん、波形が副題にかからないよう下に余白を取る
+            .padding(.bottom, Chrome.s(compact ? 10 : 12) * titleBoost)
             Text("こどもの人工呼吸器トレーニング")
                 .font(Chrome.label(13 * titleBoost, weight: .bold))
                 .foregroundStyle(Chrome.dim)
