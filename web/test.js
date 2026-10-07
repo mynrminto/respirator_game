@@ -1313,6 +1313,9 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
       && /ST\.CHAPTER_BGM\[/.test(app) && /S\.scen\.id === 'rds'\) return 'nicu'/.test(app) && /SV\.run\.track\(\)/.test(app));
     const r9 = new ST.Run(byId('ch9-close'), {}); while (r9.phase !== 'end' && !/写真が並んでいる/.test((r9.line() || {}).say || '')) { if (r9.waiting()) r9.pick(0); else r9.next(); }
     ok('NICU の写真の行から「打ち明け話」の曲に替わる', r9.track() === 'memory' && new ST.Run(byId('ch9-close'), {}).track() === 'nicu' && byId('ch8-close').bgm === 'memory');
+    const re = new ST.Run(byId('epilogue'), {}); re.phase = 'line'; const seen = [];
+    while (re.phase !== 'end') { const t = re.track(); if (seen[seen.length - 1] !== t) seen.push(t); if (re.waiting()) re.pick(0); else re.next(); }
+    ok('エピローグは「エピローグ」→ 写真の続きで「打ち明け話」→ なに科になるので「エピローグ」に戻る', seen.join('>') === 'epilogue>memory>epilogue', seen.join('>'));
     ok('幕と章の曲はどれも流せる名前', ST.SCENES.concat([{ bgm: ST.CHAPTER_BGM.ch9, lines: [] }]).every(s => [s].concat(s.lines).every(x => !x.bgm || BG.FILES[x.bgm] || BG.SONGS[x.bgm])));
   }
   ok('app.js はアラーム（黄・赤）のあいだアラームの曲を選ぶ', /return 'alarm';/.test(app) && /x\.sev > 0/.test(app));

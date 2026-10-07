@@ -358,7 +358,7 @@ extension StoryLibrary {
         StoryScene(id: "epilogue", kind: "epilogue", chapter: nil,
                    title: "エピローグ　ローテーション最終日",
                    card: StoryCard(kicker: "エピローグ", title: "ローテーション最終日", sub: "夕方　PICU"),
-                   bg: "dawn", time: "day", end: StoryEnd(label: "症例で練習する", action: "cases", say: "おつかれさまでした。6 人の子どもたちを、今度はひとりで受け持ってみましょう。"), lines: [
+                   bg: "dawn", time: "day", bgm: "epilogue", end: StoryEnd(label: "症例で練習する", action: "cases", say: "おつかれさまでした。6 人の子どもたちを、今度はひとりで受け持ってみましょう。"), lines: [
             StoryLine(.scene, "4 週間のローテーション、最終日。夕方の PICU で、また新しい入院の電話が鳴っている。"),
             StoryLine(.scene, "ベッドの顔ぶれは入れ替わった。ミオちゃんは一般病棟へ移り、そうた君はとうに家へ帰った。"),
             StoryLine(.scene, "あかりちゃんはリハビリで車いすに乗れるようになり、レン君は吸入を続けると約束して退院した。"),
@@ -379,7 +379,7 @@ extension StoryLibrary {
             StoryLine(.doc, "…ということに、なっています。研修医としてここへ戻った日、ポケットから出てきました。"),
             StoryLine(.doc, "「息を引き取る」という言葉があります。始まりが息なら、終わりも息で言い表すんです。", mood: "think"),
             StoryLine(.doc, "そのあいだを少しでも長く、楽にする。それが、わたしたちの仕事です。"),
-            StoryLine(.puku, "ねえ{名前}先生。初日に聞いたこと、覚えてる？ なに科になるの？"),
+            StoryLine(.puku, "ねえ{名前}先生。初日に聞いたこと、覚えてる？ なに科になるの？", bgm: "epilogue"),
             StoryLine(.me, "…やっぱり、小児科です。ここに戻ってきたいです。", when: "path:0"),
             StoryLine(.doc, "待っています。わたしも、そうやってここへ戻ってきましたから。", mood: "happy", when: "path:0"),
             StoryLine(.me, "まだ決めていません。でも、子どもの息の音は、たぶん一生忘れません。", when: "path:1"),
