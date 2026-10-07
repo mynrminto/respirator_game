@@ -6,7 +6,7 @@ extension StoryLibrary {
         StoryScene(id: "prologue", kind: "prologue", chapter: nil,
                    title: "プロローグ　はじめての小児科",
                    card: StoryCard(kicker: "プロローグ", title: "はじめての小児科", sub: "ローテーション初日　朝 8 時"),
-                   bg: "corridor", time: "day", end: nil, lines: [
+                   bg: "corridor", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "Dum spiro, spero.　―― 息をするかぎり、希望はある。（ラテン語の格言）"),
             StoryLine(.scene, "初期研修の小児科ローテーション、初日。朝の病棟は、思っていたよりずっと静かだった。"),
             StoryLine(.scene, "廊下の突き当たりに「PICU・NICU」の自動ドア。中から、規則正しい機械の音が聞こえてくる。"),
@@ -75,7 +75,7 @@ extension StoryLibrary {
         StoryScene(id: "ch2-open", kind: "open", chapter: "ch2",
                    title: "第2章　扉　2 日目の朝",
                    card: StoryCard(kicker: "第2章", title: "挿管直後の初期設定", sub: "2 日目の朝　回診"),
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "翌朝 8 時。ハルト君の昇圧薬は、夜のうちに半分まで減った。回診の前に、夜勤の看護師から申し送りを受ける。"),
             StoryLine(.nurse, "夜中に何度か換気量のアラームが鳴って、当直の先生が一回換気量を上げていきました。"),
             StoryLine(.doc, "鳴ったから上げる。いちばん多い落とし穴です。{名前}先生、今日は設定を「決める」側に回ってもらいます。", mood: "think"),
@@ -133,7 +133,7 @@ extension StoryLibrary {
         StoryScene(id: "ch4-open", kind: "open", chapter: "ch4",
                    title: "第4章　扉　3 日目の朝",
                    card: StoryCard(kicker: "第4章", title: "血液ガスを読む", sub: "3 日目の朝　回診前"),
-                   bg: "station", time: "day", end: nil, lines: [
+                   bg: "station", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "3 日目の朝。回診の前に、ナースステーションに夜のあいだの採血の結果が並んでいる。"),
             StoryLine(.me, "数字が多すぎて、どれから見ればいいのか…。"),
             StoryLine(.doc, "呼吸器の画面は「送ったもの」。血液ガスは「体に届いたもの」。両方を見て、はじめて答え合わせになります。"),
@@ -182,7 +182,7 @@ extension StoryLibrary {
         StoryScene(id: "ch6-open", kind: "open", chapter: "ch6",
                    title: "第6章　扉　4 日目の朝",
                    card: StoryCard(kicker: "第6章", title: "離脱と抜管", sub: "4 日目の朝　PICU"),
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "翌朝。ハルト君の熱は下がり、お腹の張りも引いた。ドレーンからの空気漏れも止まっている。お母さんが面会に来ている。"),
             StoryLine(.fam, "先生、この管はいつ抜けるんでしょう。あの子、しゃべりたがっていて。", name: "ハルト君のお母さん"),
             StoryLine(.doc, "今日から、それを確かめていきます。{名前}先生、条件を一緒に見ましょう。"),
@@ -211,7 +211,7 @@ extension StoryLibrary {
         StoryScene(id: "ch7-open", kind: "open", chapter: "ch7",
                    title: "第7章　扉　5 日目の朝",
                    card: StoryCard(kicker: "第7章", title: "細い気道", sub: "5 日目の朝　PICU 5 番ベッド"),
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "ハルト君が抜管された翌朝。空いたベッドに、朝の光が差している。"),
             StoryLine(.nurse, "{名前}先生、5 番ベッドのそうた君、夜のあいだに呼吸回数を 40 まで上げています。"),
             StoryLine(.doc, "そうた君は、今日から{名前}先生の受け持ちです。挿管した夜のこと、覚えていますか。", mood: "think"),

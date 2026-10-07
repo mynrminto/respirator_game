@@ -53,7 +53,7 @@ final class BGMPlayer {
     /// 録音した曲の形式。プレイヤーは形式ごとに 2 本ずつ持つ（0・1 が合成、2・3 が録音）。
     private static let fileRate: Double = 44100
     /// 録音しかない曲が読めないときに代わりに合成する曲（bgm.js の FALLBACK と同じ）。
-    static let fallback: [String: String] = ["breath": "day", "nicu": "night", "memory": "night", "epilogue": "day"]
+    static let fallback: [String: String] = ["breath": "day", "nicu": "night", "memory": "night", "epilogue": "day", "morning": "day"]
     private let fileFormat = AVAudioFormat(standardFormatWithSampleRate: BGMPlayer.fileRate, channels: 2)!
     private let bus = AVAudioMixerNode()
     private var nodes: [AVAudioPlayerNode] = []
@@ -88,7 +88,7 @@ final class BGMPlayer {
 
     /// 起動直後に一度呼ぶ。全曲を裏で作り始める（タイトルの曲を先に）。何度呼んでもよい。
     func prepareAll() {
-        for track in ["title", "day", "night", "alarm", "breath", "nicu", "memory", "epilogue"] { prepare(track) }
+        for track in ["title", "day", "night", "alarm", "breath", "nicu", "memory", "epilogue", "morning"] { prepare(track) }
     }
 
     /// 流したい曲を伝える（"title" / "day" / "night" / "alarm" / nil）。何度呼んでもよい。

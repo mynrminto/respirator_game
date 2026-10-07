@@ -40,9 +40,9 @@
 
   var KEY = 'ventsim.bgm.v1';
   var RATE = 24000;          // BGM は 24 kHz で作る（メモリを抑える。中身は 8 kHz より下）
-  var FILES = { title: 3617874, day: 4330165, night: 3041544, alarm: 1693495, breath: 2529028, nicu: 1957520, memory: 2557079, epilogue: 3512661 }, FILE_RATE = 44100;
+  var FILES = { title: 3617874, day: 4330165, night: 3041544, alarm: 1693495, breath: 2529028, nicu: 1957520, memory: 2557079, epilogue: 3512661, morning: 1746120 }, FILE_RATE = 44100;
   /* 録音しかない曲が読めないときに代わりに合成する曲。 */
-  var FALLBACK = { breath: 'day', nicu: 'night', memory: 'night', epilogue: 'day' };
+  var FALLBACK = { breath: 'day', nicu: 'night', memory: 'night', epilogue: 'day', morning: 'day' };
   var GAIN = 0.15;           // 仕上がりのピークを 0.8 にそろえたうえで掛ける（ピーク 0.12）。パルス音 0.16・アラーム 0.26〜0.34 より小さい
   var DUCK = 0.5;            // アラームが鳴っているあいだの倍率（アラームの曲ごと下げる）
   var FADE = 2.5;            // 曲の切り替え（秒）

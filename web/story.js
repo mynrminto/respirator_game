@@ -64,7 +64,7 @@
     {
       id: 'prologue', kind: 'prologue', title: 'プロローグ　はじめての小児科',
       card: { kicker: 'プロローグ', title: 'はじめての小児科', sub: 'ローテーション初日　朝 8 時' },
-      bg: 'corridor', time: 'day',
+      bg: 'corridor', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: 'Dum spiro, spero.　―― 息をするかぎり、希望はある。（ラテン語の格言）' },
         { who: 'scene', say: '初期研修の小児科ローテーション、初日。朝の病棟は、思っていたよりずっと静かだった。' },
@@ -148,7 +148,7 @@
     {
       id: 'ch2-open', kind: 'open', chapter: 'ch2', title: '第2章　扉　2 日目の朝',
       card: { kicker: '第2章', title: '挿管直後の初期設定', sub: '2 日目の朝　回診' },
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: '翌朝 8 時。ハルト君の昇圧薬は、夜のうちに半分まで減った。回診の前に、夜勤の看護師から申し送りを受ける。' },
         { who: 'nurse', say: '夜中に何度か換気量のアラームが鳴って、当直の先生が一回換気量を上げていきました。' },
@@ -222,7 +222,7 @@
     {
       id: 'ch4-open', kind: 'open', chapter: 'ch4', title: '第4章　扉　3 日目の朝',
       card: { kicker: '第4章', title: '血液ガスを読む', sub: '3 日目の朝　回診前' },
-      bg: 'station', time: 'day',
+      bg: 'station', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: '3 日目の朝。回診の前に、ナースステーションに夜のあいだの採血の結果が並んでいる。' },
         { who: 'me', say: '数字が多すぎて、どれから見ればいいのか…。' },
@@ -281,7 +281,7 @@
     {
       id: 'ch6-open', kind: 'open', chapter: 'ch6', title: '第6章　扉　4 日目の朝',
       card: { kicker: '第6章', title: '離脱と抜管', sub: '4 日目の朝　PICU' },
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: '翌朝。ハルト君の熱は下がり、お腹の張りも引いた。ドレーンからの空気漏れも止まっている。お母さんが面会に来ている。' },
         { who: 'fam', name: 'ハルト君のお母さん', say: '先生、この管はいつ抜けるんでしょう。あの子、しゃべりたがっていて。' },
@@ -315,7 +315,7 @@
     {
       id: 'ch7-open', kind: 'open', chapter: 'ch7', title: '第7章　扉　5 日目の朝',
       card: { kicker: '第7章', title: '細い気道', sub: '5 日目の朝　PICU 5 番ベッド' },
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: 'ハルト君が抜管された翌朝。空いたベッドに、朝の光が差している。' },
         { who: 'nurse', say: '{名前}先生、5 番ベッドのそうた君、夜のあいだに呼吸回数を 40 まで上げています。' },

@@ -1316,6 +1316,7 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
     const re = new ST.Run(byId('epilogue'), {}); re.phase = 'line'; const seen = [];
     while (re.phase !== 'end') { const t = re.track(); if (seen[seen.length - 1] !== t) seen.push(t); if (re.waiting()) re.pick(0); else re.next(); }
     ok('エピローグは「エピローグ」→ 写真の続きで「打ち明け話」→ なに科になるので「エピローグ」に戻る', seen.join('>') === 'epilogue>memory>epilogue', seen.join('>'));
+    ok('ローテ初日の朝と、朝に始まる章の扉は「朝の回診」の曲', ['prologue', 'ch2-open', 'ch4-open', 'ch6-open', 'ch7-open'].every(id => byId(id).bgm === 'morning'));
     ok('幕と章の曲はどれも流せる名前', ST.SCENES.concat([{ bgm: ST.CHAPTER_BGM.ch9, lines: [] }]).every(s => [s].concat(s.lines).every(x => !x.bgm || BG.FILES[x.bgm] || BG.SONGS[x.bgm])));
   }
   ok('app.js はアラーム（黄・赤）のあいだアラームの曲を選ぶ', /return 'alarm';/.test(app) && /x\.sev > 0/.test(app));
