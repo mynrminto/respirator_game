@@ -165,7 +165,7 @@ extension StoryLibrary {
         StoryScene(id: "ch5-close", kind: "close", chapter: "ch5",
                    title: "第5章　幕　夜明け",
                    card: nil,
-                   bg: "dawn", time: "day", end: nil, lines: [
+                   bg: "dawn", time: "day", bgm: "dawn", end: nil, lines: [
             StoryLine(.scene, "夜明け。ハルト君の胸には細いドレーンが入り、モニターの音はまた高く澄んだ音に戻っている。"),
             StoryLine(.me, "手が震えていました。でも、酸素を上げるところまでは、考える前にできました。"),
             StoryLine(.doc, "それで十分です。今夜ハルト君を守ったのは、{名前}先生の最初の一手です。", mood: "happy"),

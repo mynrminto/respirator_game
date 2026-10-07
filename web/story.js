@@ -260,7 +260,7 @@
     },
     {
       id: 'ch5-close', kind: 'close', chapter: 'ch5', title: '第5章　幕　夜明け',
-      bg: 'dawn', time: 'day',
+      bg: 'dawn', time: 'day', bgm: 'dawn',
       lines: [
         { who: 'scene', say: '夜明け。ハルト君の胸には細いドレーンが入り、モニターの音はまた高く澄んだ音に戻っている。' },
         { who: 'me', say: '手が震えていました。でも、酸素を上げるところまでは、考える前にできました。' },
