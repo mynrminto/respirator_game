@@ -6,7 +6,20 @@ enum StoryProgress {
     static let seenKey = "ventsim.story.seen.v1"
     static let nameKey = "ventsim.player.v1"
 
+    static let picksKey = "ventsim.story.picks.v1"
+
     static var seen: [String] { UserDefaults.standard.stringArray(forKey: seenKey) ?? [] }
+
+    /// 幕の中で主人公が選んだ言葉 { key: 番号 }（Web 版の PICKS_KEY と同じ）。
+    static var picks: [String: Int] {
+        (UserDefaults.standard.dictionary(forKey: picksKey) as? [String: Int]) ?? [:]
+    }
+
+    static func savePick(_ key: String, _ i: Int) {
+        var p = picks
+        p[key] = i
+        UserDefaults.standard.set(p, forKey: picksKey)
+    }
 
     static func markSeen(_ id: String) {
         var s = seen
@@ -386,10 +399,16 @@ struct StoryView: View {
                     nameFocused = true
                 }
             case .choice:
-                HStack(spacing: 8) {
-                    ForEach(Array((run.line?.choices ?? []).enumerated()), id: \.offset) { i, c in
+                // 長い返事が並ぶときは縦に積む（横に 3 つ並べると iPhone で文字が詰まる）。
+                let choices = run.line?.choices ?? []
+                let stacked = choices.count > 2 || choices.contains { $0.label.count > 10 }
+                let layout = stacked ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+                layout {
+                    ForEach(Array(choices.enumerated()), id: \.offset) { i, c in
                         storyButton(c.label, primary: false) {
+                            let key = run.line?.pick
                             run.pick(i)
+                            if let key { StoryProgress.savePick(key, i) }
                             advanced()
                         }
                     }
@@ -440,7 +459,7 @@ struct StoryView: View {
             onFinish()
             return
         }
-        run = StoryRun(scene: scene)
+        run = StoryRun(scene: scene, picks: StoryProgress.picks)
         BGMPlayer.shared.want(scene.time)   // 幕の時刻で昼の曲・夜の曲を選ぶ
         lastPortrait = nil
         advanced()
@@ -498,7 +517,7 @@ struct StoryView: View {
         while !queue.isEmpty {
             let id = queue.removeFirst()
             guard let scene = StoryLibrary.scene(id: id) else { continue }
-            let r = StoryRun(scene: scene)
+            let r = StoryRun(scene: scene, picks: StoryProgress.picks)
             if !r.skip(hasName: hasName) { self.run = r; instant = true; advanced(); return }
             StoryProgress.markSeen(id)
         }

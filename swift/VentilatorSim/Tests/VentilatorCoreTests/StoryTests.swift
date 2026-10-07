@@ -70,3 +70,21 @@ import Testing
     #expect(StoryLibrary.notesAdded(before: [], after: ["prologue"]).map(\.id) == ["secret-1"])
     #expect(StoryLibrary.notesAdded(before: ["prologue"], after: ["prologue"]).isEmpty)
 }
+
+@Test func storyRemembersWhatThePlayerChose() {
+    let epilogue = StoryLibrary.scene(id: "epilogue")!
+    func says(_ picks: [String: Int]) -> [String] {
+        let r = StoryRun(scene: epilogue, picks: picks)
+        var out: [String] = []
+        r.next()
+        while r.phase != .end { if let l = r.line { out.append(l.say) }; r.next() }
+        return out
+    }
+    #expect(says(["path": 0]).contains { $0.contains("やっぱり、小児科") })
+    #expect(!says(["path": 2]).contains { $0.contains("やっぱり、小児科") })
+    #expect(says([:]) == says(["path": 0, "photo": 0, "nerves": 0]))   // 選ばずに飛ばしたら 0 番
+    let run = StoryRun(scene: StoryLibrary.scene(id: "ch9-close")!)
+    while run.waiting != .choice { run.next() }
+    run.pick(1)
+    #expect(run.picks["aoiDad"] == 1 && run.line?.who == .doc)
+}

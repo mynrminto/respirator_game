@@ -19,7 +19,10 @@
  *   mood                … doc は normal / happy / think / alert、puku は happy / excited / sad / alert
  *   bg                  … この行から背景を替える（BG の名前）
  *   input: 'name'       … 主人公の名前を入れてもらう行
- *   choose: [{ label, reply }] … 主人公の返事を選ぶ。reply はいぶき先生の返し（1 行）
+ *   choose: [{ label, reply }] … 主人公の返事を選ぶ。reply は返し（1 行）。返すのはいぶき先生、
+ *                       ただし who / name / mood / case を書けばその人（家族・患者・ぷくぷく）が返す
+ *   pick: 'key'         … 選んだ番号を key の名前で覚えておく（主人公の選んだ言葉が、あとの幕に響く）
+ *   when: 'key:n'       … key で n 番を選んだときだけ出す行。選ばずに飛ばしたときは 0 番を選んだものとする
  * {名前} は主人公の名前に置き換える（fill）。数値の差し込みはここでは使わない。
  * ここはデータだけを持ち、描画は app.js（iPhone 版は StoryView.swift）が行う。
  */
@@ -71,7 +74,16 @@
         { who: 'doc', mood: 'happy', say: 'ぷくぷくです。ここの子たちの「息」から生まれた…ということに、なっています。' },
         { who: 'puku', mood: 'happy', say: 'ぼく、分からないことがあったら「なんで？」って聞く係なんだ。先生の代わりに聞いてあげる！' },
         {
-          who: 'doc', mood: 'think', say: '{名前}先生、緊張していますか？',
+          who: 'puku', mood: 'excited', say: 'じゃあさっそく。{名前}先生は、将来なに科になるの？', pick: 'path',
+          choose: [
+            { label: '小児科を考えています', reply: 'それなら、この 4 週間はあなたの最初の一歩ですね。' },
+            { label: 'まだ決めていません', reply: '決めていない人ほど、よく見えるものがあります。' },
+            { label: 'ほかの科です', reply: 'どの科に進んでも、子どもはいつか目の前に来ます。そのときのために。' }
+          ]
+        },
+        { who: 'puku', mood: 'happy', say: 'ふーん。ぼく、ちゃんと覚えておくからね！' },
+        {
+          who: 'doc', mood: 'think', say: '{名前}先生、緊張していますか？', pick: 'nerves',
           choose: [
             { label: '正直、かなり', reply: 'いい緊張です。ここでは、こわいと思える人のほうが子どもを守れます。' },
             { label: '楽しみです', reply: '頼もしい。その気持ちのまま、手順だけは守りましょう。' }
@@ -166,7 +178,19 @@
       lines: [
         { who: 'scene', say: 'インフルエンザ肺炎から ARDS になったミオちゃん（3歳）。お母さんが、ベッドの横で小さな手を握っている。' },
         { who: 'fam', name: 'ミオちゃんのお母さん', say: '先生、この子、ずっとこのままなんでしょうか…。' },
-        { who: 'doc', say: '肺を休ませながら、治るのを待っているところです。いまは、その待ち方をいちばん安全にします。' },
+        { who: 'doc', say: '{名前}先生。お母さんに、いまの状態を伝えてみてください。' },
+        {
+          who: 'me', say: '（お母さんの目を見て、言葉を選ぶ）', pick: 'mioMom',
+          choose: [
+            { label: '肺を休ませて、治るのを待っています', who: 'fam', name: 'ミオちゃんのお母さん',
+              reply: '休ませて…。この機械は、休ませるためのものなんですね。' },
+            { label: '正直、まだ分かりません', who: 'doc', mood: 'think',
+              reply: '分からないことは、分からないと言っていい。ただ、いま何をしているかは伝えましょう。' },
+            { label: '大丈夫です、きっと治ります', who: 'doc', mood: 'think',
+              reply: '約束はしない。でも、希望は渡す。その間を探すのが、わたしたちの言葉です。' }
+          ]
+        },
+        { who: 'doc', say: 'いまは肺を休ませながら、治るのを待っています。その待ち方を、いちばん安全にします。' },
         { who: 'puku', say: '待ち方？' },
         { who: 'doc', say: '機械に何を任せて、何をこの子に預けるか。それを選ぶのが「モード」です。' }
       ]
@@ -270,6 +294,9 @@
         { who: 'fam', name: 'ハルト君のお母さん', say: 'ハルト…！ 先生、ほんとうにありがとうございました。' },
         { who: 'doc', mood: 'happy', say: 'お礼は、こちらの先生に。最初の夜から、ずっとハルト君の担当でした。' },
         { who: 'me', say: 'ハルト君、よくがんばったね。' },
+        { who: 'pt', case: 'postop', name: 'ハルト君', say: '…せんせいの、なまえ、なに？' },
+        { who: 'me', say: '{名前}。{名前}先生だよ。' },
+        { who: 'pt', case: 'postop', name: 'ハルト君', say: '…{名前}せんせい。ねてるとき、ずっと、こえ、きこえてた。' },
         { who: 'puku', say: 'チューブが入っていたときは、どうして声が出なかったの？' },
         { who: 'doc', say: '声は、吐く息が声帯を震わせて出るものです。チューブは、その声帯のあいだを通っていました。' },
         { who: 'doc', mood: 'happy', say: 'だから最初の声は、自分の息が戻ってきた合図なんです。' },
@@ -362,15 +389,30 @@
       lines: [
         { who: 'scene', say: '生まれて 4 日目。あおい君は nCPAP のまま、保育器の中で手足を伸ばしている。' },
         { who: 'fam', name: 'あおい君のお父さん', say: '小さすぎて、触ったら壊れてしまいそうで…。' },
-        { who: 'nurse', say: '大丈夫ですよ。手のひらで、そっと包んであげてください。' },
+        { who: 'doc', say: '{名前}先生、お父さんに声をかけてあげてください。' },
+        {
+          who: 'me', say: '（保育器の窓を、お父さんと一緒にのぞきこむ）', pick: 'aoiDad',
+          choose: [
+            { label: '一緒に、手を当ててみましょう', who: 'fam', name: 'あおい君のお父さん',
+              reply: '…あったかい。こんなに小さいのに、ちゃんと息をしてる。' },
+            { label: 'もう少し大きくなってから', who: 'doc', mood: 'think',
+              reply: '触れることも治療のうちです。いまのふれあいは、親にも子にも力になります。' }
+          ]
+        },
+        { who: 'nurse', say: '大丈夫ですよ。手のひらで、そっと包んであげてください。', when: 'aoiDad:1' },
         { who: 'doc', mood: 'happy', say: '桁が変わっても、考え方は同じでした。{名前}先生、もう NICU の数字も読めますね。' },
         { who: 'me', say: '小さじ 1 杯の空気が、こんなに重いとは思いませんでした。' },
         { who: 'puku', say: 'あおい君、生まれたとき泣いた？' },
         { who: 'doc', say: '小さな声で。産声は、水で満ちていた肺に初めて空気を入れて、それを吐きながら上げる声です。' },
         { who: 'scene', say: '保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。' },
         { who: 'scene', say: '端の色あせた 1 枚に、手書きの文字。「いぶきちゃん　在胎 28 週　980 g」' },
-        { who: 'me', say: '先生、これ…。' },
-        { who: 'puku', mood: 'alert', say: 'あ…見つかっちゃった。' },
+        {
+          who: 'me', say: '（色あせた写真から、目が離せない）', pick: 'photo',
+          choose: [
+            { label: '先生、これって…', who: 'puku', mood: 'alert', reply: 'あ…見つかっちゃった。' },
+            { label: '（何も言わずに、先生を見る）', who: 'puku', mood: 'sad', reply: '…{名前}先生、気づいちゃった？' }
+          ]
+        },
         { who: 'doc', mood: 'happy', say: 'わたしも、ここの保育器で育ちました。小さじ 1 杯の空気から。' },
         { who: 'doc', say: '続きは、別の機会にしましょう。いまは、あおい君の番です。' }
       ]
@@ -415,12 +457,21 @@
       lines: [
         { who: 'scene', say: '窓際のベッドのあかりちゃん。挿管から 4 週間。初日より、指先がよく動くようになった。' },
         { who: 'pt', case: 'gbs', name: 'あかりちゃん', say: '（文字盤を指でたどる。「いつ、しゃべれる？」）' },
+        {
+          who: 'me', say: '（あかりちゃんの目の高さまで、しゃがむ）', pick: 'akari',
+          choose: [
+            { label: 'もうすぐ。一緒に練習しよう', who: 'pt', case: 'gbs', name: 'あかりちゃん',
+              reply: '（文字盤をたどる。「やくそく」）' },
+            { label: '息の力が戻ったらね', who: 'pt', case: 'gbs', name: 'あかりちゃん',
+              reply: '（小さくうなずいて、文字盤をたどる。「がんばる」）' }
+          ]
+        },
         { who: 'puku', mood: 'sad', say: 'この前の SBT、18 分でだめだったんだよね…' },
         { who: 'doc', say: 'あの日から、毎日少しずつ練習してきました。{名前}先生、仕上げを一緒にやりましょう。' },
         { who: 'puku', say: '息の筋肉が動かない病気って、昔はどうしてたの？' },
         { who: 'doc', say: '1928 年、ボストンで「鉄の肺」が作られました。体ごと箱に入れ、外から胸を広げて息をさせる機械です。' },
         { who: 'doc', say: 'ポリオの子たちが、その中で何か月も力が戻るのを待ちました。あかりちゃんも、いま待っています。' },
-        { who: 'me', say: 'あかりちゃん、もうすぐだよ。' }
+        { who: 'me', say: 'あかりちゃん、仕上げだよ。' }
       ]
     },
     {
@@ -428,7 +479,8 @@
       bg: 'picu', time: 'day',
       lines: [
         { who: 'scene', say: '抜管の翌日。あかりちゃんは NPPV のマスクを外して、窓の外を見ている。' },
-        { who: 'pt', case: 'gbs', name: 'あかりちゃん', say: '…せんせい。こえ、でた。' },
+        { who: 'pt', case: 'gbs', name: 'あかりちゃん', say: '…{名前}せんせい。こえ、でた。' },
+        { who: 'pt', case: 'gbs', name: 'あかりちゃん', say: '…やくそく、まもったよ。', when: 'akari:0' },
         { who: 'puku', mood: 'excited', say: 'しゃべった！ 4 週間ぶりだよ！' },
         { who: 'fam', name: 'あかりちゃんのお母さん', say: '先生方、本当に、本当にありがとうございました。' },
         { who: 'doc', mood: 'happy', say: '{名前}先生。ローテが終わるまで、あと 1 週間です。' }
@@ -446,16 +498,29 @@
         { who: 'scene', say: 'ベッドの顔ぶれは入れ替わった。ミオちゃんは一般病棟へ移り、そうた君はとうに家へ帰った。' },
         { who: 'scene', say: 'あかりちゃんはリハビリで車いすに乗れるようになり、レン君は吸入を続けると約束して退院した。' },
         { who: 'scene', say: 'NICU のあおい君は 1,400 g を超えた。退院したハルト君からは、手紙が届いている。' },
+        { who: 'scene', say: '封筒には、大きな字で「{名前}せんせいへ」。' },
+        { who: 'pt', case: 'postop', name: 'ハルト君（手紙）', say: '「ぼくがねてるとき、ずっとそばにいてくれて、ありがとう。またサッカーできたよ。」' },
         { who: 'doc', say: '{名前}先生。初日に、子どもの呼吸器は触ったことがないと言っていましたね。' },
         { who: 'me', say: '…はい。いまも、全部分かったとは思えません。' },
         { who: 'doc', mood: 'happy', say: 'それでいいんです。分からないと思える人は、確かめに戻ってこられます。' },
+        { who: 'doc', say: '初日、とても緊張していると言っていましたね。その緊張が、ずっと子どもたちを守っていました。', when: 'nerves:0' },
+        { who: 'doc', say: '初日、楽しみだと言っていましたね。その顔のまま、最後まで来ました。', when: 'nerves:1' },
         { who: 'me', say: '先生。NICU の写真の続き、聞いてもいいですか。' },
-        { who: 'doc', mood: 'happy', say: '約束でしたね。わたしは 28 週、980 g で生まれて、2 週間、呼吸器につながっていました。' },
+        { who: 'doc', mood: 'happy', say: '約束でしたね。', when: 'photo:0' },
+        { who: 'doc', mood: 'happy', say: 'あの写真の前で、何も聞かずにいてくれましたね。…お話しします。', when: 'photo:1' },
+        { who: 'doc', say: 'わたしは 28 週、980 g で生まれて、2 週間、呼吸器につながっていました。' },
         { who: 'doc', say: '管が抜けて、初めて自分で息をした日。両親は、この名前に決めたそうです。息吹。' },
         { who: 'puku', mood: 'excited', say: 'そのとき、ぼくが生まれたんだ！ 先生の、はじめての息から。' },
         { who: 'doc', say: '…ということに、なっています。研修医としてここへ戻った日、ポケットから出てきました。' },
         { who: 'doc', mood: 'think', say: '「息を引き取る」という言葉があります。始まりが息なら、終わりも息で言い表すんです。' },
         { who: 'doc', say: 'そのあいだを少しでも長く、楽にする。それが、わたしたちの仕事です。' },
+        { who: 'puku', say: 'ねえ{名前}先生。初日に聞いたこと、覚えてる？ なに科になるの？' },
+        { who: 'me', say: '…やっぱり、小児科です。ここに戻ってきたいです。', when: 'path:0' },
+        { who: 'doc', mood: 'happy', say: '待っています。わたしも、そうやってここへ戻ってきましたから。', when: 'path:0' },
+        { who: 'me', say: 'まだ決めていません。でも、子どもの息の音は、たぶん一生忘れません。', when: 'path:1' },
+        { who: 'doc', mood: 'happy', say: 'それで十分です。どの科にも、息をする子どもは来ます。', when: 'path:1' },
+        { who: 'me', say: '進む科は変わりません。でも、子どもが来たら、逃げずに診ます。', when: 'path:2' },
+        { who: 'doc', mood: 'happy', say: 'それが聞けたら、このローテは成功です。', when: 'path:2' },
         { who: 'puku', mood: 'sad', say: '{名前}先生、ぼくのこと、忘れないでね。' },
         { who: 'doc', mood: 'happy', say: '忘れませんよ。呼吸器の前に立つたびに、「なんで？」と聞く声がするはずです。' },
         { who: 'puku', mood: 'happy', say: '…ねえ、{名前}先生のポケット、ちょっとあったかそう。' },
@@ -630,13 +695,31 @@
   /* 1 つの幕を 1 行ずつ進める。描画は持たない。
    *   phase: 'card'（章の扉の文字）→ 'line' → 'end'
    *   選択肢の行では pick(i) で返事を選ぶと、いぶき先生の返しが 1 行はさまる。 */
-  function Run(scene) {
+  /* when: 'key:n' の行を出すかどうか。picks は { key: 選んだ番号 }。 */
+  function shows(line, picks) {
+    if (!line || !line.when) return true;
+    var m = /^([\w-]+):(\d+)$/.exec(line.when);
+    if (!m) return true;
+    var got = picks && picks[m[1]] != null ? picks[m[1]] : 0;
+    return got === Number(m[2]);
+  }
+
+  function Run(scene, picks) {
     this.scene = scene;
+    this.picks = picks || {};
     this.index = 0;
     this.phase = scene.card ? 'card' : 'line';
     this.reply = null;       // 選択肢のあとの返し（1 行）
     this.picked = null;
+    this.settle();
   }
+
+  /* いまの行が出さない行なら、出す行まで進める。最後まで無ければ終わり。 */
+  Run.prototype.settle = function () {
+    var ls = this.scene.lines;
+    while (this.index < ls.length && !shows(ls[this.index], this.picks)) this.index++;
+    if (this.index >= ls.length && this.phase === 'line') this.phase = 'end';
+  };
 
   Run.prototype.line = function () {
     if (this.phase !== 'line') return null;
@@ -657,10 +740,11 @@
   /** 押して進める。入力や選択を待っている行では進まない。終わったら true。 */
   Run.prototype.next = function () {
     if (this.phase === 'end') return true;
-    if (this.phase === 'card') { this.phase = 'line'; return false; }
+    if (this.phase === 'card') { this.phase = 'line'; this.settle(); return this.phase === 'end'; }
     if (this.waiting()) return false;
     if (this.reply) this.reply = null;
     this.index++;
+    this.settle();
     if (this.index >= this.scene.lines.length) { this.phase = 'end'; return true; }
     return false;
   };
@@ -669,6 +753,7 @@
   Run.prototype.submit = function () {
     if (this.waiting() !== 'input') return false;
     this.index++;
+    this.settle();
     if (this.index >= this.scene.lines.length) this.phase = 'end';
     return true;
   };
@@ -678,7 +763,9 @@
     var c = this.line().choose[i];
     if (!c) return false;
     this.picked = i;
-    this.reply = { who: 'doc', mood: 'happy', say: c.reply, isReply: true };
+    if (this.line().pick) this.picks[this.line().pick] = i;
+    this.reply = { who: c.who || 'doc', mood: c.mood || (c.who ? undefined : 'happy'), name: c.name, case: c.case,
+      say: c.reply, isReply: true };
     return true;
   };
 
@@ -697,7 +784,7 @@
   var api = {
     SCENES: SCENES, SPEAKER: SPEAKER, BG: BG, CHAPTER_TIME: CHAPTER_TIME, LAST_CHAPTER: LAST_CHAPTER,
     DEFAULT_NAME: DEFAULT_NAME, NAME_MAX: NAME_MAX,
-    sceneById: sceneById, cleanName: cleanName, fill: fill, speakerName: speakerName,
+    sceneById: sceneById, cleanName: cleanName, fill: fill, speakerName: speakerName, shows: shows,
     before: before, after: after, Run: Run,
     NOTEBOOK: NOTEBOOK, NOTE_KINDS: NOTE_KINDS, notesOpen: notesOpen, notesAdded: notesAdded
   };

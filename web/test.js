@@ -1123,6 +1123,31 @@ console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ�
   const metaHits = [];
   ST.SCENES.forEach(x => x.lines.forEach(l => { if (l.who !== 'scene' && metaWords.test(l.say)) metaHits.push(x.id + ':' + l.say.slice(0, 16)); }));
   ok('幕の台詞で教材の構成（章・レッスン・コース）に触れない', metaHits.length === 0, metaHits.join(' '));
+  // 主人公が選んだ言葉は覚えておき、あとの幕で響かせる（pick / when）
+  const picks = {}, pickBad = [];
+  ST.SCENES.forEach(x => x.lines.forEach(l => {
+    if (l.when) {
+      const m = /^([\w-]+):(\d+)$/.exec(l.when);
+      if (!m || !picks[m[1]] || Number(m[2]) >= picks[m[1]]) pickBad.push(x.id + ':' + l.when);
+    }
+    if (l.pick) { if (!l.choose || picks[l.pick]) pickBad.push(x.id + ':' + l.pick); else picks[l.pick] = l.choose.length; }
+    for (const c of l.choose || []) {
+      if ((c.who === 'pt' || c.who === 'fam') && !c.name) pickBad.push(x.id + ': 返しに呼び名が無い');
+      if (c.who && WHO.indexOf(c.who) < 0) pickBad.push(x.id + ':' + c.who);
+    }
+  }));
+  ok('選んだ言葉の名前と、それに応じて出す行がつり合う', pickBad.length === 0 && Object.keys(picks).length >= 5, pickBad.join(' '));
+  const ep = ST.sceneById('epilogue');
+  const lineCount = p => { const r = new ST.Run(ep, p); let n = 0; r.next(); while (r.phase !== 'end') { n++; r.next(); } return n; };
+  const runSays = p => { const r = new ST.Run(ep, p); const out = []; r.next(); while (r.phase !== 'end') { out.push(r.line().say); r.next(); } return out.join('|'); };
+  ok('選んだ言葉でエピローグが変わり、選ばずに飛ばしたときは 0 番として流れる',
+    runSays({ path: 0 }).includes('やっぱり、小児科') && runSays({ path: 2 }).includes('逃げずに診ます')
+    && !runSays({ path: 2 }).includes('やっぱり、小児科') && runSays({}) === runSays({ path: 0, photo: 0, nerves: 0 })
+    && lineCount({}) < ep.lines.length);
+  const rp = new ST.Run(ST.sceneById('ch9-close'), {});
+  while (rp.waiting() !== 'choose') rp.next();
+  rp.pick(1);
+  ok('選ぶとその番号を覚え、返しは選択肢に書いた人が言う', rp.picks.aoiDad === 1 && rp.line().who === 'doc');
   ok('どの背景も、今ある絵のどれかで表示できる', Object.keys(ST.BG).every(k => ST.BG[k].some(n => manifest[n])));
 
   // いつ流すか
@@ -1148,7 +1173,7 @@ console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ�
   okRun = okRun && r.waiting() === 'choose' && r.pick(1) && r.line().isReply && r.waiting() === null;
   r.next();
   okRun = okRun && !r.waiting();
-  let guard = 0; while (!r.next() && guard++ < 200);
+  let guard = 0; while (guard++ < 200) { if (r.waiting() === 'choose') r.pick(0); if (r.next()) break; }
   ok('押して進み、名前と選択肢では止まる', okRun && r.phase === 'end');
   const f = new ST.Run(ST.sceneById('prologue'));
   ok('名前が無いまま飛ばすと名前の行で止まる', f.skip(false) === false && f.waiting() === 'input'

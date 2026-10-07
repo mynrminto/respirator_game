@@ -19,7 +19,13 @@ extension StoryLibrary {
             StoryLine(.puku, "ねえねえ、この人が新しい先生？", mood: "excited"),
             StoryLine(.doc, "ぷくぷくです。ここの子たちの「息」から生まれた…ということに、なっています。", mood: "happy"),
             StoryLine(.puku, "ぼく、分からないことがあったら「なんで？」って聞く係なんだ。先生の代わりに聞いてあげる！", mood: "happy"),
-            StoryLine(.doc, "{名前}先生、緊張していますか？", mood: "think", choices: [
+            StoryLine(.puku, "じゃあさっそく。{名前}先生は、将来なに科になるの？", mood: "excited", pick: "path", choices: [
+                StoryChoice(label: "小児科を考えています", reply: "それなら、この 4 週間はあなたの最初の一歩ですね。"),
+                StoryChoice(label: "まだ決めていません", reply: "決めていない人ほど、よく見えるものがあります。"),
+                StoryChoice(label: "ほかの科です", reply: "どの科に進んでも、子どもはいつか目の前に来ます。そのときのために。")
+            ]),
+            StoryLine(.puku, "ふーん。ぼく、ちゃんと覚えておくからね！", mood: "happy"),
+            StoryLine(.doc, "{名前}先生、緊張していますか？", mood: "think", pick: "nerves", choices: [
                 StoryChoice(label: "正直、かなり", reply: "いい緊張です。ここでは、こわいと思える人のほうが子どもを守れます。"),
                 StoryChoice(label: "楽しみです", reply: "頼もしい。その気持ちのまま、手順だけは守りましょう。")
             ]),
@@ -98,7 +104,13 @@ extension StoryLibrary {
                    bg: "picu", time: "day", end: nil, lines: [
             StoryLine(.scene, "インフルエンザ肺炎から ARDS になったミオちゃん（3歳）。お母さんが、ベッドの横で小さな手を握っている。"),
             StoryLine(.fam, "先生、この子、ずっとこのままなんでしょうか…。", name: "ミオちゃんのお母さん"),
-            StoryLine(.doc, "肺を休ませながら、治るのを待っているところです。いまは、その待ち方をいちばん安全にします。"),
+            StoryLine(.doc, "{名前}先生。お母さんに、いまの状態を伝えてみてください。"),
+            StoryLine(.me, "（お母さんの目を見て、言葉を選ぶ）", pick: "mioMom", choices: [
+                StoryChoice(label: "肺を休ませて、治るのを待っています", reply: "休ませて…。この機械は、休ませるためのものなんですね。", who: .fam, name: "ミオちゃんのお母さん"),
+                StoryChoice(label: "正直、まだ分かりません", reply: "分からないことは、分からないと言っていい。ただ、いま何をしているかは伝えましょう。", who: .doc, mood: "think"),
+                StoryChoice(label: "大丈夫です、きっと治ります", reply: "約束はしない。でも、希望は渡す。その間を探すのが、わたしたちの言葉です。", who: .doc, mood: "think")
+            ]),
+            StoryLine(.doc, "いまは肺を休ませながら、治るのを待っています。その待ち方を、いちばん安全にします。"),
             StoryLine(.puku, "待ち方？"),
             StoryLine(.doc, "機械に何を任せて、何をこの子に預けるか。それを選ぶのが「モード」です。")
         ]),
@@ -186,6 +198,9 @@ extension StoryLibrary {
             StoryLine(.fam, "ハルト…！ 先生、ほんとうにありがとうございました。", name: "ハルト君のお母さん"),
             StoryLine(.doc, "お礼は、こちらの先生に。最初の夜から、ずっとハルト君の担当でした。", mood: "happy"),
             StoryLine(.me, "ハルト君、よくがんばったね。"),
+            StoryLine(.pt, "…せんせいの、なまえ、なに？", name: "ハルト君", caseID: "postop"),
+            StoryLine(.me, "{名前}。{名前}先生だよ。"),
+            StoryLine(.pt, "…{名前}せんせい。ねてるとき、ずっと、こえ、きこえてた。", name: "ハルト君", caseID: "postop"),
             StoryLine(.puku, "チューブが入っていたときは、どうして声が出なかったの？"),
             StoryLine(.doc, "声は、吐く息が声帯を震わせて出るものです。チューブは、その声帯のあいだを通っていました。"),
             StoryLine(.doc, "だから最初の声は、自分の息が戻ってきた合図なんです。", mood: "happy"),
@@ -263,15 +278,22 @@ extension StoryLibrary {
                    bg: "nicu", time: "day", end: nil, lines: [
             StoryLine(.scene, "生まれて 4 日目。あおい君は nCPAP のまま、保育器の中で手足を伸ばしている。"),
             StoryLine(.fam, "小さすぎて、触ったら壊れてしまいそうで…。", name: "あおい君のお父さん"),
-            StoryLine(.nurse, "大丈夫ですよ。手のひらで、そっと包んであげてください。"),
+            StoryLine(.doc, "{名前}先生、お父さんに声をかけてあげてください。"),
+            StoryLine(.me, "（保育器の窓を、お父さんと一緒にのぞきこむ）", pick: "aoiDad", choices: [
+                StoryChoice(label: "一緒に、手を当ててみましょう", reply: "…あったかい。こんなに小さいのに、ちゃんと息をしてる。", who: .fam, name: "あおい君のお父さん"),
+                StoryChoice(label: "もう少し大きくなってから", reply: "触れることも治療のうちです。いまのふれあいは、親にも子にも力になります。", who: .doc, mood: "think")
+            ]),
+            StoryLine(.nurse, "大丈夫ですよ。手のひらで、そっと包んであげてください。", when: "aoiDad:1"),
             StoryLine(.doc, "桁が変わっても、考え方は同じでした。{名前}先生、もう NICU の数字も読めますね。", mood: "happy"),
             StoryLine(.me, "小さじ 1 杯の空気が、こんなに重いとは思いませんでした。"),
             StoryLine(.puku, "あおい君、生まれたとき泣いた？"),
             StoryLine(.doc, "小さな声で。産声は、水で満ちていた肺に初めて空気を入れて、それを吐きながら上げる声です。"),
             StoryLine(.scene, "保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。"),
             StoryLine(.scene, "端の色あせた 1 枚に、手書きの文字。「いぶきちゃん　在胎 28 週　980 g」"),
-            StoryLine(.me, "先生、これ…。"),
-            StoryLine(.puku, "あ…見つかっちゃった。", mood: "alert"),
+            StoryLine(.me, "（色あせた写真から、目が離せない）", pick: "photo", choices: [
+                StoryChoice(label: "先生、これって…", reply: "あ…見つかっちゃった。", who: .puku, mood: "alert"),
+                StoryChoice(label: "（何も言わずに、先生を見る）", reply: "…{名前}先生、気づいちゃった？", who: .puku, mood: "sad")
+            ]),
             StoryLine(.doc, "わたしも、ここの保育器で育ちました。小さじ 1 杯の空気から。", mood: "happy"),
             StoryLine(.doc, "続きは、別の機会にしましょう。いまは、あおい君の番です。")
         ]),
@@ -307,19 +329,24 @@ extension StoryLibrary {
                    bg: "picu", time: "day", end: nil, lines: [
             StoryLine(.scene, "窓際のベッドのあかりちゃん。挿管から 4 週間。初日より、指先がよく動くようになった。"),
             StoryLine(.pt, "（文字盤を指でたどる。「いつ、しゃべれる？」）", name: "あかりちゃん", caseID: "gbs"),
+            StoryLine(.me, "（あかりちゃんの目の高さまで、しゃがむ）", pick: "akari", choices: [
+                StoryChoice(label: "もうすぐ。一緒に練習しよう", reply: "（文字盤をたどる。「やくそく」）", who: .pt, name: "あかりちゃん", caseID: "gbs"),
+                StoryChoice(label: "息の力が戻ったらね", reply: "（小さくうなずいて、文字盤をたどる。「がんばる」）", who: .pt, name: "あかりちゃん", caseID: "gbs")
+            ]),
             StoryLine(.puku, "この前の SBT、18 分でだめだったんだよね…", mood: "sad"),
             StoryLine(.doc, "あの日から、毎日少しずつ練習してきました。{名前}先生、仕上げを一緒にやりましょう。"),
             StoryLine(.puku, "息の筋肉が動かない病気って、昔はどうしてたの？"),
             StoryLine(.doc, "1928 年、ボストンで「鉄の肺」が作られました。体ごと箱に入れ、外から胸を広げて息をさせる機械です。"),
             StoryLine(.doc, "ポリオの子たちが、その中で何か月も力が戻るのを待ちました。あかりちゃんも、いま待っています。"),
-            StoryLine(.me, "あかりちゃん、もうすぐだよ。")
+            StoryLine(.me, "あかりちゃん、仕上げだよ。")
         ]),
         StoryScene(id: "ch11-close", kind: "close", chapter: "ch11",
                    title: "第11章　幕　4 週間ぶりの声",
                    card: nil,
                    bg: "picu", time: "day", end: nil, lines: [
             StoryLine(.scene, "抜管の翌日。あかりちゃんは NPPV のマスクを外して、窓の外を見ている。"),
-            StoryLine(.pt, "…せんせい。こえ、でた。", name: "あかりちゃん", caseID: "gbs"),
+            StoryLine(.pt, "…{名前}せんせい。こえ、でた。", name: "あかりちゃん", caseID: "gbs"),
+            StoryLine(.pt, "…やくそく、まもったよ。", name: "あかりちゃん", caseID: "gbs", when: "akari:0"),
             StoryLine(.puku, "しゃべった！ 4 週間ぶりだよ！", mood: "excited"),
             StoryLine(.fam, "先生方、本当に、本当にありがとうございました。", name: "あかりちゃんのお母さん"),
             StoryLine(.doc, "{名前}先生。ローテが終わるまで、あと 1 週間です。", mood: "happy")
@@ -332,16 +359,29 @@ extension StoryLibrary {
             StoryLine(.scene, "ベッドの顔ぶれは入れ替わった。ミオちゃんは一般病棟へ移り、そうた君はとうに家へ帰った。"),
             StoryLine(.scene, "あかりちゃんはリハビリで車いすに乗れるようになり、レン君は吸入を続けると約束して退院した。"),
             StoryLine(.scene, "NICU のあおい君は 1,400 g を超えた。退院したハルト君からは、手紙が届いている。"),
+            StoryLine(.scene, "封筒には、大きな字で「{名前}せんせいへ」。"),
+            StoryLine(.pt, "「ぼくがねてるとき、ずっとそばにいてくれて、ありがとう。またサッカーできたよ。」", name: "ハルト君（手紙）", caseID: "postop"),
             StoryLine(.doc, "{名前}先生。初日に、子どもの呼吸器は触ったことがないと言っていましたね。"),
             StoryLine(.me, "…はい。いまも、全部分かったとは思えません。"),
             StoryLine(.doc, "それでいいんです。分からないと思える人は、確かめに戻ってこられます。", mood: "happy"),
+            StoryLine(.doc, "初日、とても緊張していると言っていましたね。その緊張が、ずっと子どもたちを守っていました。", when: "nerves:0"),
+            StoryLine(.doc, "初日、楽しみだと言っていましたね。その顔のまま、最後まで来ました。", when: "nerves:1"),
             StoryLine(.me, "先生。NICU の写真の続き、聞いてもいいですか。"),
-            StoryLine(.doc, "約束でしたね。わたしは 28 週、980 g で生まれて、2 週間、呼吸器につながっていました。", mood: "happy"),
+            StoryLine(.doc, "約束でしたね。", mood: "happy", when: "photo:0"),
+            StoryLine(.doc, "あの写真の前で、何も聞かずにいてくれましたね。…お話しします。", mood: "happy", when: "photo:1"),
+            StoryLine(.doc, "わたしは 28 週、980 g で生まれて、2 週間、呼吸器につながっていました。"),
             StoryLine(.doc, "管が抜けて、初めて自分で息をした日。両親は、この名前に決めたそうです。息吹。"),
             StoryLine(.puku, "そのとき、ぼくが生まれたんだ！ 先生の、はじめての息から。", mood: "excited"),
             StoryLine(.doc, "…ということに、なっています。研修医としてここへ戻った日、ポケットから出てきました。"),
             StoryLine(.doc, "「息を引き取る」という言葉があります。始まりが息なら、終わりも息で言い表すんです。", mood: "think"),
             StoryLine(.doc, "そのあいだを少しでも長く、楽にする。それが、わたしたちの仕事です。"),
+            StoryLine(.puku, "ねえ{名前}先生。初日に聞いたこと、覚えてる？ なに科になるの？"),
+            StoryLine(.me, "…やっぱり、小児科です。ここに戻ってきたいです。", when: "path:0"),
+            StoryLine(.doc, "待っています。わたしも、そうやってここへ戻ってきましたから。", mood: "happy", when: "path:0"),
+            StoryLine(.me, "まだ決めていません。でも、子どもの息の音は、たぶん一生忘れません。", when: "path:1"),
+            StoryLine(.doc, "それで十分です。どの科にも、息をする子どもは来ます。", mood: "happy", when: "path:1"),
+            StoryLine(.me, "進む科は変わりません。でも、子どもが来たら、逃げずに診ます。", when: "path:2"),
+            StoryLine(.doc, "それが聞けたら、このローテは成功です。", mood: "happy", when: "path:2"),
             StoryLine(.puku, "{名前}先生、ぼくのこと、忘れないでね。", mood: "sad"),
             StoryLine(.doc, "忘れませんよ。呼吸器の前に立つたびに、「なんで？」と聞く声がするはずです。", mood: "happy"),
             StoryLine(.puku, "…ねえ、{名前}先生のポケット、ちょっとあったかそう。", mood: "happy"),

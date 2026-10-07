@@ -12,9 +12,17 @@ function line(l) {
   if (l.name) args.push(`name: ${q(l.name)}`);
   if (l.case) args.push(`caseID: ${q(l.case)}`);
   if (l.input === 'name') args.push('asksName: true');
+  if (l.pick) args.push(`pick: ${q(l.pick)}`);
+  if (l.when) args.push(`when: ${q(l.when)}`);
   if (l.choose) {
-    args.push('choices: [\n' + l.choose.map(c =>
-      `                StoryChoice(label: ${q(c.label)}, reply: ${q(c.reply)})`).join(',\n') + '\n            ]');
+    args.push('choices: [\n' + l.choose.map(c => {
+      const ca = [`label: ${q(c.label)}`, `reply: ${q(c.reply)}`];
+      if (c.who) ca.push(`who: .${c.who}`);
+      if (c.mood) ca.push(`mood: ${q(c.mood)}`);
+      if (c.name) ca.push(`name: ${q(c.name)}`);
+      if (c.case) ca.push(`caseID: ${q(c.case)}`);
+      return `                StoryChoice(${ca.join(', ')})`;
+    }).join(',\n') + '\n            ]');
   }
   return `            StoryLine(${args.join(', ')})`;
 }

@@ -2364,6 +2364,7 @@
 
   var STORY_KEY = 'ventsim.story.seen.v1';
   var PLAYER_KEY = 'ventsim.player.v1';
+  var PICKS_KEY = 'ventsim.story.picks.v1';   // 幕の中で主人公が選んだ言葉 { key: 番号 }
   var SAY_CPS = 42;                         // 文字送りの速さ（字/秒）
 
   function storySeen() {
@@ -2375,6 +2376,14 @@
       var s = storySeen();
       if (s.indexOf(id) < 0) { s.push(id); window.localStorage.setItem(STORY_KEY, JSON.stringify(s)); }
     } catch (err) { /* 記録できなくても物語は進む */ }
+  }
+  function storyPicks() {
+    try { var raw = window.localStorage.getItem(PICKS_KEY); return raw ? JSON.parse(raw) || {} : {}; }
+    catch (err) { return {}; }
+  }
+  function saveStoryPick(key, i) {
+    try { var p = storyPicks(); p[key] = i; window.localStorage.setItem(PICKS_KEY, JSON.stringify(p)); }
+    catch (err) { /* 覚えられなくても物語は進む（0 番を選んだものとして流れる） */ }
   }
   /* 名前がまだ決まっていなければ null。呼ぶときは playerName() で既定の名前に落とす。 */
   function storedName() {
@@ -2412,7 +2421,7 @@
   function nextScene() {
     var id = SV.queue.shift();
     var sc = ST.sceneById(id);
-    SV.run = new ST.Run(sc);
+    SV.run = new ST.Run(sc, storyPicks());
     SV.stage = null; SV.bgKey = '';
     $('story').setAttribute('data-chap', sc.chapter || 'ch1');
     $('sPlace').textContent = sc.card ? sc.card.sub : sc.title;
@@ -2604,6 +2613,7 @@
     var w = SV.run.waiting(), act = $('sAct');
     $('sNext').hidden = !!w;
     act.innerHTML = '';
+    act.classList.remove('stack');
     act.hidden = !w;
     if (w === 'input') {
       var f = el('form', 'sform');
@@ -2626,9 +2636,18 @@
       act.appendChild(f);
       setTimeout(function () { try { inp.focus(); } catch (e) { /* 無視 */ } }, 50);
     } else if (w === 'choose') {
-      SV.run.line().choose.forEach(function (c, i) {
+      var chs = SV.run.line().choose;
+      /* 長い返事が並ぶときは縦に積む（iPhone 版と同じ）。 */
+      act.classList.toggle('stack', chs.length > 2 || chs.some(function (c) { return c.label.length > 10; }));
+      chs.forEach(function (c, i) {
         var b = el('button', 'sbtn', c.label);
-        b.onclick = function (ev) { ev.stopPropagation(); SV.run.pick(i); paintStory(); };
+        b.onclick = function (ev) {
+          ev.stopPropagation();
+          var key = SV.run.line().pick;
+          SV.run.pick(i);
+          if (key) saveStoryPick(key, i);
+          paintStory();
+        };
         act.appendChild(b);
       });
     }
@@ -2650,7 +2669,7 @@
     if (!SV.run.skip(!!storedName())) { paintStory(); finishTyping(); return; }
     markStorySeen(SV.run.scene.id);
     while (SV.queue.length) {
-      var id = SV.queue.shift(), r = new ST.Run(ST.sceneById(id));
+      var id = SV.queue.shift(), r = new ST.Run(ST.sceneById(id), storyPicks());
       if (!r.skip(!!storedName())) { SV.run = r; paintStory(); finishTyping(); return; }
       markStorySeen(id);
     }

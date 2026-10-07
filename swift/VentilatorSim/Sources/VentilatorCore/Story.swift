@@ -20,9 +20,18 @@ public enum StorySpeaker: String {
 
 public struct StoryChoice {
     public let label: String
-    /// 選んだあとに、いぶき先生が返す 1 行。
+    /// 選んだあとの返し（1 行）。返すのは who（既定はいぶき先生）。
     public let reply: String
-    public init(label: String, reply: String) { self.label = label; self.reply = reply }
+    public let who: StorySpeaker
+    public let mood: String?
+    /// 家族・患者が返すときの呼び名と症例 ID。
+    public let name: String?
+    public let caseID: String?
+    public init(label: String, reply: String, who: StorySpeaker = .doc, mood: String? = nil,
+                name: String? = nil, caseID: String? = nil) {
+        self.label = label; self.reply = reply; self.who = who; self.mood = mood
+        self.name = name; self.caseID = caseID
+    }
 }
 
 public struct StoryLine {
@@ -39,15 +48,29 @@ public struct StoryLine {
     /// 主人公の名前を入れてもらう行。
     public let asksName: Bool
     public let choices: [StoryChoice]
+    /// 選んだ番号をこの名前で覚えておく（主人公の選んだ言葉が、あとの幕に響く）。
+    public let pick: String?
+    /// "key:n"。key で n 番を選んだときだけ出す。選ばずに飛ばしたときは 0 番とみなす。
+    public let when: String?
     /// 選択肢のあとに差し込まれた返し。
     public let isReply: Bool
 
     public init(_ who: StorySpeaker, _ say: String, mood: String? = nil, bg: String? = nil,
                 name: String? = nil, caseID: String? = nil, asksName: Bool = false,
+                pick: String? = nil, when: String? = nil,
                 choices: [StoryChoice] = [], isReply: Bool = false) {
         self.who = who; self.say = say; self.mood = mood; self.bg = bg
         self.name = name; self.caseID = caseID; self.asksName = asksName
+        self.pick = pick; self.when = when
         self.choices = choices; self.isReply = isReply
+    }
+
+    /// picks（選んだ言葉）のもとで、この行を出すか。Web 版 story.js の shows と同じ。
+    public func shows(_ picks: [String: Int]) -> Bool {
+        guard let when else { return true }
+        let parts = when.split(separator: ":")
+        guard parts.count == 2, let n = Int(parts[1]) else { return true }
+        return (picks[String(parts[0])] ?? 0) == n
     }
 }
 
@@ -226,10 +249,20 @@ public final class StoryRun {
     public private(set) var phase: Phase
     public private(set) var reply: StoryLine?
     public private(set) var picked: Int?
+    /// 選んだ言葉 { key: 番号 }。when のある行はこれで出すかどうかを決める。
+    public private(set) var picks: [String: Int]
 
-    public init(scene: StoryScene) {
+    public init(scene: StoryScene, picks: [String: Int] = [:]) {
         self.scene = scene
+        self.picks = picks
         phase = scene.card == nil ? .line : .card
+        settle()
+    }
+
+    /// いまの行が出さない行なら、出す行まで進める。最後まで無ければ終わり。
+    private func settle() {
+        while index < scene.lines.count && !scene.lines[index].shows(picks) { index += 1 }
+        if index >= scene.lines.count && phase == .line { phase = .end }
     }
 
     public var line: StoryLine? {
@@ -251,12 +284,13 @@ public final class StoryRun {
     public func next() -> Bool {
         switch phase {
         case .end: return true
-        case .card: phase = .line; return false
+        case .card: phase = .line; settle(); return phase == .end
         case .line: break
         }
         if waiting != nil { return false }
         reply = nil
         index += 1
+        settle()
         if index >= scene.lines.count { phase = .end; return true }
         return false
     }
@@ -266,6 +300,7 @@ public final class StoryRun {
     public func submitName() -> Bool {
         guard waiting == .name else { return false }
         index += 1
+        settle()
         if index >= scene.lines.count { phase = .end }
         return true
     }
@@ -274,7 +309,10 @@ public final class StoryRun {
     public func pick(_ i: Int) -> Bool {
         guard waiting == .choice, let l = line, l.choices.indices.contains(i) else { return false }
         picked = i
-        reply = StoryLine(.doc, l.choices[i].reply, mood: "happy", isReply: true)
+        if let key = l.pick { picks[key] = i }
+        let c = l.choices[i]
+        reply = StoryLine(c.who, c.reply, mood: c.mood ?? (c.who == .doc ? "happy" : nil),
+                          name: c.name, caseID: c.caseID, isReply: true)
         return true
     }
 
