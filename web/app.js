@@ -6,6 +6,8 @@
   var E = window.VentEngine, SC = window.VentScenarios, LS = window.VentLessons, CH = window.VentChars;
   var AR = window.VentArt, AS = window.VentAssets, LU = window.VentLung3D;
   var ST = window.VentStory;           // 物語（story.js）
+  var ED = window.VentEdition || { adult: false, fvt: { unit: '/分/(mL/kg)', limit: 8, lim: '<8', dec: 1,
+    get: function (m) { return m.rsbiKg; }, fail: 'f/VT が 8 を超えました（浅く速い呼吸）' } };   // 版の文言（edition.js）
   /* 音は無くても動く（sound.js を読まない構成やテスト用） */
   var SND = window.VentSound || { play: function () {}, alarm: function () {}, pulse: function () { return false; }, pulseReset: function () {},
     enabled: function () { return false; }, setEnabled: function () {}, pulseEnabled: function () { return false; }, setPulseEnabled: function () {} };
@@ -224,8 +226,9 @@
     { k: 'Cstat', u: 'mL/cmH₂O', get: function (e) { return e.m.cstat == null ? '––' : r0(e.m.cstat); } },
     { k: 'Raw', u: 'cmH₂O/L/s', get: function (e) { return e.m.raw == null ? '––' : r0(e.m.raw); } },
     { k: 'auto-PEEP', u: 'cmH₂O', get: function (e) { return r1(e.m.autoPeep); }, tone: function (e) { return e.m.autoPeep > 5 ? 'hi' : (e.m.autoPeep > 2 ? 'mid' : ''); } },
-    /* 小児では f/VT を体重あたりで見る。成人の RSBI（<105）は体重が軽いほど大きく出て使えない。 */
-    { k: 'f/VT', u: '/分/(mL/kg)', get: function (e) { return e.m.rsbiKg == null ? '––' : r1(e.m.rsbiKg); }, lim: function () { return '<8'; }, tone: function (e) { return e.m.rsbiKg > 8 ? 'mid' : ''; } },
+    /* 小児では f/VT を体重あたりで見る。成人の RSBI（<105）は体重が軽いほど大きく出て使えない。
+     * 成人版では同じタイルに RSBI（f ÷ Vt[L]）を出す。どちらを出すかは edition.js が決める。 */
+    { k: 'f/VT', u: ED.fvt.unit, get: function (e) { var v = ED.fvt.get(e.m); return v == null ? '––' : (ED.fvt.dec ? r1(v) : r0(v)); }, lim: function () { return ED.fvt.lim; }, tone: function (e) { return ED.fvt.get(e.m) > ED.fvt.limit ? 'mid' : ''; } },
     { k: 'SpO₂', u: '%', get: function (e) { return r0(e.spo2); }, lim: function (e) { return e.nm.spo2[0] + '–' + e.nm.spo2[1] + '%'; }, tone: function (e) { return e.spo2 < e.nm.spo2[0] ? 'hi' : (e.spo2 > e.nm.spo2[1] + 2 ? 'mid' : 'ok'); } },
     { k: 'etCO₂', u: 'mmHg', get: function (e) { return r0(e.etco2); } },
     { k: 'HR', u: '/min', get: function (e) { return r0(e.hr); }, lim: function (e) { return e.nm.hr[0] + '–' + e.nm.hr[1]; }, tone: function (e) { return e.hr < e.nm.hr[0] * 0.8 ? 'hi' : (e.hr > e.nm.hr[1] * 1.15 || e.hr < e.nm.hr[0] ? 'mid' : ''); } },
@@ -287,14 +290,16 @@
     var m = pt.ageMonths != null ? pt.ageMonths
           : (pt.ageDays != null ? pt.ageDays / 30
           : (pt.age != null ? pt.age * 12 : 24));
-    return m < 1 ? 'neonate' : (m < 24 ? 'infant' : 'child');
+    return m < 1 ? 'neonate' : (m < 24 ? 'infant' : (m >= 216 ? 'adult' : 'child'));
   }
 
   /* 患者の絵。生成画像があればそれ、無ければコード描画。優先順:
    *   patient_<症例ID>[_mid|_bad] → patient_<年齢層>[...] → patient_bed[...] → コード描画 */
   function patientArtName(sc, tone) {
     var kind = patientKind(sc), suf = tone === 'ok' ? '' : '_' + tone;
-    var names = ['patient_' + sc.id + suf, 'patient_' + kind + suf, 'patient_bed' + suf];
+    /* 成人版は症例 ID が小児版と重なる（postop など）ので、小児の生成画像を拾わないよう成人用の名前だけを見る。 */
+    var names = ED.adult ? ['patient_adult_' + sc.id + suf, 'patient_adult' + suf]
+      : ['patient_' + sc.id + suf, 'patient_' + kind + suf, 'patient_bed' + suf];
     for (var i = 0; i < names.length; i++) if (AS.has(names[i])) return names[i];
     return null;
   }
@@ -490,8 +495,8 @@
     items.push({ id: 'about', glyph: '?', title: 'この教材について', sub: '免責事項とモデルの説明' });
     return {
       done: d, total: n, items: items, next: next,
-      line: d === 0 ? (storedName() ? 'おかえりなさい、' + storedName() + '先生。\nハルト君が待っています。'
-                                    : 'はじめまして。小児科の いぶき先生です。\nいっしょに こどもたちの呼吸を守りましょう。')
+      line: d === 0 ? (storedName() ? 'おかえりなさい、' + storedName() + '先生。\n' + (ED.waiting || 'ハルト君が待っています。')
+                                    : (ED.hello || 'はじめまして。小児科の いぶき先生です。\nいっしょに こどもたちの呼吸を守りましょう。'))
           : (d >= n ? '全レッスン修了、おみごとです。\n症例で腕を試してみましょう。'
                     : 'おかえりなさい、' + playerName() + '先生。\nここまで ' + d + ' / ' + n + ' レッスン。つづきからどうぞ。')
     };
@@ -929,7 +934,7 @@
     var nm = e.nm, rrCap = Math.round(nm.rr[1] * 1.5), hrCap = Math.round(nm.hr[1] * 1.25);
     if (e.m.rrTotal > rrCap) bad = '呼吸回数が ' + rrCap + '/分を超えました';
     else if (e.spo2 < nm.spo2[0]) bad = 'SpO₂ が ' + nm.spo2[0] + '% を下回りました';
-    else if (e.m.rsbiKg != null && e.m.rsbiKg > 8) bad = 'f/VT が 8 を超えました（浅く速い呼吸）';
+    else if (ED.fvt.get(e.m) != null && ED.fvt.get(e.m) > ED.fvt.limit) bad = ED.fvt.fail;
     else if (e.hr > hrCap) bad = '頻脈（' + hrCap + '/分超）';
     else if (e.map < nm.mapMin) bad = '血圧低下（平均 ' + nm.mapMin + ' mmHg 未満）';
     else if (e.ph < 7.30) bad = 'アシドーシスが進みました';
@@ -1351,7 +1356,7 @@
 
     var e = S.eng;
     $('lungWho').innerHTML = '<b>' + esc(S.scen.title) + '</b>'
-      + '<i>' + esc(mo.ageLabel) + '　' + mo.kg + ' kg　'
+      + '<i>' + esc(mo.ageLabel) + '　' + (mo.kg < 10 ? mo.kg.toFixed(1) : Math.round(mo.kg)) + ' kg' + (ED.adult ? '（予測体重）' : '') + '　'
       + '肺の高さ ' + mo.heightCm.toFixed(0) + ' cm（実寸）'
       + (LUNG.view.gl ? '' : '　／ 2D 表示') + '</i>';
 
@@ -1543,7 +1548,9 @@
       who.appendChild(el('i', '', sc.title));
       head.appendChild(face); head.appendChild(who);
       var body = el('div', 'ptbody');
-      body.innerHTML = '<div class="ptkg"><s>体重</s><b>' + esc(pf.weight) + '</b></div>'
+      /* 成人版は予測体重を大きく出し、実体重を添える（設定の基準は予測体重）。 */
+      body.innerHTML = '<div class="ptkg"><s>' + esc(pf.weightLabel || '体重') + '</s><b>' + esc(pf.weight) + '</b></div>'
+        + (pf.bodyWeight ? '<div class="ptkg sm"><s>実体重</s><b>' + esc(pf.bodyWeight) + '</b></div>' : '')
         + '<div class="ptkg sm"><s>身長</s><b>' + esc(pf.height) + '</b></div>';
       head.appendChild(body);
       b.appendChild(head);
@@ -1650,8 +1657,8 @@
     else if (!msgs.length) msgs.push('酸塩基は概ね目標域です。');
     if (g.pf < 150 && lowMap) msgs.push('P/F 比 ' + Math.round(g.pf) + '。酸素化は悪いものの、平均血圧 ' + Math.round(e.map) + ' が下限 ' + e.nm.mapMin + ' を割っています。PEEP を上げる前に循環（輸液・強心薬）を立て直します。');
     else if (g.pf < 150) msgs.push('P/F 比 ' + Math.round(g.pf) + '。酸素化が悪く、PEEP を上げてリクルートメントを図る場面です。');
-    else if (g.fio2 > 0.5 && g.pao2 > ab.pao2[1]) msgs.push('PaO₂ に余裕があります。FiO₂ を下げて酸素毒性（未熟児網膜症や気管支肺異形成の一因）を避けます。');
-    if (e.m.pplat != null && e.m.pplat > pm) msgs.push('Pplat ' + Math.round(e.m.pplat) + ' cmH₂O。この年齢の目安 ' + pm + ' を超えています。Vt を減らすか PEEP を見直してください。');
+    else if (g.fio2 > 0.5 && g.pao2 > ab.pao2[1]) msgs.push(ED.o2tox || 'PaO₂ に余裕があります。FiO₂ を下げて酸素毒性（未熟児網膜症や気管支肺異形成の一因）を避けます。');
+    if (e.m.pplat != null && e.m.pplat > pm) msgs.push('Pplat ' + Math.round(e.m.pplat) + ' cmH₂O。' + (ED.platAge || 'この年齢の目安') + ' ' + pm + ' を超えています。Vt を減らすか PEEP を見直してください。');
     if (e.m.autoPeep > 3) msgs.push('auto-PEEP ' + e.m.autoPeep.toFixed(1) + ' cmH₂O。呼気時間が不足しています。RR を下げるか吸気時間を短くします。');
     var d = el('div', 'tip' + (g.ph < 7.30 || g.pf < 150 ? ' bad' : ''));
     d.innerHTML = msgs.join('<br>');
@@ -1706,7 +1713,7 @@
       if (b2.done === 'pass') {
         b.appendChild(el('p', '', '30 分の自発呼吸トライアルを、呼吸回数・酸素化・循環を保ったまま完遂しました。抜管を検討できます。'));
         var t = el('div', 'tip');
-        t.textContent = 'f/VT ' + (S.eng.m.rsbiKg == null ? '––' : S.eng.m.rsbiKg.toFixed(1))
+        t.textContent = 'f/VT ' + (ED.fvt.get(S.eng.m) == null ? '––' : ED.fvt.get(S.eng.m).toFixed(ED.fvt.dec))
           + '、呼吸回数 ' + Math.round(S.eng.m.rrTotal) + ' /分。';
         b.appendChild(t);
         var r = el('div', 'mrow');
@@ -2461,7 +2468,8 @@
   function storyBg(key) {
     var names = (ST.BG[key] || ST.BG.picu);
     for (var i = 0; i < names.length; i++) if (AS.has(names[i])) return AS.url(names[i]);
-    return null;
+    /* 背景の絵がまだ無い版（成人版で画像が届く前）は、コードで描いた ICU を敷く。夜の場面は暗い版。 */
+    return AR.room(key === 'night' || key === 'station');
   }
 
   /* 立ち絵。先生とぷくぷくは全身、患者はベッドの一枚絵を窓に入れる。
@@ -2798,7 +2806,7 @@
   function openCourse() {
     var done = doneSet();
     modal('学習コース', function (b, close) {
-      b.appendChild(el('p', '', 'PICU と NICU の 6 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。'
+      b.appendChild(el('p', '', (ED.course || 'PICU と NICU の 6 人の子どもを受け持ちながら、呼吸器の操作を順に覚えていくコースです。')
         + 'いぶき先生とぷくぷくの会話を追っていくと、そのつど実機を触ることになります。上から順に進めるのが基本です。'));
       var n = LS.allLessons().length;
       var nDone = done.filter(function (id) { return LS.lessonById(id); }).length;
