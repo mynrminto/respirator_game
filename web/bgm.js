@@ -424,7 +424,7 @@
   try { on = root.localStorage ? root.localStorage.getItem(KEY) !== 'off' : true; } catch (e) { on = true; }
 
   var wanted = null, playing = null, ducked = false, hidden = false;
-  var cache = {}, bus = null, nodes = {};   // nodes[track] = { src, gain }
+  var cache = {}, bus = null, mbus = null, nodes = {};   // nodes[track] = { src, gain }
 
   function soundOn() { return !root.VentSound || root.VentSound.enabled(); }
   function level() { return GAIN * (ducked ? DUCK : 1); }
@@ -433,7 +433,10 @@
     var S = root.VentSound;
     var io = S && S.audio ? S.audio() : null;
     if (!io) return null;
-    if (!bus) { bus = io.ctx.createGain(); bus.gain.value = level(); bus.connect(io.master); }
+    if (!bus) {
+      bus = io.ctx.createGain(); bus.gain.value = level(); bus.connect(io.master);
+      mbus = io.ctx.createGain(); mbus.connect(bus);   // 曲だけの音量（ジングルのあいだ下げる）
+    }
     return io.ctx;
   }
 
@@ -502,9 +505,36 @@
     var src = ctx.createBufferSource(), g = ctx.createGain(), t = ctx.currentTime;
     src.buffer = cache[target]; src.loop = true;
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + FADE);
-    src.connect(g); g.connect(bus);
+    src.connect(g); g.connect(mbus);
     src.start(t);
     nodes[target] = { src: src, gain: g };
+  }
+
+  /* ジングル（章の扉・手帳に書き留めたとき）。1 回だけ鳴らし、そのあいだ曲を下げる。
+   * assets/bgm/bgm_jingle_<名前>.m4a。読めなければ鳴らさない。 */
+  var JINGLES = { chapter: true, note: true }, JINGLE_DIP = 0.35, jingles = {};
+  /** 鳴らすつもりなら true（読めなかったときは黙る）。false なら呼び出し側がほかの音で代える。 */
+  function jingle(name) {
+    if (!JINGLES[name] || !on || !soundOn() || hidden) return false;
+    var ctx = context(), page = root.location ? root.location.protocol : 'file:';
+    if (!ctx || ctx.state !== 'running' || !root.fetch || page === 'file:') return false;
+    var play = function (b) {
+      var src = ctx.createBufferSource(), t = ctx.currentTime;
+      src.buffer = b; src.connect(bus); src.start(t);
+      mbus.gain.cancelScheduledValues(t);
+      mbus.gain.setValueAtTime(mbus.gain.value, t);
+      mbus.gain.linearRampToValueAtTime(JINGLE_DIP, t + 0.15);
+      mbus.gain.setValueAtTime(JINGLE_DIP, t + b.duration - 0.6);
+      mbus.gain.linearRampToValueAtTime(1, t + b.duration + 0.4);
+    };
+    if (jingles[name]) { if (jingles[name] !== 'loading') play(jingles[name]); return true; }
+    jingles[name] = 'loading';
+    root.fetch('assets/bgm/bgm_jingle_' + name + '.m4a')
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(function (a) { return ctx.decodeAudioData(a); })
+      .then(function (b) { jingles[name] = b; play(b); })
+      .catch(function () { delete jingles[name]; });
+    return true;
   }
 
   /* アラームの曲から戻るのは、アラームが HOLD 秒続けて消えてから（鳴ったり止んだりで曲が行き来しないように）。 */
@@ -547,7 +577,7 @@
   }
 
   var api = {
-    want: want, duck: duck, enabled: function () { return on; }, setEnabled: setEnabled,
+    want: want, duck: duck, jingle: jingle, JINGLES: JINGLES, enabled: function () { return on; }, setEnabled: setEnabled,
     playing: function () { return playing; }, wanted: function () { return wanted; },
     refresh: apply, clockTrack: clockTrack,
     score: score, render: render, Renderer: Renderer, length: length, mtof: mtof,

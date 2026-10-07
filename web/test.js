@@ -1321,6 +1321,10 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
     ok('当直明け（第5章の幕）は「夜明け」の曲', byId('ch5-close').bgm === 'dawn');
     ok('研修手帳を開いているあいだは「研修手帳」の曲（Web・iPhone）', /nbmodal'\)\) return 'notebook'/.test(app) && /nb\.classList\.add\('nbmodal'\)/.test(app)
       && /BGMPlayer\.shared\.overlay = "notebook"/.test(fs.readFileSync(path.join(__dirname, '..', 'swift', 'VentilatorSim', 'App', 'NotebookView.swift'), 'utf8')));
+    ok('ジングル（章の扉・手帳）があり、Web と iPhone の同じ場所で鳴らす', Object.keys(BG.JINGLES).every(j => fs.existsSync(path.join(__dirname, 'assets', 'bgm', 'bgm_jingle_' + j + '.m4a')))
+      && /BGM\.jingle\('chapter'\)/.test(app) && /BGM\.jingle\('note'\)/.test(app)
+      && /BGMPlayer\.shared\.jingle\("chapter"\)/.test(fs.readFileSync(path.join(__dirname, '..', 'swift', 'VentilatorSim', 'App', 'StoryView.swift'), 'utf8'))
+      && /BGMPlayer\.shared\.jingle\("note"\)/.test(fs.readFileSync(path.join(__dirname, '..', 'swift', 'VentilatorSim', 'App', 'StoryView.swift'), 'utf8')));
     ok('幕と章の曲はどれも流せる名前', ST.SCENES.concat([{ bgm: ST.CHAPTER_BGM.ch9, lines: [] }]).every(s => [s].concat(s.lines).every(x => !x.bgm || BG.FILES[x.bgm] || BG.SONGS[x.bgm])));
   }
   ok('app.js はアラーム（黄・赤）のあいだアラームの曲を選ぶ', /return 'alarm';/.test(app) && /x\.sev > 0/.test(app));

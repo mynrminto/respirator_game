@@ -461,6 +461,7 @@ struct StoryView: View {
             return
         }
         run = StoryRun(scene: scene, picks: StoryProgress.picks)
+        if scene.card != nil { BGMPlayer.shared.jingle("chapter") }   // 章の扉のジングル
         BGMPlayer.shared.want(scene.bgm ?? scene.time)   // 幕の曲（抜管・NICU）か、幕の時刻で昼の曲・夜の曲
         lastPortrait = nil
         advanced()
@@ -480,7 +481,7 @@ struct StoryView: View {
             let added = StoryLibrary.notesAdded(before: seenAtStart, after: StoryProgress.seen)
             if !added.isEmpty {
                 notes = added
-                SoundBoard.shared.play(.confirm)
+                if !BGMPlayer.shared.jingle("note") { SoundBoard.shared.play(.confirm) }   // 手帳のジングル
                 version &+= 1
                 return
             }

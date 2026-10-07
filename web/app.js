@@ -2442,7 +2442,7 @@
     if (!SV.replay && !SV.notesShown) {
       SV.notesShown = true;
       var added = ST.notesAdded(SV.seen0, storySeen());
-      if (added.length) { SV.notes = added; SND.play('confirm'); paintStory(); return; }
+      if (added.length) { SV.notes = added; if (!BGM.jingle('note')) SND.play('confirm'); paintStory(); return; }
     }
     SV.notes = null;
     var end = SV.run.scene.end;
@@ -2527,6 +2527,7 @@
     }
 
     if (run.phase === 'card') {
+      if (SV.jingled !== sc.id) { SV.jingled = sc.id; BGM.jingle('chapter'); }   // 章の扉のジングル
       card.hidden = false; box.hidden = true;
       $('sKick').textContent = sc.card.kicker;
       $('sTitle').textContent = sc.card.title;
