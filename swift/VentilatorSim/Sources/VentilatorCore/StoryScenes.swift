@@ -7,6 +7,7 @@ extension StoryLibrary {
                    title: "プロローグ　はじめての小児科",
                    card: StoryCard(kicker: "プロローグ", title: "はじめての小児科", sub: "ローテーション初日　朝 8 時"),
                    bg: "corridor", time: "day", end: nil, lines: [
+            StoryLine(.scene, "Dum spiro, spero.　―― 息をするかぎり、希望はある。（ラテン語の格言）"),
             StoryLine(.scene, "初期研修の小児科ローテーション、初日。朝の病棟は、思っていたよりずっと静かだった。"),
             StoryLine(.scene, "廊下の突き当たりに「PICU・NICU」の自動ドア。中から、規則正しい機械の音が聞こえてくる。"),
             StoryLine(.doc, "おはようございます。今日から小児科を回る研修医の先生ですね。", mood: "happy"),
