@@ -11,6 +11,11 @@
  *            後半 8 小節でオルゴールの旋律。暗く緊迫した曲はこれだけにする。
  * どれも 16 小節で継ぎ目なくループする（音の尾と残響は先頭へ回り込ませてある）。
  *
+ * 録音した曲（Suno で作った曲）があれば、合成の代わりにそれを流す。assets/bgm/bgm_<曲>.m4a（44.1 kHz・ステレオ）。
+ * 小節の頭で切ってループにしてあり、音量は合成の曲にそろえてある。FILES は曲ごとのフレーム数で、
+ * AAC の末尾に付く詰め物を切り落とすのに使う（assets/bgm/bgm.json と同じ値。test.js が確かめる）。
+ * 読めない（file:// で開いた・ファイルが無い）ときは合成の曲に落ちる。
+ *
  * 流す場所と時刻（app.js が決め、VentBGM.want(track) で伝える）
  *   タイトル … タイトルの曲（title）
  *   物語の幕 … 幕ごとの時刻（story.js の time）。午後 8 時の扉なら夜、夜明けなら昼。
@@ -35,6 +40,7 @@
 
   var KEY = 'ventsim.bgm.v1';
   var RATE = 24000;          // BGM は 24 kHz で作る（メモリを抑える。中身は 8 kHz より下）
+  var FILES = { title: 3617874, day: 4330165, night: 3041544, alarm: 1693495 }, FILE_RATE = 44100;
   var GAIN = 0.15;           // 仕上がりのピークを 0.8 にそろえたうえで掛ける（ピーク 0.12）。パルス音 0.16・アラーム 0.26〜0.34 より小さい
   var DUCK = 0.5;            // アラームが鳴っているあいだの倍率（アラームの曲ごと下げる）
   var FADE = 2.5;            // 曲の切り替え（秒）
@@ -433,6 +439,32 @@
   var jobs = {};
   function prepare(ctx, track) {
     if (cache[track] || jobs[track]) return;
+    var page = root.location ? root.location.protocol : 'file:';
+    if (FILES[track] && root.fetch && page !== 'file:') { loadFile(ctx, track); return; }
+    synth(ctx, track);
+  }
+
+  /* 録音した曲を読む。頭の詰め物はデコーダが除くので、末尾だけ FILES の長さに切る。 */
+  function loadFile(ctx, track) {
+    jobs[track] = true;
+    root.fetch('assets/bgm/bgm_' + track + '.m4a')
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(function (a) { return ctx.decodeAudioData(a); })
+      .then(function (b) {
+        var n = Math.round(FILES[track] * b.sampleRate / FILE_RATE);
+        if (b.length > n) {
+          var c = ctx.createBuffer(b.numberOfChannels, n, b.sampleRate);
+          for (var k = 0; k < b.numberOfChannels; k++) c.getChannelData(k).set(b.getChannelData(k).subarray(0, n));
+          b = c;
+        }
+        cache[track] = b;
+        delete jobs[track];
+        apply();
+      })
+      .catch(function () { delete jobs[track]; synth(ctx, track); });
+  }
+
+  function synth(ctx, track) {
     var job = jobs[track] = new Renderer(track, RATE);
     (function tick() {
       if (!job.step(18)) { setTimeout(tick, 16); return; }
@@ -517,7 +549,7 @@
     playing: function () { return playing; }, wanted: function () { return wanted; },
     refresh: apply, clockTrack: clockTrack,
     score: score, render: render, Renderer: Renderer, length: length, mtof: mtof,
-    SONGS: SONGS, INST: INST, RATE: RATE, GAIN: GAIN, DUCK: DUCK, FADE: FADE, HOLD: HOLD
+    SONGS: SONGS, INST: INST, RATE: RATE, FILES: FILES, FILE_RATE: FILE_RATE, GAIN: GAIN, DUCK: DUCK, FADE: FADE, HOLD: HOLD
   };
   root.VentBGM = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

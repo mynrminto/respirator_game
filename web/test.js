@@ -1298,6 +1298,14 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
   ok('アラームが消えてもすぐには戻らない（HOLD 秒続けて消えてから）', BG.wanted() === 'alarm' && BG.HOLD >= 2);
   BG.want('title');
   ok('タイトルへはすぐ戻る', BG.wanted() === 'title');
+  {
+    const bdir = path.join(__dirname, 'assets', 'bgm');
+    const man = JSON.parse(fs.readFileSync(path.join(bdir, 'bgm.json'), 'utf8'));
+    ok('録音した曲の長さが bgm.json と bgm.js で同じ', man.rate === BG.FILE_RATE && JSON.stringify(man.frames) === JSON.stringify(BG.FILES));
+    ok('録音した曲のファイルがそろっている（どれも合成の曲がある名前）', Object.keys(BG.FILES).every(t => BG.SONGS[t] && fs.existsSync(path.join(bdir, 'bgm_' + t + '.m4a'))),
+      Object.keys(BG.FILES).join(','));
+    ok('録音した曲は 30 秒〜2 分のループ', Object.values(BG.FILES).every(n => n / BG.FILE_RATE >= 30 && n / BG.FILE_RATE <= 120));
+  }
   ok('app.js はアラーム（黄・赤）のあいだアラームの曲を選ぶ', /return 'alarm';/.test(app) && /x\.sev > 0/.test(app));
 
   // iPhone 版は bgm.js から書き出した楽譜と音色を持ち、同じ場所で同じ曲を選ぶ
@@ -1319,6 +1327,8 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
     ok('iPhone 版もアラームのあいだはアラームの曲、戻るのは HOLD 秒あと', /if level > 0 \{\s*BGMPlayer\.shared\.want\("alarm"\)/.test(swAll)
       && pl.includes('hold: TimeInterval = ' + BG.HOLD));
     ok('iPhone 版は起動直後に全曲を先に作り、作った曲を端末に取っておく', /BGMPlayer\.shared\.prepareAll\(\)/.test(swAll) && pl.includes('cachesDirectory'));
+    ok('iPhone 版も録音した曲（assets/bgm/bgm_<曲>.m4a）を先に探し、bgm.json の長さで切る', pl.includes('"bgm_\\(track)", withExtension: "m4a", subdirectory: "assets/bgm"')
+      && pl.includes('forResource: "bgm", withExtension: "json", subdirectory: "assets/bgm"') && pl.includes('fileRate: Double = ' + BG.FILE_RATE));
   } else {
     ok('iPhone 版に BGMScore.swift がある', false);
   }
