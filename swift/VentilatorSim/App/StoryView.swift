@@ -460,7 +460,7 @@ struct StoryView: View {
             return
         }
         run = StoryRun(scene: scene, picks: StoryProgress.picks)
-        BGMPlayer.shared.want(scene.time)   // 幕の時刻で昼の曲・夜の曲を選ぶ
+        BGMPlayer.shared.want(scene.bgm ?? scene.time)   // 幕の曲（抜管・NICU）か、幕の時刻で昼の曲・夜の曲
         lastPortrait = nil
         advanced()
     }

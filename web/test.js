@@ -1302,9 +1302,16 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
     const bdir = path.join(__dirname, 'assets', 'bgm');
     const man = JSON.parse(fs.readFileSync(path.join(bdir, 'bgm.json'), 'utf8'));
     ok('録音した曲の長さが bgm.json と bgm.js で同じ', man.rate === BG.FILE_RATE && JSON.stringify(man.frames) === JSON.stringify(BG.FILES));
-    ok('録音した曲のファイルがそろっている（どれも合成の曲がある名前）', Object.keys(BG.FILES).every(t => BG.SONGS[t] && fs.existsSync(path.join(bdir, 'bgm_' + t + '.m4a'))),
+    ok('録音した曲のファイルがそろっていて、読めないときの代わりの合成曲がある', Object.keys(BG.FILES).every(t => (BG.SONGS[t] || BG.SONGS[BG.FALLBACK[t]]) && fs.existsSync(path.join(bdir, 'bgm_' + t + '.m4a'))),
       Object.keys(BG.FILES).join(','));
     ok('録音した曲は 30 秒〜2 分のループ', Object.values(BG.FILES).every(n => n / BG.FILE_RATE >= 30 && n / BG.FILE_RATE <= 120));
+  }
+  {
+    const byId = id => ST.SCENES.find(s => s.id === id);
+    ok('抜管の幕（ハルト君・そうた君・あかりちゃん）は「抜管・最初の声」の曲', ['ch6-close', 'ch7-close', 'ch11-close'].every(id => byId(id).bgm === 'breath'));
+    ok('NICU の幕と章は NICU の曲、早産児の症例も', ['ch9-open', 'ch9-close'].every(id => byId(id).bgm === 'nicu') && ST.CHAPTER_BGM.ch9 === 'nicu'
+      && /ST\.CHAPTER_BGM\[/.test(app) && /S\.scen\.id === 'rds'\) return 'nicu'/.test(app) && /SV\.run\.scene\.bgm/.test(app));
+    ok('幕と章の曲はどれも流せる名前', ST.SCENES.concat([{ bgm: ST.CHAPTER_BGM.ch9 }]).every(s => !s.bgm || BG.FILES[s.bgm] || BG.SONGS[s.bgm]));
   }
   ok('app.js はアラーム（黄・赤）のあいだアラームの曲を選ぶ', /return 'alarm';/.test(app) && /x\.sev > 0/.test(app));
 
@@ -1321,8 +1328,11 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
     const core = fs.readFileSync(path.join(__dirname, '..', 'swift', 'VentilatorSim', 'Sources', 'VentilatorCore', 'Story.swift'), 'utf8');
     ok('iPhone 版の章の時刻が同じ', Object.keys(ST.CHAPTER_TIME).every(k => core.includes(`"${k}": "${ST.CHAPTER_TIME[k]}"`)));
     const swAll = fs.readdirSync(swApp).filter(f => f.endsWith('.swift')).map(f => fs.readFileSync(path.join(swApp, f), 'utf8')).join('\n');
+    ok('iPhone 版の章の曲・代わりの曲・幕の曲が同じ', Object.keys(ST.CHAPTER_BGM).every(k => core.includes(`"${k}": "${ST.CHAPTER_BGM[k]}"`))
+      && Object.keys(BG.FALLBACK).every(k => pl.includes(`"${k}": "${BG.FALLBACK[k]}"`)) && /want\(scene\.bgm \?\? scene\.time\)/.test(swAll)
+      && /scenario\.id == "rds" \? "nicu"/.test(swAll));
     ok('iPhone 版もタイトル・幕・レッスン・症例で曲を選ぶ', /BGMPlayer\.shared\.want\("title"\)/.test(swAll)
-      && /BGMPlayer\.shared\.want\(scene\.time\)/.test(swAll) && /StoryLibrary\.chapterTime\[/.test(swAll)
+      && /BGMPlayer\.shared\.want\(scene\.bgm \?\? scene\.time\)/.test(swAll) && /StoryLibrary\.chapterTime\[/.test(swAll)
       && /BGMPlayer\.clockTrack\(\)/.test(swAll) && /BGMPlayer\.shared\.duck\(/.test(swAll) && /BGMPlayer\.shared\.isEnabled = v/.test(swAll));
     ok('iPhone 版もアラームのあいだはアラームの曲、戻るのは HOLD 秒あと', /if level > 0 \{\s*BGMPlayer\.shared\.want\("alarm"\)/.test(swAll)
       && pl.includes('hold: TimeInterval = ' + BG.HOLD));

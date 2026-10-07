@@ -40,7 +40,9 @@
 
   var KEY = 'ventsim.bgm.v1';
   var RATE = 24000;          // BGM は 24 kHz で作る（メモリを抑える。中身は 8 kHz より下）
-  var FILES = { title: 3617874, day: 4330165, night: 3041544, alarm: 1693495 }, FILE_RATE = 44100;
+  var FILES = { title: 3617874, day: 4330165, night: 3041544, alarm: 1693495, breath: 2529028, nicu: 1957520 }, FILE_RATE = 44100;
+  /* 録音しかない曲が読めないときに代わりに合成する曲。 */
+  var FALLBACK = { breath: 'day', nicu: 'night' };
   var GAIN = 0.15;           // 仕上がりのピークを 0.8 にそろえたうえで掛ける（ピーク 0.12）。パルス音 0.16・アラーム 0.26〜0.34 より小さい
   var DUCK = 0.5;            // アラームが鳴っているあいだの倍率（アラームの曲ごと下げる）
   var FADE = 2.5;            // 曲の切り替え（秒）
@@ -465,7 +467,7 @@
   }
 
   function synth(ctx, track) {
-    var job = jobs[track] = new Renderer(track, RATE);
+    var job = jobs[track] = new Renderer(SONGS[track] ? track : FALLBACK[track], RATE);
     (function tick() {
       if (!job.step(18)) { setTimeout(tick, 16); return; }
       var w = job.result, b = ctx.createBuffer(2, w.L.length, w.rate);
@@ -511,7 +513,7 @@
 
   /** 流したい曲を伝える（'title' / 'day' / 'night' / 'alarm' / null）。毎フレーム呼んでよい。 */
   function want(track) {
-    track = SONGS[track] ? track : null;
+    track = SONGS[track] || FILES[track] ? track : null;
     var t = now();
     if (track === 'alarm') lastAlarm = t;
     else if (wanted === 'alarm' && (track === 'day' || track === 'night') && t - lastAlarm < HOLD) return;
@@ -549,7 +551,7 @@
     playing: function () { return playing; }, wanted: function () { return wanted; },
     refresh: apply, clockTrack: clockTrack,
     score: score, render: render, Renderer: Renderer, length: length, mtof: mtof,
-    SONGS: SONGS, INST: INST, RATE: RATE, FILES: FILES, FILE_RATE: FILE_RATE, GAIN: GAIN, DUCK: DUCK, FADE: FADE, HOLD: HOLD
+    SONGS: SONGS, INST: INST, RATE: RATE, FILES: FILES, FILE_RATE: FILE_RATE, FALLBACK: FALLBACK, GAIN: GAIN, DUCK: DUCK, FADE: FADE, HOLD: HOLD
   };
   root.VentBGM = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

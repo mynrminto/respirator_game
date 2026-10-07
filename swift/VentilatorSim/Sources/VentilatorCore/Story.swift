@@ -103,13 +103,15 @@ public struct StoryScene: Identifiable {
     public let bg: String
     /// BGM の昼の曲・夜の曲を選ぶ（"day" / "night"）。
     public let time: String
+    /// 時刻より優先して流す曲（"breath" / "nicu"）。無ければ time の曲。
+    public let bgm: String?
     public let end: StoryEnd?
     public let lines: [StoryLine]
 
     public init(id: String, kind: String, chapter: String?, title: String, card: StoryCard?,
-                bg: String, time: String = "day", end: StoryEnd?, lines: [StoryLine]) {
+                bg: String, time: String = "day", bgm: String? = nil, end: StoryEnd?, lines: [StoryLine]) {
         self.id = id; self.kind = kind; self.chapter = chapter; self.title = title
-        self.card = card; self.bg = bg; self.time = time; self.end = end; self.lines = lines
+        self.card = card; self.bg = bg; self.time = time; self.bgm = bgm; self.end = end; self.lines = lines
     }
 }
 
@@ -167,6 +169,9 @@ public enum StoryLibrary {
         "ch1": "night", "ch2": "day", "ch3": "day", "ch4": "day", "ch5": "night", "ch6": "day",
         "ch7": "day", "ch8": "day", "ch9": "night", "ch10": "night", "ch11": "day"
     ]
+
+    /// 章の時刻より優先して流す曲（web/story.js の CHAPTER_BGM と同じ）。
+    public static let chapterBGM: [String: String] = ["ch9": "nicu"]
 
     /// エピローグを流す章。研修の最終日（web/story.js の LAST_CHAPTER）。
     public static let lastChapter = "ch11"

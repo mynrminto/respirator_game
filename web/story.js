@@ -11,6 +11,8 @@
  *   epilogue   … 最後の章（第11章）の幕のあと
  * 幕ごとに time（'day' / 'night'）を持ち、BGM の昼の曲・夜の曲をこれで選ぶ。
  * レッスンの最中は章の時刻（CHAPTER_TIME）で選ぶ。
+ * bgm を持つ幕は、その曲を流す（'breath' 抜管・最初の声 ／ 'nicu' NICU）。章の曲は CHAPTER_BGM。
+ * 録音した曲が無いときは bgm.js が time の曲に落とす。
  * 一度見た幕はメニューの「物語を読み返す」から何度でも読める。
  *
  * 行（line）の書き方
@@ -49,6 +51,8 @@
    * 第9章は NICU の夜、第10章は救急外来からの当直の夜、ほかは日中。 */
   var CHAPTER_TIME = { ch1: 'night', ch2: 'day', ch3: 'day', ch4: 'day', ch5: 'night', ch6: 'day',
     ch7: 'day', ch8: 'day', ch9: 'night', ch10: 'night', ch11: 'day' };
+  /* 章の時刻より優先して流す曲（NICU の章は NICU の曲）。 */
+  var CHAPTER_BGM = { ch9: 'nicu' };
 
   /* エピローグは最後の章の幕のあとに流す。 */
   var LAST_CHAPTER = 'ch11';
@@ -287,7 +291,7 @@
     },
     {
       id: 'ch6-close', kind: 'close', chapter: 'ch6', title: '第6章　幕　抜管のあと',
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'breath',
       lines: [
         { who: 'scene', say: '抜管から 1 時間。ハルト君は酸素マスクをつけて、自分でしっかり咳をしている。' },
         { who: 'pt', name: 'ハルト君', say: '…せんせい。のど、いたい。' },
@@ -322,7 +326,7 @@
     },
     {
       id: 'ch7-close', kind: 'close', chapter: 'ch7', title: '第7章　幕　8 日目の昼前',
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'breath',
       lines: [
         { who: 'scene', say: '8 日目の昼前。そうた君は鼻のカニュラで、ゆっくりと息をしている。' },
         { who: 'scene', say: 'お母さんが差し出した指を、小さな手がぎゅっと握った。' },
@@ -375,7 +379,7 @@
     {
       id: 'ch9-open', kind: 'open', chapter: 'ch9', title: '第9章　扉　NICU の夜',
       card: { kicker: '第9章', title: '手のひらの肺', sub: '2 週目の夜　NICU' },
-      bg: 'nicu', time: 'night',
+      bg: 'nicu', time: 'night', bgm: 'nicu',
       lines: [
         { who: 'scene', say: '2 週目。NICU の夜は、PICU よりさらに静かだ。保育器のファンの音だけが続いている。' },
         { who: 'nurse', say: '{名前}先生、産科から連絡です。在胎 28 週、もうすぐ生まれます。' },
@@ -389,7 +393,7 @@
     },
     {
       id: 'ch9-close', kind: 'close', chapter: 'ch9', title: '第9章　幕　生まれて 4 日目',
-      bg: 'nicu', time: 'day',
+      bg: 'nicu', time: 'day', bgm: 'nicu',
       lines: [
         { who: 'scene', say: '生まれて 4 日目。あおい君は nCPAP のまま、保育器の中で手足を伸ばしている。' },
         { who: 'fam', name: 'あおい君のお父さん', say: '小さすぎて、触ったら壊れてしまいそうで…。' },
@@ -480,7 +484,7 @@
     },
     {
       id: 'ch11-close', kind: 'close', chapter: 'ch11', title: '第11章　幕　4 週間ぶりの声',
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'breath',
       lines: [
         { who: 'scene', say: '抜管の翌日。あかりちゃんは NPPV のマスクを外して、窓の外を見ている。' },
         { who: 'pt', case: 'gbs', name: 'あかりちゃん', say: '…{名前}せんせい。こえ、でた。' },
@@ -790,7 +794,7 @@
   };
 
   var api = {
-    SCENES: SCENES, SPEAKER: SPEAKER, BG: BG, CHAPTER_TIME: CHAPTER_TIME, LAST_CHAPTER: LAST_CHAPTER,
+    SCENES: SCENES, SPEAKER: SPEAKER, BG: BG, CHAPTER_TIME: CHAPTER_TIME, CHAPTER_BGM: CHAPTER_BGM, LAST_CHAPTER: LAST_CHAPTER,
     DEFAULT_NAME: DEFAULT_NAME, NAME_MAX: NAME_MAX,
     sceneById: sceneById, cleanName: cleanName, fill: fill, speakerName: speakerName, shows: shows,
     before: before, after: after, Run: Run,

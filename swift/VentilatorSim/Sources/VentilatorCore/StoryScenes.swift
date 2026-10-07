@@ -192,7 +192,7 @@ extension StoryLibrary {
         StoryScene(id: "ch6-close", kind: "close", chapter: "ch6",
                    title: "第6章　幕　抜管のあと",
                    card: nil,
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "breath", end: nil, lines: [
             StoryLine(.scene, "抜管から 1 時間。ハルト君は酸素マスクをつけて、自分でしっかり咳をしている。"),
             StoryLine(.pt, "…せんせい。のど、いたい。", name: "ハルト君"),
             StoryLine(.puku, "しゃべった！", mood: "excited"),
@@ -222,7 +222,7 @@ extension StoryLibrary {
         StoryScene(id: "ch7-close", kind: "close", chapter: "ch7",
                    title: "第7章　幕　8 日目の昼前",
                    card: nil,
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "breath", end: nil, lines: [
             StoryLine(.scene, "8 日目の昼前。そうた君は鼻のカニュラで、ゆっくりと息をしている。"),
             StoryLine(.scene, "お母さんが差し出した指を、小さな手がぎゅっと握った。"),
             StoryLine(.fam, "先生、この子、握り返してくれました…！", name: "そうた君のお母さん"),
@@ -266,7 +266,7 @@ extension StoryLibrary {
         StoryScene(id: "ch9-open", kind: "open", chapter: "ch9",
                    title: "第9章　扉　NICU の夜",
                    card: StoryCard(kicker: "第9章", title: "手のひらの肺", sub: "2 週目の夜　NICU"),
-                   bg: "nicu", time: "night", end: nil, lines: [
+                   bg: "nicu", time: "night", bgm: "nicu", end: nil, lines: [
             StoryLine(.scene, "2 週目。NICU の夜は、PICU よりさらに静かだ。保育器のファンの音だけが続いている。"),
             StoryLine(.nurse, "{名前}先生、産科から連絡です。在胎 28 週、もうすぐ生まれます。"),
             StoryLine(.doc, "ローテの初日に見た、保育器の子と同じ週数です。分娩室へ行きましょう。"),
@@ -279,7 +279,7 @@ extension StoryLibrary {
         StoryScene(id: "ch9-close", kind: "close", chapter: "ch9",
                    title: "第9章　幕　生まれて 4 日目",
                    card: nil,
-                   bg: "nicu", time: "day", end: nil, lines: [
+                   bg: "nicu", time: "day", bgm: "nicu", end: nil, lines: [
             StoryLine(.scene, "生まれて 4 日目。あおい君は nCPAP のまま、保育器の中で手足を伸ばしている。"),
             StoryLine(.fam, "小さすぎて、触ったら壊れてしまいそうで…。", name: "あおい君のお父さん"),
             StoryLine(.doc, "{名前}先生、お父さんに声をかけてあげてください。"),
@@ -347,7 +347,7 @@ extension StoryLibrary {
         StoryScene(id: "ch11-close", kind: "close", chapter: "ch11",
                    title: "第11章　幕　4 週間ぶりの声",
                    card: nil,
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "breath", end: nil, lines: [
             StoryLine(.scene, "抜管の翌日。あかりちゃんは NPPV のマスクを外して、窓の外を見ている。"),
             StoryLine(.pt, "…{名前}せんせい。こえ、でた。", name: "あかりちゃん", caseID: "gbs"),
             StoryLine(.pt, "…やくそく、まもったよ。", name: "あかりちゃん", caseID: "gbs", when: "akari:0"),

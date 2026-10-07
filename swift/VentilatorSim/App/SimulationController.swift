@@ -466,9 +466,10 @@ final class SimulationController {
             if level > 0 {
                 BGMPlayer.shared.want("alarm")
             } else if let lesson {
-                BGMPlayer.shared.want(LessonLibrary.chapter(of: lesson.id).flatMap { StoryLibrary.chapterTime[$0.id] } ?? "day")
+                let chapter = LessonLibrary.chapter(of: lesson.id)?.id ?? ""
+                BGMPlayer.shared.want(StoryLibrary.chapterBGM[chapter] ?? StoryLibrary.chapterTime[chapter] ?? "day")
             } else {
-                BGMPlayer.shared.want(BGMPlayer.clockTrack())
+                BGMPlayer.shared.want(scenario.id == "rds" ? "nicu" : BGMPlayer.clockTrack())   // 早産児の症例は NICU の曲
             }
         }
     }
