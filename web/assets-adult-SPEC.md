@@ -235,3 +235,20 @@ with a small heartbeat line on a deep-teal circle, centered on a solid flat brig
 
 - `python3 web/tools/assets.py <届いた画像のフォルダ> web/assets-adult` で切り抜き・分割・顔色差分を作る。
 - 成人版の公開版を差し替える。画像が無い部分はコードで描いた仮の絵のまま動きます。
+
+---
+
+## 変更（2026-10-07）: 上級医を男性に
+
+いぶき先生を、明るくて優しい 30 代半ばの男性に描き直す。差し替えるのは `doctor_sheet.png`（または `doctor_normal/happy/think/alert`）だけ。
+名前と台詞はそのまま（性別の決まる言い回しは無い）。コピー用のプロンプトは `web/doctor-male-brief.html`。
+
+```
+CHARACTER "Dr. Ibuki": a cheerful, kind Japanese male intensive care physician in his
+mid-thirties, short slightly tousled dark-brown hair, warm friendly eyes with faint smile lines, an
+easy open smile, clean-shaven, navy-blue scrubs under an open white coat with the sleeves rolled up
+to the forearms, a hospital ID badge clipped to the coat pocket, a dark stethoscope around his neck,
+a pen and a penlight in the breast pocket, white sneakers, tall with a relaxed and approachable
+posture, adult proportions (about 7 heads tall), full body, standing, facing the viewer.
+```
+表情は女性版と同じ 4 種（ふだん・うれしい・考える・注意）。ななみさんの画像を参照として添付して絵柄をそろえる。
