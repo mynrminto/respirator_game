@@ -389,7 +389,11 @@ extension StoryLibrary {
             StoryLine(.doc, "忘れませんよ。呼吸器の前に立つたびに、「なんで？」と聞く声がするはずです。", mood: "happy"),
             StoryLine(.puku, "…ねえ、{名前}先生のポケット、ちょっとあったかそう。", mood: "happy"),
             StoryLine(.doc, "ふふ。そうかもしれませんね。", mood: "happy"),
-            StoryLine(.doc, "最後に、ひとりで受け持ってみてください。症例は 6 人。わたしは、呼ばれたら行きます。")
+            StoryLine(.doc, "最後に、ひとりで受け持ってみてください。症例は 6 人。わたしは、呼ばれたら行きます。"),
+            StoryLine(.scene, "ベッドの横で、まだ誰にもつながっていない呼吸器が、起動を待っている。"),
+            StoryLine(.doc, "人形や物語に命を与えることを、「息を吹き込む」と言いますね。", mood: "think"),
+            StoryLine(.doc, "この機械がするのも、同じことです。吹き込むのは、{名前}先生の手です。", mood: "happy"),
+            StoryLine(.scene, "{名前}先生は、起動スイッチに指をかけた。")
         ])
     ]
 
