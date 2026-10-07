@@ -83,7 +83,7 @@ const SOLVE = {
     ['tcPCO₂ が', { set: { hfoAmp: 23 } }]
   ],
   '12-3': [
-    ['MAP を 1〜2', { set: { hfoMap: 11 } }],
+    ['MAP（平均気道内圧）を 1〜2', { set: { hfoMap: 11 } }],
     ['SpO₂ 90〜95% のまま、FiO₂ を 30', { set: { fio2: 0.23 } }]
   ],
   '13-1': [
