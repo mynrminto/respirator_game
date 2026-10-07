@@ -172,6 +172,24 @@ console.log('\n7. FiO2 と PaO2');
     `SpO2=${e.spo2.toFixed(0)}% HR=${e.hr.toFixed(0)} MAP=${e.map.toFixed(0)} etCO2=${e.etco2.toFixed(0)}`);
 }
 
+{
+  /* 無呼吸での SpO2 の下がり方は年齢で大きく違う。前酸素化してから 90% を切るまで、
+   * 健康な子で 0〜6か月 96 秒 / 2〜5歳 160 秒 / 11〜18歳 382 秒（Patel 1994）。
+   * 病気の肺はさらに速い。呼吸が止まったら、前の呼吸回数が残っていても換気は無いものとして扱う。 */
+  const apneaTime = (id) => {
+    const e = mk(id, { fio2: 1.0 });
+    e.sedation = 1.0; run(e, 300, 0.01);
+    e.s.mode = 'CPAP'; e.s.alarms.apnea = 1e9;           // バックアップ換気を止める
+    let t = 0;
+    while (e.spo2 >= 90 && t < 900) { run(e, 1, 0.01); t++; }
+    return t;
+  };
+  const infant = apneaTime('bronchiolitis'), school = apneaTime('postop');
+  ok('前酸素化後の無呼吸：細気管支炎の乳児は 1 分半以内に 90% を切る', infant > 30 && infant <= 90, `${infant} 秒`);
+  ok('前酸素化後の無呼吸：術後の学童は 2.5〜5 分で 90% を切る', school >= 150 && school <= 320, `${school} 秒`);
+  ok('乳児は学童の半分より早く下がる', infant < school / 2, `${infant} 秒 / ${school} 秒`);
+}
+
 console.log('\n8. 自発呼吸とトリガ（PSV）');
 {
   const e = mk('gbs', { mode: 'PSV', ps: 12, peep: 5, fio2: 0.4, trigFlow: 1.0 });

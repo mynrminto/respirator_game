@@ -8,7 +8,8 @@
 
   var PB = 760, PH2O = 47, RQ = 0.8;
   /* 酸素と CO2 の貯え。値の出どころは _gas と _o2Capacity のコメントを参照。 */
-  var FRC_PER_KG = 25;           // mL/kg  鎮静・仰臥位の機能的残気量（PEEP 0 のとき）
+  /* 機能的残気量（FRC）は年齢帯の基準値 nm.frcPerKg（鎮静・仰臥位・PEEP 0）を使う。 */
+  var C_SPEC_NORMAL = 1.0;       // mL/cmH2O/kg  健康な小児の比コンプライアンスの目安
   var BLOOD_PER_KG = 75;         // mL/kg  循環血液量
   var CO2_STORE_PER_KG = 0.33;   // mL/kg/mmHg  速く平衡する CO2 の貯え
   var PA_O2_FLOOR = 12;          // mmHg
@@ -53,32 +54,43 @@
   /* ---------- 年齢別の基準値 ----------
    * 症例ごとに毎回書かなくて済むよう、月齢と体重から既定値を作る。
    * 症例側の patient.norms に同じキーを書けば上書きされる。
-   * rr/hr は正常域、mapMin は許容できる平均血圧の下限（新生児は在胎週数がおおよその目安）。 */
+   * rr/hr は正常域、mapMin は許容できる平均血圧の下限（新生児は在胎週数がおおよその目安）。
+   * frcPerKg は鎮静・仰臥位・PEEP 0 の機能的残気量（mL/kg）。小さい子ほど胸郭が柔らかく、
+   * 鎮静すると FRC が大きく減る。値は無呼吸で SpO2 が 90% を切るまでの実測
+   * （前酸素化後、0〜6か月 96 秒 / 2〜5歳 160 秒 / 11〜18歳 382 秒：Patel 1994）に合わせた。
+   * paLag は肺から動脈までの遅れ、spo2Lag はパルスオキシメータの表示の遅れ（秒）。
+   * 小さい子ほど循環時間が短く、プローブも手足の近くなので速く出る。 */
   function ageNorms(ageMonths) {
     var a = ageMonths;
     if (a < 1)   return { label: '新生児',   rr: [40, 60], hr: [120, 160], mapMin: 30, spo2: [90, 95],
                           platMax: 24, dpMax: 12, vtPerKg: [4, 6],  vdCircuit: 1.0, apnea: 10,
                           rrMax: 80, tiMin: 0.20, trigLock: 0.10,
+                          frcPerKg: 11, paLag: 3, spo2Lag: 5,
                           abg: { ph: [7.25, 7.40], paco2: [40, 55], pao2: [45, 75], hco3: [18, 24] } };
     if (a < 12)  return { label: '乳児',     rr: [30, 50], hr: [110, 160], mapMin: 45, spo2: [92, 97],
                           platMax: 26, dpMax: 13, vtPerKg: [5, 7],  vdCircuit: 5,   apnea: 15,
                           rrMax: 70, tiMin: 0.30, trigLock: 0.12,
+                          frcPerKg: 11, paLag: 3, spo2Lag: 5,
                           abg: { ph: [7.33, 7.45], paco2: [33, 45], pao2: [70, 100], hco3: [19, 24] } };
     if (a < 36)  return { label: '幼児',     rr: [24, 40], hr: [100, 140], mapMin: 50, spo2: [92, 97],
                           platMax: 28, dpMax: 14, vtPerKg: [5, 7],  vdCircuit: 8,   apnea: 15,
                           rrMax: 60, tiMin: 0.35, trigLock: 0.15,
+                          frcPerKg: 12, paLag: 4, spo2Lag: 6,
                           abg: { ph: [7.34, 7.45], paco2: [33, 45], pao2: [80, 100], hco3: [20, 25] } };
     if (a < 72)  return { label: '未就学児', rr: [20, 30], hr: [90, 130],  mapMin: 55, spo2: [92, 97],
                           platMax: 28, dpMax: 15, vtPerKg: [6, 8],  vdCircuit: 10,  apnea: 18,
                           rrMax: 55, tiMin: 0.40, trigLock: 0.18,
+                          frcPerKg: 14, paLag: 4, spo2Lag: 7,
                           abg: { ph: [7.35, 7.45], paco2: [34, 45], pao2: [80, 100], hco3: [21, 26] } };
     if (a < 144) return { label: '学童',     rr: [18, 26], hr: [75, 115],  mapMin: 60, spo2: [94, 98],
                           platMax: 30, dpMax: 15, vtPerKg: [6, 8],  vdCircuit: 12,  apnea: 20,
                           rrMax: 45, tiMin: 0.45, trigLock: 0.20,
+                          frcPerKg: 20, paLag: 5, spo2Lag: 8,
                           abg: { ph: [7.35, 7.45], paco2: [35, 45], pao2: [80, 100], hco3: [22, 26] } };
     return           { label: '思春期',      rr: [14, 22], hr: [60, 100],  mapMin: 65, spo2: [94, 98],
                           platMax: 30, dpMax: 15, vtPerKg: [6, 8],  vdCircuit: 15,  apnea: 20,
                           rrMax: 40, tiMin: 0.50, trigLock: 0.25,
+                          frcPerKg: 26, paLag: 6, spo2Lag: 10,
                           abg: { ph: [7.35, 7.45], paco2: [35, 45], pao2: [80, 100], hco3: [22, 26] } };
   }
 
@@ -619,6 +631,12 @@
     var vd = vdAnat + vdCircuit + vdAlv;
     /* 死腔を引いた残りが肺胞換気量。体重で 2 桁変わるので床も体重比にする。 */
     var va = Math.max(0.04 * vtL, vtL - vd) * Math.max(1, this.m.rrTotal);
+    /* 呼吸回数は呼吸が来たときにしか数え直さないので、止まってもしばらくは前の回数が残る。
+     * 普段の間隔の 2.5 倍（少なくとも 4 秒）を過ぎても次の呼吸が来なければ無呼吸とみなし、
+     * その間は換気が無いものとして扱う。短い間（ま）は次の呼吸で数え直す回数に入るので数えない。 */
+    if (this.m.rrTotal > 0.5 && this.sinceBreath > Math.max(4, 2.5 * 60 / this.m.rrTotal)) {
+      va = 0.04 * vtL;
+    }
 
     // 過膨張は死腔を増やす
     var plat = this.m.pplat != null ? this.m.pplat : (this.V / this.C);
@@ -675,9 +693,9 @@
     var caO2 = ccO2 - this.shunt * vo2 / ((1 - this.shunt) * 10 * Math.max(coFloor, this.co));
     caO2 = Math.max(2, caO2);
     var pao2Target = po2FromContent(caO2, p.hb);
-    this.pao2 = approach(this.pao2, pao2Target, d, 8);           // 肺から動脈までの数秒
+    this.pao2 = approach(this.pao2, pao2Target, d, nm.paLag);      // 肺から動脈までの数秒
     var sat = satFromPO2(this.pao2) * 100;
-    this.spo2 = approach(this.spo2, sat, d, 14);
+    this.spo2 = approach(this.spo2, sat, d, nm.spo2Lag);       // プローブまでの循環と表示の平均化
 
     // 酸塩基：HCO3 は数時間かけて代償する
     var chronic = 24 + 0.38 * (this.paco2 - 40);
@@ -722,7 +740,10 @@
    * 役に立たず、SpO2 が 90% を切るあたりから下がり方を緩める。 */
   Engine.prototype._o2Capacity = function () {
     var p = this.p;
-    var lungL = FRC_PER_KG * p.pbw / 1000 * (1 - this.shunt) + Math.max(0, this.vEE);
+    /* 硬い肺（RDS・ARDS）は FRC そのものが小さい。比コンプライアンスで減らす（最大で半分）。 */
+    var cSpec = this.C * 1000 / p.pbw;
+    var frcKg = this.nm.frcPerKg * clamp(cSpec / C_SPEC_NORMAL, 0.5, 1);
+    var lungL = frcKg * p.pbw / 1000 * (1 - this.shunt) + Math.max(0, this.vEE);
     var gas = lungL * 1000 / (PB - PH2O);
     var pa = this.pAO2, h = 1;
     var slope = (o2Content(pa + h, p.hb) - o2Content(Math.max(0, pa - h), p.hb)) / (2 * h);  // mL/dL/mmHg

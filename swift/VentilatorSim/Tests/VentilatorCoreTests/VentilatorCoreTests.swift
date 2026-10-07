@@ -231,6 +231,26 @@ struct GasExchangeTests {
         #expect(e.meanArterialPressure > e.norms.meanArterialPressureMin - 5)
     }
 
+    /* 無呼吸での SpO2 の下がり方は年齢で大きく違う。前酸素化してから 90% を切るまで、
+     * 健康な子で 0〜6か月 96 秒 / 2〜5歳 160 秒 / 11〜18歳 382 秒（Patel 1994）。
+     * 病気の肺はさらに速い。呼吸が止まったら、前の呼吸回数が残っていても換気は無いものとして扱う。 */
+    @Test("前酸素化後の無呼吸で、乳児は学童よりずっと早く SpO2 が落ちる")
+    func apneaDesaturationByAge() {
+        func apneaTime(_ id: String) -> Int {
+            let e = makeEngine(id, sedation: 1.0) { $0.fio2 = 1.0 }
+            run(e, seconds: 300, dt: 0.01)
+            e.settings.mode = .cpap
+            e.settings.alarms.apneaSeconds = 1e9            // バックアップ換気を止める
+            var t = 0
+            while e.spo2 >= 90 && t < 900 { run(e, seconds: 1, dt: 0.01); t += 1 }
+            return t
+        }
+        let infant = apneaTime("bronchiolitis"), school = apneaTime("postop")
+        #expect(infant > 30 && infant <= 90)
+        #expect(school >= 150 && school <= 320)
+        #expect(Double(infant) < Double(school) / 2)
+    }
+
     @Test("血液ガスは Henderson-Hasselbalch を満たす")
     func bloodGasConsistency() {
         let e = makeEngine("ards", sedation: 1.0) { $0.peep = 12; $0.fio2 = 0.7 }

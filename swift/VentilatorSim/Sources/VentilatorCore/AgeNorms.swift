@@ -17,6 +17,12 @@ public struct AgeNorms: Equatable, Sendable {
     public var respiratoryRateMax: Double
     public var inspiratoryTimeMin: Double
     public var triggerLockout: Double                 // s
+    /// 鎮静・仰臥位・PEEP 0 の機能的残気量（mL/kg）。小さい子ほど胸郭が柔らかく、鎮静で大きく減る。
+    /// 無呼吸で SpO2 が 90% を切るまでの実測（前酸素化後、0〜6か月 96 秒 / 2〜5歳 160 秒 /
+    /// 11〜18歳 382 秒：Patel 1994）に合わせた値。
+    public var frcPerKg: Double
+    public var arterialLag: Double                    // s  肺から動脈までの遅れ
+    public var spo2Lag: Double                        // s  パルスオキシメータの表示の遅れ（小さい子ほど速い）
     public var abgPH: ClosedRange<Double>
     public var abgPaco2: ClosedRange<Double>
     public var abgPao2: ClosedRange<Double>
@@ -70,6 +76,7 @@ public extension Physiology {
                             plateauMax: 24, drivingPressureMax: 12, tidalPerKg: 4...6,
                             circuitDeadSpace: 1.0, apneaSeconds: 10, respiratoryRateMax: 80,
                             inspiratoryTimeMin: 0.20, triggerLockout: 0.10,
+                            frcPerKg: 11, arterialLag: 3, spo2Lag: 5,
                             abgPH: 7.25...7.40, abgPaco2: 40...55, abgPao2: 45...75, abgHco3: 18...24)
         }
         if ageMonths < 12 {
@@ -78,6 +85,7 @@ public extension Physiology {
                             plateauMax: 26, drivingPressureMax: 13, tidalPerKg: 5...7,
                             circuitDeadSpace: 5, apneaSeconds: 15, respiratoryRateMax: 70,
                             inspiratoryTimeMin: 0.30, triggerLockout: 0.12,
+                            frcPerKg: 11, arterialLag: 3, spo2Lag: 5,
                             abgPH: 7.33...7.45, abgPaco2: 33...45, abgPao2: 70...100, abgHco3: 19...24)
         }
         if ageMonths < 36 {
@@ -86,6 +94,7 @@ public extension Physiology {
                             plateauMax: 28, drivingPressureMax: 14, tidalPerKg: 5...7,
                             circuitDeadSpace: 8, apneaSeconds: 15, respiratoryRateMax: 60,
                             inspiratoryTimeMin: 0.35, triggerLockout: 0.15,
+                            frcPerKg: 12, arterialLag: 4, spo2Lag: 6,
                             abgPH: 7.34...7.45, abgPaco2: 33...45, abgPao2: 80...100, abgHco3: 20...25)
         }
         if ageMonths < 72 {
@@ -94,6 +103,7 @@ public extension Physiology {
                             plateauMax: 28, drivingPressureMax: 15, tidalPerKg: 6...8,
                             circuitDeadSpace: 10, apneaSeconds: 18, respiratoryRateMax: 55,
                             inspiratoryTimeMin: 0.40, triggerLockout: 0.18,
+                            frcPerKg: 14, arterialLag: 4, spo2Lag: 7,
                             abgPH: 7.35...7.45, abgPaco2: 34...45, abgPao2: 80...100, abgHco3: 21...26)
         }
         if ageMonths < 144 {
@@ -102,6 +112,7 @@ public extension Physiology {
                             plateauMax: 30, drivingPressureMax: 15, tidalPerKg: 6...8,
                             circuitDeadSpace: 12, apneaSeconds: 20, respiratoryRateMax: 45,
                             inspiratoryTimeMin: 0.45, triggerLockout: 0.20,
+                            frcPerKg: 20, arterialLag: 5, spo2Lag: 8,
                             abgPH: 7.35...7.45, abgPaco2: 35...45, abgPao2: 80...100, abgHco3: 22...26)
         }
         return AgeNorms(label: "思春期", respiratoryRate: 14...22, heartRate: 60...100,
@@ -109,6 +120,7 @@ public extension Physiology {
                         plateauMax: 30, drivingPressureMax: 15, tidalPerKg: 6...8,
                         circuitDeadSpace: 15, apneaSeconds: 20, respiratoryRateMax: 40,
                         inspiratoryTimeMin: 0.50, triggerLockout: 0.25,
+                        frcPerKg: 26, arterialLag: 6, spo2Lag: 10,
                         abgPH: 7.35...7.45, abgPaco2: 35...45, abgPao2: 80...100, abgHco3: 22...26)
     }
 

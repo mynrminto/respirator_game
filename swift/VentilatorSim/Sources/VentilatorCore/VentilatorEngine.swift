@@ -656,7 +656,8 @@ public final class VentilatorEngine {
     // MARK: - ガス交換・循環
 
     /* 酸素と CO2 の貯え。 */
-    static let frcPerKg = 25.0           // mL/kg  鎮静・仰臥位の機能的残気量（PEEP 0 のとき）
+    /* 機能的残気量（FRC）は年齢帯の基準値 norms.frcPerKg（鎮静・仰臥位・PEEP 0）を使う。 */
+    static let normalSpecificCompliance = 1.0   // mL/cmH2O/kg  健康な小児の比コンプライアンスの目安
     static let bloodVolumePerKg = 75.0   // mL/kg  循環血液量
     static let co2StorePerKg = 0.33      // mL/kg/mmHg  速く平衡する CO2 の貯え
     static let alveolarO2Floor = 12.0    // mmHg
@@ -667,7 +668,11 @@ public final class VentilatorEngine {
      * 役に立たず、SpO2 が 90% を切るあたりから下がり方を緩める。 */
     func oxygenCapacity() -> Double {
         let kg = patient.predictedBodyWeight
-        let lungL = Self.frcPerKg * kg / 1000 * (1 - shunt) + max(0, volumeEndExp)
+        /* 硬い肺（RDS・ARDS）は FRC そのものが小さい。比コンプライアンスで減らす（最大で半分）。 */
+        let specificCompliance = compliance * 1000 / kg
+        let frcKg = norms.frcPerKg
+            * Physiology.clamp(specificCompliance / Self.normalSpecificCompliance, 0.5, 1)
+        let lungL = frcKg * kg / 1000 * (1 - shunt) + max(0, volumeEndExp)
         let gas = lungL * 1000 / (Physiology.barometric - Physiology.waterVapor)
         let hb = patient.hemoglobin
         let slope = (Physiology.oxygenContent(po2: alveolarPO2 + 1, hemoglobin: hb)
@@ -694,6 +699,13 @@ public final class VentilatorEngine {
         /* 死腔を引いた残りが肺胞換気量。体重で 2 桁変わるので床も体重比にする。 */
         var alveolarVentilation = max(0.04 * tidalL, tidalL - deadSpace)
             * max(1, measured.respiratoryRateTotal)
+        /* 呼吸回数は呼吸が来たときにしか数え直さないので、止まってもしばらくは前の回数が残る。
+         * 普段の間隔の 2.5 倍（少なくとも 4 秒）を過ぎても次の呼吸が来なければ無呼吸とみなし、
+         * その間は換気が無いものとして扱う。短い間（ま）は次の呼吸で数え直す回数に入るので数えない。 */
+        if measured.respiratoryRateTotal > 0.5
+            && sinceBreath > max(4, 2.5 * 60 / measured.respiratoryRateTotal) {
+            alveolarVentilation = 0.04 * tidalL
+        }
 
         let plateau = measured.plateauPressure ?? (volume / compliance)
         if plateau > norms.plateauMax - 2 {     // 過膨張は死腔を増やす
@@ -763,9 +775,9 @@ public final class VentilatorEngine {
         let arterial = max(2, endCapillary
             - shunt * vo2 / ((1 - shunt) * 10 * max(0.25 * patient.cardiacOutput, cardiacOutput)))
         let targetPaO2 = Physiology.po2(fromContent: arterial, hemoglobin: patient.hemoglobin)
-        pao2 = Physiology.approach(pao2, toward: targetPaO2, dt: d, tau: 8)   // 肺から動脈までの数秒
+        pao2 = Physiology.approach(pao2, toward: targetPaO2, dt: d, tau: norms.arterialLag)   // 肺から動脈までの数秒
         spo2 = Physiology.approach(spo2, toward: Physiology.saturation(po2: pao2) * 100,
-                                   dt: d, tau: 14)
+                                   dt: d, tau: norms.spo2Lag)   // プローブまでの循環と表示の平均化
 
         // 酸塩基：腎性代償は数時間かけて動く
         let chronic = 24 + 0.38 * (paco2 - 40)
