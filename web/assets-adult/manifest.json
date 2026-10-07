@@ -24,20 +24,20 @@
   "w": 1536
  },
  "doctor_alert": {
-  "h": 582,
-  "w": 245
+  "h": 604,
+  "w": 239
  },
  "doctor_happy": {
-  "h": 621,
-  "w": 214
+  "h": 626,
+  "w": 233
  },
  "doctor_normal": {
-  "h": 626,
-  "w": 201
+  "h": 607,
+  "w": 234
  },
  "doctor_think": {
-  "h": 582,
-  "w": 210
+  "h": 610,
+  "w": 239
  },
  "hud_patient_frame": {
   "bottom": 390,
