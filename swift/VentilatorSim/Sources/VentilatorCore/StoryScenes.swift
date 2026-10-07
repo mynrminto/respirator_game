@@ -40,7 +40,7 @@ extension StoryLibrary {
             StoryLine(.scene, "隣には、RSV で入院した生後 4 か月の男の子。鼻のカニュラから高流量の酸素を受け、速い息をしている。"),
             StoryLine(.scene, "窓際の 7 歳の女の子は、ギラン・バレー症候群。呼吸の筋肉まで力が抜け、呼吸器につながって 2 週間になる。"),
             StoryLine(.doc, "覚えることは多いけれど、根っこは 1 つ。この機械が何を保証して、何をこの子に預けているか。"),
-            StoryLine(.nurse, "いぶき先生、救急外来から電話です。"),
+            StoryLine(.nurse, "いぶき先生、救急外来から電話です。", bgm: "urgent"),
             StoryLine(.doc, "…はい。…分かりました。ベッドを空けて待っています。", mood: "think"),
             StoryLine(.doc, "8 歳の男の子。虫垂炎が破れて、お腹じゅうに膿が広がっています。血圧が保てない、ショックです。"),
             StoryLine(.doc, "昼から緊急手術。終わったら、挿管のままここへ来ます。ハルト君です。"),
@@ -304,7 +304,7 @@ extension StoryLibrary {
         StoryScene(id: "ch10-open", kind: "open", chapter: "ch10",
                    title: "第10章　扉　救急外来からの電話",
                    card: StoryCard(kicker: "第10章", title: "吐けない息", sub: "3 週目の夕方　救急外来"),
-                   bg: "station", time: "night", end: nil, lines: [
+                   bg: "station", time: "night", bgm: "urgent", end: nil, lines: [
             StoryLine(.scene, "3 週目、PICU に戻って最初の当直。夕方、救急外来から電話が鳴った。"),
             StoryLine(.nurse, "11 歳の男の子、喘息の発作です。吸入が効かなくて、いま挿管しています！"),
             StoryLine(.doc, "{名前}先生、行きましょう。喘息の子の呼吸器は、ほかのどの子とも違います。", mood: "alert"),
