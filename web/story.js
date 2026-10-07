@@ -13,6 +13,7 @@
  * レッスンの最中は章の時刻（CHAPTER_TIME）で選ぶ。
  * bgm を持つ幕は、その曲を流す（'breath' 抜管・最初の声 ／ 'nicu' NICU）。章の曲は CHAPTER_BGM。
  * 録音した曲が無いときは bgm.js が time の曲に落とす。
+ * 行にも bgm を書ける。その行から幕の終わりまで、その曲に替わる（'memory' 先生の打ち明け話など）。
  * 一度見た幕はメニューの「物語を読み返す」から何度でも読める。
  *
  * 行（line）の書き方
@@ -358,7 +359,7 @@
     },
     {
       id: 'ch8-close', kind: 'close', chapter: 'ch8', title: '第8章　幕　12 日目の夕方',
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'memory',
       lines: [
         { who: 'scene', say: '12 日目の夕方。ミオちゃんは HFNC をつけたまま、お母さんの膝で絵本を見ている。' },
         { who: 'fam', name: 'ミオちゃんのお母さん', say: 'チューブが抜けた日は、心臓が止まるかと思いました。' },
@@ -412,7 +413,7 @@
         { who: 'me', say: '小さじ 1 杯の空気が、こんなに重いとは思いませんでした。' },
         { who: 'puku', say: 'あおい君、生まれたとき泣いた？' },
         { who: 'doc', say: '小さな声で。産声は、水で満ちていた肺に初めて空気を入れて、それを吐きながら上げる声です。' },
-        { who: 'scene', say: '保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。' },
+        { who: 'scene', say: '保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。', bgm: 'memory' },
         { who: 'scene', say: '端の色あせた 1 枚に、手書きの文字。「いぶきちゃん　在胎 28 週　980 g」' },
         {
           who: 'me', say: '（色あせた写真から、目が離せない）', pick: 'photo',
@@ -513,7 +514,7 @@
         { who: 'doc', mood: 'happy', say: 'それでいいんです。分からないと思える人は、確かめに戻ってこられます。' },
         { who: 'doc', say: '初日、とても緊張していると言っていましたね。その緊張が、ずっと子どもたちを守っていました。', when: 'nerves:0' },
         { who: 'doc', say: '初日、楽しみだと言っていましたね。その顔のまま、最後まで来ました。', when: 'nerves:1' },
-        { who: 'me', say: '先生。NICU の写真の続き、聞いてもいいですか。' },
+        { who: 'me', say: '先生。NICU の写真の続き、聞いてもいいですか。', bgm: 'memory' },
         { who: 'doc', mood: 'happy', say: '約束でしたね。', when: 'photo:0' },
         { who: 'doc', mood: 'happy', say: 'あの写真の前で、何も聞かずにいてくれましたね。…お話しします。', when: 'photo:1' },
         { who: 'doc', say: 'わたしは 28 週、980 g で生まれて、2 週間、呼吸器につながっていました。' },
@@ -731,6 +732,13 @@
     var ls = this.scene.lines;
     while (this.index < ls.length && !shows(ls[this.index], this.picks)) this.index++;
     if (this.index >= ls.length && this.phase === 'line') this.phase = 'end';
+  };
+
+  /** いま流す曲。いまの行までで最後に bgm を書いた行の曲、無ければ幕の bgm、無ければ幕の時刻。 */
+  Run.prototype.track = function () {
+    var ls = this.scene.lines, i = Math.min(this.index, ls.length - 1);
+    if (this.phase !== 'card') for (; i >= 0; i--) if (ls[i].bgm && shows(ls[i], this.picks)) return ls[i].bgm;
+    return this.scene.bgm || this.scene.time || 'day';
   };
 
   Run.prototype.line = function () {

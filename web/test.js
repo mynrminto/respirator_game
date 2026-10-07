@@ -1290,7 +1290,7 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
     && BG.clockTrack(new Date(2026, 0, 1, 2, 0)) === 'night');
   const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
   ok('app.js が毎フレーム曲を選び、アラームで下げる', /bgmSound\(\);/.test(app) && /BGM\.duck\(/.test(app)
-    && /SV\.run\.scene\.time/.test(app) && /return 'title';/.test(app) && /ST\.CHAPTER_TIME\[/.test(app) && /BGM\.clockTrack\(/.test(app));
+    && /SV\.run\.track\(\)/.test(app) && /return 'title';/.test(app) && /ST\.CHAPTER_TIME\[/.test(app) && /BGM\.clockTrack\(/.test(app));
   ok('メニューに BGM だけのオン/オフがある', /BGM：オン（押すと消す）/.test(app));
   ok('index.html が bgm.js を読む', /<script src="bgm\.js"><\/script>/.test(fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8')));
   ok('node では音を出さずに通る', (BG.want('night'), BG.duck(true), BG.playing() === null));
@@ -1310,8 +1310,10 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
     const byId = id => ST.SCENES.find(s => s.id === id);
     ok('抜管の幕（ハルト君・そうた君・あかりちゃん）は「抜管・最初の声」の曲', ['ch6-close', 'ch7-close', 'ch11-close'].every(id => byId(id).bgm === 'breath'));
     ok('NICU の幕と章は NICU の曲、早産児の症例も', ['ch9-open', 'ch9-close'].every(id => byId(id).bgm === 'nicu') && ST.CHAPTER_BGM.ch9 === 'nicu'
-      && /ST\.CHAPTER_BGM\[/.test(app) && /S\.scen\.id === 'rds'\) return 'nicu'/.test(app) && /SV\.run\.scene\.bgm/.test(app));
-    ok('幕と章の曲はどれも流せる名前', ST.SCENES.concat([{ bgm: ST.CHAPTER_BGM.ch9 }]).every(s => !s.bgm || BG.FILES[s.bgm] || BG.SONGS[s.bgm]));
+      && /ST\.CHAPTER_BGM\[/.test(app) && /S\.scen\.id === 'rds'\) return 'nicu'/.test(app) && /SV\.run\.track\(\)/.test(app));
+    const r9 = new ST.Run(byId('ch9-close'), {}); while (r9.phase !== 'end' && !/写真が並んでいる/.test((r9.line() || {}).say || '')) { if (r9.waiting()) r9.pick(0); else r9.next(); }
+    ok('NICU の写真の行から「打ち明け話」の曲に替わる', r9.track() === 'memory' && new ST.Run(byId('ch9-close'), {}).track() === 'nicu' && byId('ch8-close').bgm === 'memory');
+    ok('幕と章の曲はどれも流せる名前', ST.SCENES.concat([{ bgm: ST.CHAPTER_BGM.ch9, lines: [] }]).every(s => [s].concat(s.lines).every(x => !x.bgm || BG.FILES[x.bgm] || BG.SONGS[x.bgm])));
   }
   ok('app.js はアラーム（黄・赤）のあいだアラームの曲を選ぶ', /return 'alarm';/.test(app) && /x\.sev > 0/.test(app));
 
@@ -1329,7 +1331,7 @@ console.log('\n27. BGM（タイトルの曲、昼の曲・夜の曲、アラー�
     ok('iPhone 版の章の時刻が同じ', Object.keys(ST.CHAPTER_TIME).every(k => core.includes(`"${k}": "${ST.CHAPTER_TIME[k]}"`)));
     const swAll = fs.readdirSync(swApp).filter(f => f.endsWith('.swift')).map(f => fs.readFileSync(path.join(swApp, f), 'utf8')).join('\n');
     ok('iPhone 版の章の曲・代わりの曲・幕の曲が同じ', Object.keys(ST.CHAPTER_BGM).every(k => core.includes(`"${k}": "${ST.CHAPTER_BGM[k]}"`))
-      && Object.keys(BG.FALLBACK).every(k => pl.includes(`"${k}": "${BG.FALLBACK[k]}"`)) && /want\(scene\.bgm \?\? scene\.time\)/.test(swAll)
+      && Object.keys(BG.FALLBACK).every(k => pl.includes(`"${k}": "${BG.FALLBACK[k]}"`)) && /want\(scene\.bgm \?\? scene\.time\)/.test(swAll) && /want\(run\.track\)/.test(swAll)
       && /scenario\.id == "rds" \? "nicu"/.test(swAll));
     ok('iPhone 版もタイトル・幕・レッスン・症例で曲を選ぶ', /BGMPlayer\.shared\.want\("title"\)/.test(swAll)
       && /BGMPlayer\.shared\.want\(scene\.bgm \?\? scene\.time\)/.test(swAll) && /StoryLibrary\.chapterTime\[/.test(swAll)

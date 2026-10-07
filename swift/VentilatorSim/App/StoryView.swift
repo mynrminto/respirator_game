@@ -451,6 +451,7 @@ struct StoryView: View {
 
     private func advanced() {
         if let l = run?.line, hasPortrait(l) { lastPortrait = l }
+        if let run { BGMPlayer.shared.want(run.track) }   // 行で曲が替わる幕もある（打ち明け話）
         version &+= 1
     }
 

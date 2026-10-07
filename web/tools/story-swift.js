@@ -14,6 +14,7 @@ function line(l) {
   if (l.input === 'name') args.push('asksName: true');
   if (l.pick) args.push(`pick: ${q(l.pick)}`);
   if (l.when) args.push(`when: ${q(l.when)}`);
+  if (l.bgm) args.push(`bgm: ${q(l.bgm)}`);
   if (l.choose) {
     args.push('choices: [\n' + l.choose.map(c => {
       const ca = [`label: ${q(c.label)}`, `reply: ${q(c.reply)}`];

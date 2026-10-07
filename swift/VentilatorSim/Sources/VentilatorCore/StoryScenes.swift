@@ -249,7 +249,7 @@ extension StoryLibrary {
         StoryScene(id: "ch8-close", kind: "close", chapter: "ch8",
                    title: "第8章　幕　12 日目の夕方",
                    card: nil,
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "memory", end: nil, lines: [
             StoryLine(.scene, "12 日目の夕方。ミオちゃんは HFNC をつけたまま、お母さんの膝で絵本を見ている。"),
             StoryLine(.fam, "チューブが抜けた日は、心臓が止まるかと思いました。", name: "ミオちゃんのお母さん"),
             StoryLine(.doc, "わたしもです。でも、{名前}先生が設定を一から組み直してくれました。"),
@@ -292,7 +292,7 @@ extension StoryLibrary {
             StoryLine(.me, "小さじ 1 杯の空気が、こんなに重いとは思いませんでした。"),
             StoryLine(.puku, "あおい君、生まれたとき泣いた？"),
             StoryLine(.doc, "小さな声で。産声は、水で満ちていた肺に初めて空気を入れて、それを吐きながら上げる声です。"),
-            StoryLine(.scene, "保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。"),
+            StoryLine(.scene, "保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。", bgm: "memory"),
             StoryLine(.scene, "端の色あせた 1 枚に、手書きの文字。「いぶきちゃん　在胎 28 週　980 g」"),
             StoryLine(.me, "（色あせた写真から、目が離せない）", pick: "photo", choices: [
                 StoryChoice(label: "先生、これって…", reply: "あ…見つかっちゃった。", who: .puku, mood: "alert"),
@@ -370,7 +370,7 @@ extension StoryLibrary {
             StoryLine(.doc, "それでいいんです。分からないと思える人は、確かめに戻ってこられます。", mood: "happy"),
             StoryLine(.doc, "初日、とても緊張していると言っていましたね。その緊張が、ずっと子どもたちを守っていました。", when: "nerves:0"),
             StoryLine(.doc, "初日、楽しみだと言っていましたね。その顔のまま、最後まで来ました。", when: "nerves:1"),
-            StoryLine(.me, "先生。NICU の写真の続き、聞いてもいいですか。"),
+            StoryLine(.me, "先生。NICU の写真の続き、聞いてもいいですか。", bgm: "memory"),
             StoryLine(.doc, "約束でしたね。", mood: "happy", when: "photo:0"),
             StoryLine(.doc, "あの写真の前で、何も聞かずにいてくれましたね。…お話しします。", mood: "happy", when: "photo:1"),
             StoryLine(.doc, "わたしは 28 週、980 g で生まれて、2 週間、呼吸器につながっていました。"),
