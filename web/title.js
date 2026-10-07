@@ -178,12 +178,12 @@
   function fonts() {
     if (!document.fonts || !document.fonts.load) return Promise.resolve();
     /* 書体が来る前に文字を焼くと、あとから差し替わらない。画面に出す文字ぶんの書体を先に取り寄せて待つ。 */
-    var sample = ['こどもの人工呼吸器シミュレーター', opts.line || '', opts.themeLabel || 'ポップ', '0123456789%']
+    var sample = ['こどもの人工呼吸器トレーニング', opts.line || '', opts.themeLabel || 'ポップ', '0123456789%']
       .concat((opts.items || []).map(function (it) { return (it.title || '') + (it.sub || ''); })).join('');
     var wants = [
       document.fonts.load('800 20px "M PLUS Rounded 1c"', sample),
       document.fonts.load('700 20px "M PLUS Rounded 1c"', sample),
-      document.fonts.load('400 20px "Dela Gothic One"', 'VentaSim')
+      document.fonts.load('400 20px "Dela Gothic One"', 'この手で、息をつなぐ')
     ];
     return Promise.race([Promise.all(wants).catch(function () {}), new Promise(function (r) { setTimeout(r, 2500); })]);
   }
@@ -251,13 +251,13 @@
     /* ロゴ */
     layers.ribbon = sprite(t.ribbon);
     layers.ribbon.anchor.set(0.5);
-    layers.logo = text('VentaSim', 54, 0xFFFFFF, '400', 0x2E2545);
+    layers.logo = text('この手で、息をつなぐ', 54, 0xFFFFFF, '400', 0x2E2545);
     layers.logo.style.fontFamily = LOGO_FONT;
     layers.logo.anchor.set(0.5);
     layers.logoArt = t.logo ? sprite(t.logo) : null;
     if (layers.logoArt) { layers.logoArt.anchor.set(0.5); layers.logo.visible = false; layers.ribbon.visible = false; }
     if (layers.logoArt) layers.ui.addChild(layers.logoArt);
-    layers.sub = text('こどもの人工呼吸器シミュレーター', 18, opts.dark ? 0xCFE0FF : 0x4A3C62, '800');
+    layers.sub = text('こどもの人工呼吸器トレーニング', 18, opts.dark ? 0xCFE0FF : 0x4A3C62, '800');
     layers.sub.anchor.set(0.5);
     layers.ui.addChild(layers.ribbon, layers.logo, layers.sub);
 
@@ -381,6 +381,9 @@
     layers.ribbon.x = colCx;
     layers.ribbon.y = (short ? 14 : wide ? 34 : 24) + logoH / 2;
     layers.logo.style.fontSize = Math.round(logoH * 0.50);
+    /* 日本語の題はリボンからはみ出しやすいので、幅に収まるまで文字を小さくする */
+    var logoFit = logoW * 0.72 / Math.max(1, layers.logo.width / layers.logo.scale.x);
+    if (logoFit < 1) layers.logo.style.fontSize = Math.floor(layers.logo.style.fontSize * logoFit);
     layers.logo.style.stroke = { color: 0x2E2545, width: Math.max(4, logoH * 0.09), join: 'round' };
     layers.logo.x = colCx;
     layers.logo.y = layers.ribbon.y - logoH * 0.04;

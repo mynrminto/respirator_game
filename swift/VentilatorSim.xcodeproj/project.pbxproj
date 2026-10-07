@@ -262,7 +262,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "VentilatorSim-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = VentaSim;
+				INFOPLIST_KEY_CFBundleDisplayName = "息をつなぐ";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
@@ -291,7 +291,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "VentilatorSim-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = VentaSim;
+				INFOPLIST_KEY_CFBundleDisplayName = "息をつなぐ";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
