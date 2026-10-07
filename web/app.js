@@ -1861,7 +1861,9 @@
        ['⟳', '初期設定をやり直す', function () { close(); openSetup(); }],
        ['↺', 'この症例を最初から', function () { close(); loadScenario(S.scen, false); }],
        ['★', '振り返り', function () { close(); openDebrief(); }],
-       ['✦', '物語を読み返す', function () { close(); openStoryList(); }],
+       ['✦', '物語を読み返す', function () { close(); openStoryList(); }]]
+      .concat(hasGrowth() ? [['✎', '研修手帳', function () { close(); openNotebook(); }]] : [])
+      .concat([
        ['⌂', 'タイトルへ戻る', function () { close(); endLesson(false); showTitle(); }],
        ['♪', SND.enabled() ? '音：オン（押すと消す）' : '音：オフ（押すと鳴らす）',
         function () { SND.setEnabled(!SND.enabled()); close(); openMenu(); }],
@@ -1870,7 +1872,7 @@
        ['♥', SND.pulseEnabled() ? 'パルス音：オン（押すと消す）' : 'パルス音：オフ（押すと鳴らす）',
         function () { SND.setPulseEnabled(!SND.pulseEnabled()); close(); openMenu(); }],
        ['?', 'この教材について', function () { close(); openDisclaimer(false); }]
-      ].forEach(function (p) {
+      ]).forEach(function (p) {
         var c = el('button', 'case menuitem');
         c.appendChild(el('span', 'em', p[0]));
         c.appendChild(el('b', '', p[1]));
@@ -1895,6 +1897,23 @@
       return raw ? JSON.parse(raw) : [];
     } catch (err) { return []; }
   }
+  /* 一度も間違えずに終えたレッスン。研修手帳の星（成人版）に使う。やり直して満点を取りにいける。 */
+  var CLEAN_KEY = 'ventsim.lessons.clean.v1';
+  function cleanSet() {
+    try { var raw = window.localStorage.getItem(CLEAN_KEY); return raw ? JSON.parse(raw) : []; }
+    catch (err) { return []; }
+  }
+  function markClean(id) {
+    try {
+      var d = cleanSet();
+      if (d.indexOf(id) < 0) { d.push(id); window.localStorage.setItem(CLEAN_KEY, JSON.stringify(d)); }
+    } catch (err) { /* 無視 */ }
+  }
+  /* 技能の星と称号。物語のデータに SKILLS がある版（成人版）だけ。 */
+  function hasGrowth() { return !!(ST && ST.SKILLS && ST.growth); }
+  function growthNow() { return hasGrowth() ? ST.growth(LS.CHAPTERS, doneSet(), cleanSet()) : null; }
+  function starText(n, max) { var t = ''; for (var i = 0; i < max; i++) t += i < n ? '★' : '☆'; return t; }
+
   function markDone(id) {
     try {
       var d = doneSet();
@@ -2096,7 +2115,10 @@
   function finishLesson() {
     var L = S.lesson;
     var first = doneSet().indexOf(L.id) < 0;
+    var g0 = growthNow();
     markDone(L.id);
+    if (L.rt && L.rt.wrong === 0) markClean(L.id);
+    var g1 = growthNow();
     L.mode = 'done';
     L.finishPending = false;
     var n = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
@@ -2104,9 +2126,32 @@
     if (n >= all) celebrate('全レッスン修了！おめでとう 🏆');
     else if (first) celebrate('レッスン修了！ ' + n + ' / ' + all + ' 🎉');
     else celebrate('レッスン修了！ 🎉');
-    /* 章の最後のレッスンなら、その章の幕を下ろす（紙吹雪が見えるぶんだけ待つ）。 */
+    var wait = growthNews(g0, g1, L.rt && L.rt.wrong === 0);
+    /* 章の最後のレッスンなら、その章の幕を下ろす（紙吹雪と成長の知らせが見えるぶんだけ待つ）。 */
     var after = ST ? ST.after(L.id, L.chap, storySeen()) : [];
-    if (after.length) setTimeout(function () { if (S.lesson === L) playStories(after); }, 1400);
+    if (after.length) setTimeout(function () { if (S.lesson === L) playStories(after); }, 1400 + wait);
+  }
+
+  /* 力がついたことを知らせる。上がった技能と、称号が変わったらそれも。返り値は知らせに使う時間（ms）。 */
+  function growthNews(g0, g1, clean) {
+    if (!g0 || !g1) return 0;
+    var msgs = [];
+    g1.skills.forEach(function (s, i) {
+      if (s.stars > g0.skills[i].stars) msgs.push('「' + s.name + '」の力 ' + starText(s.stars, ST.STARS));
+    });
+    if (clean && msgs.length) msgs[0] = 'ノーミス！ ' + msgs[0];
+    var rankUp = g1.rank.title !== g0.rank.title;
+    var t = 2100;
+    msgs.slice(0, 2).forEach(function (m, i) { setTimeout(function () { toast(m); }, t * (i + 1)); });
+    var used = Math.min(msgs.length, 2) * t;
+    if (rankUp) {
+      setTimeout(function () {
+        celebrate('称号「' + g1.rank.title + '」');
+        setTimeout(function () { toast(ST.fill(g1.rank.say, playerName())); }, t);
+      }, used + t);
+      used += t * 2;
+    }
+    return used;
   }
 
   function bindCoach() {
@@ -2541,6 +2586,12 @@
     nm.textContent = who; nm.hidden = !who;
     nm.className = 'sname w-' + line.who;
     $('sText').className = 'stext' + (line.who === 'scene' ? ' scene' : '');
+    /* 研修手帳に残る行には札を付ける（息のことば・いぶき先生の秘密）。 */
+    var tag = $('sTag');
+    if (!tag) { tag = el('span', 'stag'); tag.id = 'sTag'; $('sBox').appendChild(tag); }
+    tag.textContent = line.lore ? '息のことば　手帳に記録' : (line.secret ? 'いぶき先生の秘密　手帳に記録' : '');
+    tag.className = 'stag' + (line.secret ? ' secret' : '');
+    tag.hidden = !tag.textContent;
     typeStory(ST.fill(line.say, name));
   }
 
@@ -2669,7 +2720,61 @@
   }
 
   /* 動作確認用。幕を直接流す（web/smoke.js が使う）。 */
-  window.VentStoryUI = { play: function (ids) { playStories(ids); }, list: function () { openStoryList(); } };
+  window.VentStoryUI = { play: function (ids) { playStories(ids); }, list: function () { openStoryList(); }, notebook: function () { openNotebook(); } };
+
+  /* 研修手帳（成人版）。称号と技能の星、集めた息のことば、明かされていくいぶき先生の秘密。 */
+  function openNotebook() {
+    var g = growthNow(), seen = storySeen(), name = playerName();
+    var chapTitle = function (sceneId) {
+      var sc = ST.sceneById(sceneId);
+      return sc ? (sc.card ? sc.card.kicker : sc.title.split('　')[0]) : '';
+    };
+    modal('研修手帳', function (b) {
+      var head = el('div', 'nbhead');
+      head.appendChild(el('b', '', name + '先生　' + g.rank.title));
+      head.appendChild(el('p', 'nbsay', '「' + ST.fill(g.rank.say, name) + '」　― いぶき先生'));
+      head.appendChild(el('span', 'nbnext', g.next
+        ? '技能の星 ' + g.sum + ' / ' + g.max + '　次の「' + g.next.title + '」まで あと ' + (g.next.at - g.sum)
+        : '技能の星 ' + g.sum + ' / ' + g.max + '　いちばん上の称号です'));
+      b.appendChild(head);
+
+      b.appendChild(el('h4', 'nbh', '技能'));
+      var sk = el('div', 'nbskills');
+      g.skills.forEach(function (s) {
+        var r = el('div', 'nbskill');
+        r.appendChild(el('b', '', s.name));
+        r.appendChild(el('span', 'stars' + (s.stars >= ST.STARS ? ' full' : ''), starText(s.stars, ST.STARS)));
+        r.appendChild(el('i', '', s.desc));
+        sk.appendChild(r);
+      });
+      b.appendChild(sk);
+      b.appendChild(el('p', 'note', 'レッスンを終えると星が半分まで、一度も間違えずに終えると残りが埋まります。終えたレッスンはやり直して満点を狙えます。'));
+
+      var lo = ST.unlocked(ST.LORE, seen);
+      b.appendChild(el('h4', 'nbh', '息のことば　' + lo.length + ' / ' + ST.LORE.length));
+      var ll = el('div', 'nblist');
+      ST.LORE.forEach(function (x) {
+        var open = lo.indexOf(x.id) >= 0;
+        var r = el('div', 'nbitem' + (open ? '' : ' locked'));
+        r.appendChild(el('b', '', open ? x.word : '？？？'));
+        r.appendChild(el('span', '', open ? x.text : chapTitle(x.scene) + 'の幕で'));
+        ll.appendChild(r);
+      });
+      b.appendChild(ll);
+
+      var se = ST.unlocked(ST.SECRETS, seen);
+      b.appendChild(el('h4', 'nbh', 'いぶき先生の秘密　' + se.length + ' / ' + ST.SECRETS.length));
+      var sl = el('div', 'nblist');
+      ST.SECRETS.forEach(function (x, i) {
+        var open = se.indexOf(x.id) >= 0;
+        var r = el('div', 'nbitem secret' + (open ? '' : ' locked'));
+        r.appendChild(el('b', '', (i + 1) + '. ' + (open ? x.title : '？？？')));
+        r.appendChild(el('span', '', open ? ST.fill(x.text, name) : '物語を進めると分かります'));
+        sl.appendChild(r);
+      });
+      b.appendChild(sl);
+    });
+  }
 
   function openCourse() {
     var done = doneSet();
@@ -2688,6 +2793,18 @@
       b.appendChild(pr);
       b.appendChild(el('p', 'note', '修了 ' + nDone + ' / ' + n + ' レッスン'
         + (nDone >= n ? '　🏆 全レッスン修了' : '')));
+      var gr = growthNow();
+      if (gr) {
+        var rc = el('button', 'case rankcard');
+        rc.appendChild(el('span', 'em', '✎'));
+        var rt2 = el('div', 'lt');
+        rt2.appendChild(el('b', '', '称号　' + gr.rank.title));
+        rt2.appendChild(el('span', '', '技能の星 ' + gr.sum + ' / ' + gr.max
+          + (gr.next ? '　次の称号まで あと ' + (gr.next.at - gr.sum) : '') + '　研修手帳を開く'));
+        rc.appendChild(rt2);
+        rc.onclick = function () { close(); openNotebook(); };
+        b.appendChild(rc);
+      }
       LS.CHAPTERS.forEach(function (ch) {
         var chDone = ch.lessons.filter(function (l) { return done.indexOf(l.id) >= 0; }).length;
         var h = el('div', 'chapline');
@@ -2719,7 +2836,7 @@
       if (done.length) {
         var rs = el('button', 'mbtn warn', '進捗を消す');
         rs.onclick = function () {
-          try { window.localStorage.removeItem(DONE_KEY); } catch (err) { /* 無視 */ }
+          try { window.localStorage.removeItem(DONE_KEY); window.localStorage.removeItem(CLEAN_KEY); } catch (err) { /* 無視 */ }
           close(); openCourse();
         };
         r.appendChild(rs);

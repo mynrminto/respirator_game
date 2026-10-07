@@ -70,7 +70,7 @@
         { who: 'doc', say: '最初はみんなそうです。「手術室の設定のまま」と思っていると、転びます。' },
         { who: 'scene', say: 'いぶき先生の白衣のポケットから、白くて丸いものが、ふわりと浮かび上がった。' },
         { who: 'puku', mood: 'excited', say: 'ねえねえ、この人が新しい先生？' },
-        { who: 'doc', mood: 'happy', say: 'ぷくぷくです。ここの患者さんたちの「息」から生まれた…ということに、なっています。' },
+        { who: 'doc', mood: 'happy', say: 'ぷくぷくです。ここの患者さんたちの「息」から生まれた…ということに、なっています。', secret: 'born' },
         { who: 'puku', mood: 'happy', say: 'ぼく、分からないことがあったら「なんで？」って聞く係なんだ。先生の代わりに聞いてあげる！' },
         {
           who: 'doc', mood: 'think', say: '{名前}先生、緊張していますか？',
@@ -119,6 +119,13 @@
         { who: 'doc', mood: 'happy', say: '今夜、{名前}先生は 3 つ覚えました。波形の読み方。圧が 2 つあること。肺の柔らかさと、気道の通りにくさ。' },
         { who: 'me', say: '読めるようにはなりました。でも、どう設定すればいいのかは、まだ…。' },
         { who: 'doc', say: 'それは明日。朝の回診で、佐藤さんの設定を一から見直します。' },
+        { who: 'puku', say: 'ねえ、「ベンチレーター」って、なんでそういう名前なの？' },
+        { who: 'doc', say: 'ラテン語の ventus、「風」からです。呼吸器は、風を送る機械。', lore: 'wind' },
+        { who: 'doc', say: '肺炎（pneumonia）の「ニューモ」は、ギリシャ語で「息をする」。同じ根から、息や風を表す pneuma も生まれました。' },
+        { who: 'scene', say: '佐藤さんが、眠ったまま眉をしかめた。いぶき先生が、口の端のチューブ固定を少しゆるめる。' },
+        { who: 'doc', mood: 'think', say: 'チューブが入っていると、のどの奥をずっと押されている感じがするんです。眠れる薬を、少しだけ足しましょう。' },
+        { who: 'puku', say: '…先生、まるで入れられたことがあるみたい。' },
+        { who: 'doc', mood: 'happy', say: 'さあ、どうでしょう。', secret: 'tube' },
         { who: 'puku', mood: 'happy', say: '（あくびをして）ぷく…。明日も、ぼくついていくね。' }
       ]
     },
@@ -143,6 +150,8 @@
         { who: 'scene', say: '昼すぎ。佐藤さんの指示票に、{名前}先生の字で書いた設定が並んでいる。' },
         { who: 'doc', mood: 'happy', say: '予測体重から量を、量から回数を。酸素は下げられるだけ下げる。いい初期設定です。' },
         { who: 'me', say: '設定の 1 つ 1 つに、こんなに理由があるんですね。' },
+        { who: 'puku', say: '人って、1 日に何回くらい息をするの？' },
+        { who: 'doc', say: '大人で 1 日に 2 万回ほど。空気にすると 1 万リットル近くになります。その 1 回 1 回を、いま{名前}先生が決めたんです。', lore: 'count' },
         { who: 'nurse', say: 'いぶき先生、3 番ベッドの山本さん、また酸素化が悪くなってきています。' },
         { who: 'doc', mood: 'alert', say: '行きましょう。同じ理屈が、硬い肺ではまったく違う顔を見せます。' }
       ]
@@ -169,6 +178,9 @@
         { who: 'pt', case: 'postop', name: '佐藤さん', say: '（チューブがあって話せない。かわりに小さくうなずいて、親指を立ててみせる）' },
         { who: 'puku', mood: 'excited', say: 'いま、佐藤さんがグッてした！' },
         { who: 'doc', mood: 'happy', say: '自分で息をする力が戻ってきた証拠です。{名前}先生、手伝い方を選べるようになりましたね。' },
+        { who: 'puku', say: '吸うのは「インスピレーション」って言うんだよね。ひらめきと同じ言葉？' },
+        { who: 'doc', mood: 'happy', say: '同じです。ラテン語の inspirare は「息を吹き込む」。昔の人は、ひらめきを神さまに息を吹き込まれることだと考えました。', lore: 'inspire' },
+        { who: 'doc', say: 'spirit（魂）も、spiritus（息）から来ています。' },
         { who: 'puku', mood: 'excited', say: 'じゃあ、もうチューブ抜けるね！' },
         { who: 'doc', say: 'まだです。昇圧薬が少し残っていて、お腹も張っています。明日の朝の数字を見てから決めましょう。' },
         { who: 'doc', say: '明日は、機械の外から答え合わせをします。血液ガスです。' }
@@ -192,6 +204,9 @@
       bg: 'picu', time: 'day',
       lines: [
         { who: 'scene', say: '夕方。山本さんの pH は低めのまま。それでも、肺にかかる圧は上限の下に収まった。' },
+        { who: 'puku', say: '酸素って、だれが見つけたの？' },
+        { who: 'doc', say: '1770 年代に、シェーレとプリーストリーがそれぞれ見つけました。名前をつけたのはラヴォアジエです。', lore: 'oxygen' },
+        { who: 'doc', mood: 'happy', say: '酸のもとだと思って「酸をつくるもの」、oxygène と呼んだんです。少し勘違いが入った名前ですね。' },
         { who: 'me', say: 'CO₂ が高いままでいいのか、まだ少し怖いです。' },
         { who: 'doc', say: 'その怖さは大事にしてください。許すのは、肺を守るという目的があるときだけです。' },
         { who: 'fam', name: '山本さんの夫', say: '先生たち、今日は何度も見に来てくださったんですね。' },
@@ -208,6 +223,8 @@
         { who: 'scene', say: '2 回目の当直。ナースステーションで、ななみさんが {名前}先生に声をかけた。' },
         { who: 'nurse', say: '佐藤さん、夕方に中心静脈カテーテルが詰まって、左の鎖骨の下から入れ直しています。昇圧薬は、もう切れました。' },
         { who: 'nurse', say: '今夜は静かだといいですね。…って言うと、たいてい鳴るんですけど。' },
+        { who: 'nurse', say: 'いぶき先生、さっきも窓際の伊藤さんのところにいましたね。先生って昔から、あのベッドだけは…' },
+        { who: 'doc', mood: 'think', say: 'ななみさん、申し送りの続きをお願いします。', secret: 'window' },
         { who: 'puku', mood: 'sad', say: 'ぼく、アラームが鳴ると頭が真っ白になっちゃうんだ。' },
         { who: 'doc', say: 'だから順番を決めておきます。頭が真っ白になっても、手が先に動くように。' }
       ]
@@ -221,6 +238,9 @@
         { who: 'doc', mood: 'happy', say: 'それで十分です。今夜佐藤さんを守ったのは、{名前}先生の最初の一手です。' },
         { who: 'doc', mood: 'think', say: '夕方の穿刺の針が、肺の表面をかすめたのかもしれません。そこから、機械の圧で空気が漏れました。' },
         { who: 'puku', mood: 'sad', say: 'ぼく、ずっとポケットの中で震えてた…。' },
+        { who: 'doc', mood: 'happy', say: '「息災」という言葉があります。もとは仏教の言葉で、災いを「息める（やめる）」こと。', lore: 'sokusai' },
+        { who: 'doc', say: '息には「休む・止む」という意味もあるんです。休息の「息」ですね。' },
+        { who: 'puku', mood: 'happy', say: 'じゃあ、今夜はみんな息災だった！' },
         { who: 'doc', say: 'ここから先は、外す話です。つけるより、外すほうが難しい。' }
       ]
     },
@@ -247,7 +267,13 @@
         { who: 'puku', mood: 'excited', say: 'しゃべった！' },
         { who: 'fam', name: '佐藤さんの奥さん', say: 'あなた…！ 先生、ほんとうにありがとうございました。' },
         { who: 'doc', mood: 'happy', say: 'お礼は、こちらの先生に。最初の夜から、ずっと佐藤さんの担当でした。' },
-        { who: 'me', say: '佐藤さん、よくがんばりましたね。' }
+        { who: 'me', say: '佐藤さん、よくがんばりましたね。' },
+        { who: 'doc', say: 'のどの痛みは、2 日もすれば引きますよ。最初に飲む冷たい水が、びっくりするくらいおいしいんです。' },
+        { who: 'puku', mood: 'alert', say: '先生、飲んだことあるの？ 抜いたあとの水。' },
+        { who: 'doc', mood: 'happy', say: '…佐藤さん、ゆっくり、ひと口ずつですよ。', secret: 'water' },
+        { who: 'puku', say: '死ぬことを「息を引き取る」って言うよね。英語だと？' },
+        { who: 'doc', say: 'expire。ex-spirare、「息を吐き出す」です。日本語は最後に息を引き取り、英語は最後に吐き出す。', lore: 'expire' },
+        { who: 'doc', mood: 'happy', say: 'そして今朝の佐藤さんは、どちらでもなく「息を吹き返した」んです。' }
       ]
     },
 
@@ -274,6 +300,8 @@
         { who: 'fam', name: '田中さんの奥さん', say: 'この人、マスクの上からでも先生の名前を呼んでいたんですよ。' },
         { who: 'doc', mood: 'happy', say: '回数を落として、吐かせて待つ。CO₂ は普段の値まで。{名前}先生の設定で、田中さんは乗りきりました。' },
         { who: 'puku', mood: 'happy', say: 'ぼく、吐く時間のこと、もう忘れないよ。' },
+        { who: 'doc', say: '「呼吸」という字を見てください。「呼」は吐く、「吸」は吸う。吐くほうが先に書いてあるんです。', lore: 'kokyu' },
+        { who: 'doc', mood: 'happy', say: '吸うためには、まず吐ききること。田中さんの肺が教えてくれたとおりです。' },
         { who: 'doc', say: '山本さんの回診に行きましょう。あの人も、良くなってきています。' }
       ]
     },
@@ -299,6 +327,10 @@
         { who: 'fam', name: '山本さんの夫', say: 'チューブが抜けた日は、心臓が止まるかと思いました。' },
         { who: 'doc', say: 'わたしもです。でも、{名前}先生が設定を一から組み直してくれました。' },
         { who: 'me', say: '量、PEEP、酸素、回数。順番を覚えていたから、手が動きました。' },
+        { who: 'puku', say: 'ICU って、いつからあるの？' },
+        { who: 'doc', say: '1952 年のコペンハーゲン。ポリオの大流行で、息のできない人が病院にあふれました。', lore: 'copenhagen' },
+        { who: 'doc', say: '麻酔科医イプセンの考えで気管を切開し、医学生たちが交代で、何週間も手で袋を押し続けたんです。' },
+        { who: 'doc', mood: 'happy', say: 'それで死亡率が大きく下がった。ICU のはじまりです。' },
         { who: 'doc', mood: 'happy', say: 'それが「覚えた」ということです。{名前}先生、今夜の当直、よろしくお願いしますね。' },
         { who: 'puku', mood: 'excited', say: '夜って、救急外来から急に来る人もいるんだよね？' }
       ]
@@ -325,7 +357,9 @@
         { who: 'pt', case: 'chf', name: '鈴木さん', say: 'あのマスク、ほんとうに嫌でねえ。でも、外したら息が楽で。' },
         { who: 'fam', name: '鈴木さんの娘さん', say: '母がマスクを嫌がるの、昔からなんです。今回はよく我慢してくれました。' },
         { who: 'doc', mood: 'happy', say: '陽圧を外すと、心臓の仕事は急に増えます。NPPV はその橋渡しでした。' },
-        { who: 'me', say: '呼吸器の設定が、心臓の薬みたいに効くとは思いませんでした。' }
+        { who: 'me', say: '呼吸器の設定が、心臓の薬みたいに効くとは思いませんでした。' },
+        { who: 'doc', say: '1543 年、解剖学者のヴェサリウスが書いています。動物の気管に葦の管を入れて息を吹き込むと、', lore: 'vesalius' },
+        { who: 'doc', say: '胸が開いていても心臓が動き続けた、と。息を押し込むことが心臓を支える。いちばん古い陽圧換気の記録です。' }
       ]
     },
 
@@ -350,6 +384,8 @@
         { who: 'pt', case: 'asthma', name: '高橋さん', say: '…調子がいいからって、吸入を自分でやめていたんです。もう、やめません。' },
         { who: 'doc', say: '吸入ステロイドは、発作のない日のための薬です。続けた日の分だけ、発作が遠くなります。' },
         { who: 'me', say: '呼吸器を外すまでが治療じゃないんですね。' },
+        { who: 'puku', say: '「ぜんそく」って、英語だと asthma だよね。' },
+        { who: 'doc', say: 'ギリシャ語で「あえぐ」「荒い息」という意味です。2000 年以上前から、人は吐けない苦しさに名前をつけてきました。', lore: 'asthma' },
         { who: 'doc', mood: 'happy', say: 'そうです。次の発作を起こさないところまでが、わたしたちの仕事です。' }
       ]
     },
@@ -363,6 +399,9 @@
         { who: 'scene', say: '窓際のベッドの伊藤さん。挿管から 4 週間。初日より、手足がよく動くようになった。' },
         { who: 'pt', case: 'gbs', name: '伊藤さん', say: '（文字盤を指でたどる。「いつ、しゃべれる？」）' },
         { who: 'puku', mood: 'sad', say: 'この前の SBT、途中で息が浅く速くなって、だめだったんだよね…' },
+        { who: 'scene', say: 'いぶき先生は伊藤さんの指先を見ながら、一文字ずつ、迷わずに読み上げていく。' },
+        { who: 'puku', say: '…先生、文字盤を読むの、すごく速いね。' },
+        { who: 'doc', say: '読む側も、指す側も、たくさん練習しましたから。', secret: 'board' },
         { who: 'doc', say: 'あの日から、毎日少しずつ練習してきました。{名前}先生、仕上げを一緒にやりましょう。' },
         { who: 'me', say: '伊藤さん、もうすぐですよ。' }
       ]
@@ -375,6 +414,20 @@
         { who: 'pt', case: 'gbs', name: '伊藤さん', say: '…先生。声、出ました。' },
         { who: 'puku', mood: 'excited', say: 'しゃべった！ 4 週間ぶりだよ！' },
         { who: 'fam', name: '伊藤さんの奥さん', say: '先生方、本当に、本当にありがとうございました。' },
+        { who: 'scene', bg: 'night', say: 'その夜。伊藤さんの寝息を確かめたあと、いぶき先生は窓際のいすに腰をおろした。' },
+        { who: 'doc', mood: 'think', say: '{名前}先生、少しだけ昔の話をさせてください。' },
+        { who: 'doc', say: '17 歳の冬、わたしはこのベッドにいました。ギラン・バレー症候群で、呼吸器につながって 4 週間。' },
+        { who: 'doc', say: '毎晩この窓の外を見ながら、文字盤で「いつ、しゃべれる？」と聞いていました。伊藤さんと同じ言葉です。' },
+        { who: 'doc', mood: 'happy', say: 'チューブが抜けた朝、最初に吸い込んだ息と一緒に、こいつがふわっと出てきたんです。' },
+        { who: 'puku', mood: 'sad', say: '…ぼく、先生の最初の息だったんだ。患者さんたちの息からって、ごまかしてたんだね。' },
+        { who: 'doc', mood: 'happy', say: '伊吹という名前は「息吹」とも書けるでしょう。あの朝から、自分の名前が少し好きになりました。', secret: 'reveal',
+          choose: [
+            { label: 'だから窓際のベッドを', reply: 'ええ。あそこに入る人を見ると、どうしても足が向いてしまうんです。' },
+            { label: 'だから文字盤があんなに', reply: '指す側の、あのもどかしさを知っていますから。読む側は、急がずに待つことです。' }
+          ] },
+        { who: 'puku', say: 'ねえ、伊藤さんの病気って、昔はどうやって息をさせてたの？' },
+        { who: 'doc', say: '1928 年、ドリンカーたちが「鉄の肺」を作りました。体を鉄の箱に入れ、箱の中の空気を抜いて、外から胸をふくらませる。', lore: 'ironlung' },
+        { who: 'doc', say: '息の筋肉が動かない人のための、最初の機械でした。' },
         { who: 'doc', mood: 'happy', say: '{名前}先生。ローテが終わるまで、あと 1 週間です。' }
       ]
     },
@@ -394,11 +447,104 @@
         { who: 'me', say: '…はい。いまも、全部分かったとは思えません。' },
         { who: 'doc', mood: 'happy', say: 'それでいいんです。分からないと思える人は、確かめに戻ってこられます。' },
         { who: 'puku', mood: 'sad', say: '{名前}先生、ぼくのこと、忘れないでね。' },
-        { who: 'doc', mood: 'happy', say: '忘れませんよ。呼吸器の前に立つたびに、「なんで？」と聞く声がするはずです。' },
+        { who: 'doc', mood: 'happy', say: '忘れるもなにも。ぷくぷく、次は{名前}先生のポケットに入りなさい。' },
+        { who: 'puku', mood: 'alert', say: 'えっ、いいの!? 先生は？' },
+        { who: 'doc', say: '息は、受け渡していくものです。わたしも、あの冬の担当の先生から受け取りました。', secret: 'pass' },
+        { who: 'doc', say: 'ギリシャ語のプネウマ、ラテン語のスピリトゥス、ヘブライ語のルーアハ、サンスクリットのプラーナ。', lore: 'soul' },
+        { who: 'doc', mood: 'happy', say: 'どれも「息」で、どれも「魂」のことでもあります。人はずっと、息の中に命を見てきたんです。' },
+        { who: 'scene', say: 'ぷくぷくが、{名前}先生の白衣のポケットに、そっともぐりこんだ。' },
+        { who: 'puku', mood: 'happy', say: '{名前}先生、これからも「なんで？」って聞くからね。' },
         { who: 'doc', say: '最後に、ひとりで受け持ってみてください。症例は 6 人。わたしは、呼ばれたら行きます。' }
       ]
     }
   ];
+
+
+  /* ===================== やる気の仕掛け（成人版だけ） =====================
+   * 幕の行に lore（息のことば）や secret（いぶき先生の秘密）を付けておくと、その幕を見たときに
+   * 研修手帳（メニュー）に開く。技能の星と称号は、終えたレッスンと「一度も間違えずに終えた」レッスンから出す。 */
+
+  /* 息のことば。呼吸を人がどう呼び、どう扱ってきたか。scene はそれが出てくる幕（開く条件と「第N章で」の表示）。 */
+  var LORE = [
+    { id: 'wind', scene: 'ch1-close', word: 'ventilator と pneuma', text: 'ventilator はラテン語の ventus（風）から。肺炎 pneumonia はギリシャ語の「息をする」から来ていて、同じ根から息や風を表す pneuma が生まれた。' },
+    { id: 'count', scene: 'ch2-close', word: '1 日 2 万回', text: '大人は 1 日に 2 万回ほど息をする。空気にすると 1 万リットル近い。' },
+    { id: 'inspire', scene: 'ch3-close', word: 'inspiration と spirit', text: 'inspiration はラテン語 inspirare「息を吹き込む」。ひらめきは神に息を吹き込まれることだった。spirit（魂）は spiritus（息）から。' },
+    { id: 'oxygen', scene: 'ch4-close', word: 'oxygène', text: '1770 年代にシェーレとプリーストリーが見つけ、ラヴォアジエが「酸をつくるもの」oxygène と名づけた。酸のもとだという考えは、のちに誤りと分かる。' },
+    { id: 'sokusai', scene: 'ch5-close', word: '息災', text: '仏教の言葉で、災いを「息める（やめる）」こと。「息」には休む・止むの意味もあり、休息の「息」も同じ。' },
+    { id: 'expire', scene: 'ch6-close', word: '息を引き取る と expire', text: '日本語は最後に息を「引き取り」、英語は ex-spirare、息を「吐き出す」。助かった人は、息を「吹き返す」。' },
+    { id: 'kokyu', scene: 'ch7-close', word: '呼吸', text: '「呼」は吐く、「吸」は吸う。吐くほうが先に書かれている。' },
+    { id: 'copenhagen', scene: 'ch8-close', word: '1952 年 コペンハーゲン', text: 'ポリオの大流行で、麻酔科医イプセンの提案により気管切開と手もみの換気が行われた。医学生が交代で袋を押し続け、死亡率は大きく下がった。ICU のはじまり。' },
+    { id: 'vesalius', scene: 'ch9-close', word: 'ヴェサリウス 1543 年', text: '動物の気管に葦の管を入れて息を吹き込むと、胸を開いても心臓が動き続けた。いちばん古い陽圧換気の記録。' },
+    { id: 'asthma', scene: 'ch10-close', word: 'asthma', text: 'ギリシャ語で「あえぐ」「荒い息」。2000 年以上前から、人は吐けない苦しさに名前をつけてきた。' },
+    { id: 'ironlung', scene: 'ch11-close', word: '鉄の肺', text: '1928 年、ドリンカーらが作った陰圧式の人工呼吸器。体を鉄の箱に入れ、箱の空気を抜いて外から胸をふくらませた。' },
+    { id: 'soul', scene: 'epilogue', word: '息と魂', text: 'ギリシャ語 pneuma、ラテン語 spiritus、ヘブライ語 ruach、サンスクリット prana。どれも「息」であり「魂」でもある。' }
+  ];
+
+  /* いぶき先生の秘密。物語を進めると 1 つずつ開き、第11章の幕で明かされる。 */
+  var SECRETS = [
+    { id: 'born', scene: 'prologue', title: 'ぷくぷくの生まれ', text: '患者さんたちの息から生まれた「ということに、なっています」。先生は、なぜか言い切らなかった。' },
+    { id: 'tube', scene: 'ch1-close', title: 'チューブの感じ', text: 'のどの奥を押される感じを、まるで知っているように話した。聞かれると「さあ、どうでしょう」。' },
+    { id: 'window', scene: 'ch5-open', title: '窓際のベッド', text: '「先生って昔から、あのベッドだけは…」。ななみさんの言葉は、途中でさえぎられた。' },
+    { id: 'water', scene: 'ch6-close', title: '抜管のあとの水', text: '抜管のあとに飲む水のおいしさを、先生は知っていた。' },
+    { id: 'board', scene: 'ch11-open', title: '文字盤', text: '文字盤を、迷わずに速く読む。「読む側も、指す側も、たくさん練習しましたから」。' },
+    { id: 'reveal', scene: 'ch11-close', title: '17 歳の冬', text: '先生は 17 歳のとき、ギラン・バレー症候群でこの ICU の窓際のベッドにいた。ぷくぷくは、抜管の朝の最初の息から生まれた。' },
+    { id: 'pass', scene: 'epilogue', title: '受け渡す息', text: '「息は、受け渡していくものです」。ぷくぷくは、{名前}先生のポケットに移った。' }
+  ];
+
+  /* 技能。章ごとに、どの力が伸びるか。 */
+  var SKILLS = [
+    { id: 'read', name: '読む', chapters: ['ch1'], desc: '波形と数字から、いま起きていることを読む' },
+    { id: 'build', name: '組み立てる', chapters: ['ch2', 'ch8'], desc: '予測体重から設定を一から組む' },
+    { id: 'mode', name: '選ぶ', chapters: ['ch3'], desc: '機械に任せることと、患者さんに預けることを選ぶ' },
+    { id: 'gas', name: '答え合わせ', chapters: ['ch4'], desc: '血液ガスで、届いたものを確かめる' },
+    { id: 'guard', name: '守る', chapters: ['ch5'], desc: 'アラームで、考える前に正しい手が動く' },
+    { id: 'wean', name: '外す', chapters: ['ch6', 'ch11'], desc: '外せるかを見きわめ、抜管まで運ぶ' },
+    { id: 'disease', name: '見抜く', chapters: ['ch7', 'ch9', 'ch10'], desc: '病気ごとの肺の癖を見抜いて合わせる' }
+  ];
+  var STARS = 5;
+
+  /* 称号。星の合計（最大 35）で上がる。say はいぶき先生のひとこと。 */
+  var RANKS = [
+    { at: 0, title: '見学の研修医', say: 'まずは、機械の言葉を読めるようになりましょう。' },
+    { at: 2, title: '夜を越えた研修医', say: '最初の夜を越えましたね。数字が少し、話しかけてくるようになったはずです。' },
+    { at: 8, title: '設定を任せられる研修医', say: '指示票の設定、安心して読めるようになりました。' },
+    { at: 15, title: '当直を任せられる研修医', say: '鳴ったときに、手が先に動く。もう当直を任せられます。' },
+    { at: 22, title: '受け持ちを任せられる研修医', say: '受け持ちを、ひとりで任せられます。困ったら、呼んでください。' },
+    { at: 30, title: 'ICU の頼れる研修医', say: '{名前}先生がいると、夜が少し静かになります。' }
+  ];
+
+  /* 星の数。done は終えたレッスン、clean は一度も間違えずに終えたレッスン（どちらも id の配列）。
+   * 終えるだけで半分、間違えずに終えると残り半分。やり直して満点を取りにいける。 */
+  function skillStars(skill, chapters, done, clean) {
+    var total = 0, got = 0;
+    chapters.forEach(function (ch) {
+      if (skill.chapters.indexOf(ch.id) < 0) return;
+      ch.lessons.forEach(function (l) {
+        total += 2;
+        if (done.indexOf(l.id) >= 0) got++;
+        if (clean.indexOf(l.id) >= 0) got++;
+      });
+    });
+    return total ? Math.floor(got / total * STARS + 1e-9) : 0;
+  }
+
+  function growth(chapters, done, clean) {
+    var list = SKILLS.map(function (sk) {
+      return { id: sk.id, name: sk.name, desc: sk.desc, stars: skillStars(sk, chapters, done, clean) };
+    });
+    var sum = list.reduce(function (a, s) { return a + s.stars; }, 0);
+    var rank = RANKS[0], next = null;
+    for (var i = 0; i < RANKS.length; i++) {
+      if (sum >= RANKS[i].at) rank = RANKS[i];
+      else { next = RANKS[i]; break; }
+    }
+    return { skills: list, sum: sum, max: SKILLS.length * STARS, rank: rank, next: next };
+  }
+
+  function unlocked(list, seen) {
+    return list.filter(function (x) { return x.scene === 'prologue' || seen.indexOf(x.scene) >= 0; })
+      .map(function (x) { return x.id; });
+  }
 
   function sceneById(id) {
     for (var i = 0; i < SCENES.length; i++) if (SCENES[i].id === id) return SCENES[i];
@@ -514,7 +660,9 @@
     SCENES: SCENES, SPEAKER: SPEAKER, BG: BG, CHAPTER_TIME: CHAPTER_TIME, LAST_CHAPTER: LAST_CHAPTER,
     DEFAULT_NAME: DEFAULT_NAME, NAME_MAX: NAME_MAX,
     sceneById: sceneById, cleanName: cleanName, fill: fill, speakerName: speakerName,
-    before: before, after: after, Run: Run
+    before: before, after: after, Run: Run,
+    LORE: LORE, SECRETS: SECRETS, SKILLS: SKILLS, RANKS: RANKS, STARS: STARS,
+    growth: growth, unlocked: unlocked
   };
   root.VentStory = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

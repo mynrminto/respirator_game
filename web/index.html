@@ -936,6 +936,29 @@
   :root[data-edition="adult"] .cav.pt{border-color:#2C4F86;background:#E8EFF8}
   :root[data-edition="adult"] .sbadge{background:#DDEBF2;color:#168A99}
   :root[data-edition="adult"] .sname.w-me{background:#2C4F86} :root[data-edition="adult"] .sname.w-nurse{background:#168A99}
+
+  /* ============ 研修手帳・成長の札（成人版） ============ */
+  .stag{position:absolute;top:-15px;right:16px;padding:3px 11px;border-radius:999px;font-size:11px;font-weight:800;
+    color:#fff;background:#168A99;border:2.5px solid var(--gline,#262745);letter-spacing:.04em}
+  .stag.secret{background:#2C4F86}
+  .rankcard{width:100%;text-align:left;display:flex;align-items:center;gap:10px;margin:6px 0 4px}
+  .rankcard .lt b{display:block;font-size:14px}.rankcard .lt span{font-size:11.5px;color:var(--dim)}
+  .nbhead{padding:12px 14px;border-radius:14px;background:var(--panel2);border:2px solid var(--br)}
+  .nbhead b{font-size:16px;display:block}
+  .nbsay{margin:6px 0 4px;font-size:13px;line-height:1.6}
+  .nbnext{font-size:12px;color:var(--dim)}
+  .nbh{margin:16px 0 6px;font-size:14px;color:var(--accent2,#2F5E9E)}
+  .nbskills{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
+  .nbskill{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:baseline;padding:8px 10px;
+    border-radius:10px;background:var(--panel2);border:1px solid var(--br)}
+  .nbskill b{font-size:13.5px}.nbskill .stars{justify-self:end;letter-spacing:1px;color:#D59A12;font-size:14px}
+  .nbskill .stars.full{color:#1F9E78}
+  .nbskill i{grid-column:1 / -1;font-style:normal;font-size:11.5px;color:var(--dim);margin-top:2px}
+  .nblist{display:flex;flex-direction:column;gap:6px}
+  .nbitem{padding:8px 11px;border-radius:10px;border-left:4px solid #168A99;background:var(--panel2)}
+  .nbitem.secret{border-left-color:#2C4F86}
+  .nbitem b{display:block;font-size:13px}.nbitem span{display:block;font-size:12.5px;line-height:1.6;margin-top:2px}
+  .nbitem.locked{opacity:.55;border-left-color:var(--br)}
 </style>
 
 <div id="stage" class="stage" aria-hidden="true">

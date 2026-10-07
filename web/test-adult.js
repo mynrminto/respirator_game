@@ -309,6 +309,32 @@ console.log('\n8. 物語');
   ok('どの章にも BGM の時刻がある', LS.CHAPTERS.every(ch => ST.CHAPTER_TIME[ch.id] === 'day' || ST.CHAPTER_TIME[ch.id] === 'night'));
 }
 
+
+console.log('\n10. やる気の仕掛け（いぶき先生の秘密・息のことば・技能の星）');
+{
+  const ids = ST.SCENES.map(s => s.id);
+  const tagged = (k) => ST.SCENES.reduce((a, sc) => a.concat(sc.lines.filter(l => l[k]).map(l => sc.id + ':' + l[k])), []);
+  ok('息のことばは 12 個、それぞれ実在する幕に 1 行ずつ出てくる',
+    ST.LORE.length === 12 && ST.LORE.every(x => ids.includes(x.scene) && tagged('lore').includes(x.scene + ':' + x.id))
+    && tagged('lore').length === ST.LORE.length);
+  ok('秘密は物語の順に並び、それぞれの幕に 1 行ずつ出てくる',
+    ST.SECRETS.every(x => tagged('secret').includes(x.scene + ':' + x.id))
+    && tagged('secret').length === ST.SECRETS.length
+    && ST.SECRETS.every((x, i, a) => i === 0 || ids.indexOf(a[i - 1].scene) <= ids.indexOf(x.scene)));
+  ok('秘密が明かされるのは第11章の幕（伊藤さんの抜管のあと）', ST.SECRETS.find(x => x.id === 'reveal').scene === 'ch11-close');
+  ok('はじめは秘密 1 つ（プロローグ）だけが開いている', JSON.stringify(ST.unlocked(ST.SECRETS, [])) === '["born"]');
+  const all = LS.CHAPTERS.reduce((a, ch) => a.concat(ch.lessons.map(l => l.id)), []);
+  const g0 = ST.growth(LS.CHAPTERS, [], []), gDone = ST.growth(LS.CHAPTERS, all, []), gAll = ST.growth(LS.CHAPTERS, all, all);
+  ok('どの章も、どれか 1 つの技能に入っている', LS.CHAPTERS.every(ch => ST.SKILLS.filter(s => s.chapters.includes(ch.id)).length === 1));
+  ok('最初は星 0・最初の称号', g0.sum === 0 && g0.rank === ST.RANKS[0]);
+  ok('全部終えると星が半分ほど、ノーミスで満点と最後の称号', gDone.sum >= 14 && gDone.sum < gAll.sum
+    && gAll.sum === gAll.max && gAll.rank === ST.RANKS[ST.RANKS.length - 1]);
+  const ch1 = LS.CHAPTERS[0].lessons.map(l => l.id);
+  ok('第1章を終えると「夜を越えた」称号に上がる', ST.growth(LS.CHAPTERS, ch1, []).rank.title === '夜を越えた研修医');
+  ok('称号のしきい値は昇順で、最後の称号に手が届く', ST.RANKS.every((r, i, a) => i === 0 || a[i - 1].at < r.at)
+    && ST.RANKS[ST.RANKS.length - 1].at <= gAll.max);
+}
+
 console.log('\n9. 全レッスンを機械で通しプレイする（tools/autoplay.js）');
 {
   const AP = require('./tools/autoplay.js');
