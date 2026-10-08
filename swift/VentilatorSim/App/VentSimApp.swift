@@ -20,6 +20,7 @@ struct RootView: View {
     /// 起動時のロゴ。消えてからタイトルを出す（タイトルの BGM もそこから）。
     @State private var showingSplash = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -50,6 +51,10 @@ struct RootView: View {
         }
         // 見た目に合わせて、標準のボタンや選択の色もそろえる。
         .tint(Chrome.accent)
+        // 画面に出ているあいだだけ音を出す。裏に回ったら BGM も止め、戻ったら続きから流す。
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            SoundBoard.shared.setForeground(phase == .active)
+        }
     }
 
     private func start(lesson: Lesson) {

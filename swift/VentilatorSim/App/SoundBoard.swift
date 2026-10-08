@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import UIKit
 
 /// 操作音とアラーム音。Web 版 web/sound.js と同じ音程・長さ・間隔で、音のファイルは持たずにその場で合成する。
 ///
@@ -133,7 +134,25 @@ final class SoundBoard {
         play(level >= 2 ? .alarmHigh : .alarmMedium)
     }
 
+    /// アプリが前に出ていないあいだ（ホームに戻った・画面ロック・アプリ切り替え）は音を一切出さない。
+    /// RootView が scenePhase から切り替える。裏で開かれた（事前起動など）ときも鳴らさない。
+    private var away = false
+
+    func setForeground(_ active: Bool) {
+        guard away == active else { return }
+        away = !active
+        if away {
+            engine.pause()
+            running = false
+            alarmLevel = 0
+            nextBeat = nil
+        } else {
+            BGMPlayer.shared.apply()
+        }
+    }
+
     func start() -> Bool {
+        guard !away, UIApplication.shared.applicationState != .background else { return false }
         if running && engine.isRunning { return true }
         do {
             try AVAudioSession.sharedInstance().setActive(true)

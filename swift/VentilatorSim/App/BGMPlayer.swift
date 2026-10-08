@@ -162,6 +162,10 @@ final class BGMPlayer {
         let target = isEnabled && SoundBoard.shared.isEnabled ? (overlay ?? wanted) : nil
         attach()
         // エンジンが止まって再開した（着信・バックグラウンドなど）ときは、流していた曲をかけ直す
+        if let playing, playing == target, !SoundBoard.shared.engine.isRunning, nodes[active].isPlaying {
+            _ = SoundBoard.shared.start()   // 裏から戻った。止めた位置から続ける
+            return
+        }
         if let playing, playing == target, !nodes[active].isPlaying, let buffer = buffers[playing] {
             guard SoundBoard.shared.start() else { return }
             nodes[active].scheduleBuffer(buffer, at: nil, options: .loops)
