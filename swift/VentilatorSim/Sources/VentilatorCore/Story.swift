@@ -52,16 +52,18 @@ public struct StoryLine {
     public let pick: String?
     /// "key:n"。key で n 番を選んだときだけ出す。選ばずに飛ばしたときは 0 番とみなす。
     public let when: String?
+    /// この行から幕の終わりまで替える曲（"memory" など）。
+    public let bgm: String?
     /// 選択肢のあとに差し込まれた返し。
     public let isReply: Bool
 
     public init(_ who: StorySpeaker, _ say: String, mood: String? = nil, bg: String? = nil,
                 name: String? = nil, caseID: String? = nil, asksName: Bool = false,
-                pick: String? = nil, when: String? = nil,
+                pick: String? = nil, when: String? = nil, bgm: String? = nil,
                 choices: [StoryChoice] = [], isReply: Bool = false) {
         self.who = who; self.say = say; self.mood = mood; self.bg = bg
         self.name = name; self.caseID = caseID; self.asksName = asksName
-        self.pick = pick; self.when = when
+        self.pick = pick; self.when = when; self.bgm = bgm
         self.choices = choices; self.isReply = isReply
     }
 
@@ -103,13 +105,15 @@ public struct StoryScene: Identifiable {
     public let bg: String
     /// BGM の昼の曲・夜の曲を選ぶ（"day" / "night"）。
     public let time: String
+    /// 時刻より優先して流す曲（"breath" / "nicu"）。無ければ time の曲。
+    public let bgm: String?
     public let end: StoryEnd?
     public let lines: [StoryLine]
 
     public init(id: String, kind: String, chapter: String?, title: String, card: StoryCard?,
-                bg: String, time: String = "day", end: StoryEnd?, lines: [StoryLine]) {
+                bg: String, time: String = "day", bgm: String? = nil, end: StoryEnd?, lines: [StoryLine]) {
         self.id = id; self.kind = kind; self.chapter = chapter; self.title = title
-        self.card = card; self.bg = bg; self.time = time; self.end = end; self.lines = lines
+        self.card = card; self.bg = bg; self.time = time; self.bgm = bgm; self.end = end; self.lines = lines
     }
 }
 
@@ -168,6 +172,9 @@ public enum StoryLibrary {
         "ch7": "day", "ch8": "day", "ch9": "night", "ch10": "night", "ch11": "day",
         "ch12": "day", "ch13": "day"
     ]
+
+    /// 章の時刻より優先して流す曲（web/story.js の CHAPTER_BGM と同じ）。
+    public static let chapterBGM: [String: String] = ["ch9": "nicu", "ch12": "nicu", "ch13": "nicu"]
 
     /// エピローグを流す章。研修の最終日（web/story.js の LAST_CHAPTER）。
     public static let lastChapter = "ch13"
@@ -264,6 +271,17 @@ public final class StoryRun {
     private func settle() {
         while index < scene.lines.count && !scene.lines[index].shows(picks) { index += 1 }
         if index >= scene.lines.count && phase == .line { phase = .end }
+    }
+
+    /// いま流す曲。いまの行までで最後に bgm を書いた行の曲、無ければ幕の bgm、無ければ幕の時刻（story.js の Run.track と同じ）。
+    public var track: String {
+        if phase != .card, !scene.lines.isEmpty {
+            for i in stride(from: min(index, scene.lines.count - 1), through: 0, by: -1) {
+                let l = scene.lines[i]
+                if let bgm = l.bgm, l.shows(picks) { return bgm }
+            }
+        }
+        return scene.bgm ?? scene.time
     }
 
     public var line: StoryLine? {

@@ -6,7 +6,7 @@ extension StoryLibrary {
         StoryScene(id: "prologue", kind: "prologue", chapter: nil,
                    title: "プロローグ　はじめての小児科",
                    card: StoryCard(kicker: "プロローグ", title: "はじめての小児科", sub: "ローテーション初日　朝 8 時"),
-                   bg: "corridor", time: "day", end: nil, lines: [
+                   bg: "corridor", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "Dum spiro, spero.　―― 息をするかぎり、希望はある。（ラテン語の格言）"),
             StoryLine(.scene, "初期研修の小児科ローテーション、初日。朝の病棟は、思っていたよりずっと静かだった。"),
             StoryLine(.scene, "廊下の突き当たりに「PICU・NICU」の自動ドア。中から、規則正しい機械の音が聞こえてくる。"),
@@ -40,7 +40,7 @@ extension StoryLibrary {
             StoryLine(.scene, "隣には、RSV で入院した生後 4 か月の男の子。鼻のカニュラから高流量の酸素を受け、速い息をしている。"),
             StoryLine(.scene, "窓際の 7 歳の女の子は、ギラン・バレー症候群。呼吸の筋肉まで力が抜け、呼吸器につながって 2 週間になる。"),
             StoryLine(.doc, "覚えることは多いけれど、根っこは 1 つ。この機械が何を保証して、何をこの子に預けているか。"),
-            StoryLine(.nurse, "いぶき先生、救急外来から電話です。"),
+            StoryLine(.nurse, "いぶき先生、救急外来から電話です。", bgm: "urgent"),
             StoryLine(.doc, "…はい。…分かりました。ベッドを空けて待っています。", mood: "think"),
             StoryLine(.doc, "8 歳の男の子。虫垂炎が破れて、お腹じゅうに膿が広がっています。血圧が保てない、ショックです。"),
             StoryLine(.doc, "昼から緊急手術。終わったら、挿管のままここへ来ます。ハルト君です。"),
@@ -75,7 +75,7 @@ extension StoryLibrary {
         StoryScene(id: "ch2-open", kind: "open", chapter: "ch2",
                    title: "第2章　扉　2 日目の朝",
                    card: StoryCard(kicker: "第2章", title: "挿管直後の初期設定", sub: "2 日目の朝　回診"),
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "翌朝 8 時。ハルト君の昇圧薬は、夜のうちに半分まで減った。回診の前に、夜勤の看護師から申し送りを受ける。"),
             StoryLine(.nurse, "夜中に何度か換気量のアラームが鳴って、当直の先生が一回換気量を上げていきました。"),
             StoryLine(.doc, "鳴ったから上げる。いちばん多い落とし穴です。{名前}先生、今日は設定を「決める」側に回ってもらいます。", mood: "think"),
@@ -133,7 +133,7 @@ extension StoryLibrary {
         StoryScene(id: "ch4-open", kind: "open", chapter: "ch4",
                    title: "第4章　扉　3 日目の朝",
                    card: StoryCard(kicker: "第4章", title: "血液ガスを読む", sub: "3 日目の朝　回診前"),
-                   bg: "station", time: "day", end: nil, lines: [
+                   bg: "station", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "3 日目の朝。回診の前に、ナースステーションに夜のあいだの採血の結果が並んでいる。"),
             StoryLine(.me, "数字が多すぎて、どれから見ればいいのか…。"),
             StoryLine(.doc, "呼吸器の画面は「送ったもの」。血液ガスは「体に届いたもの」。両方を見て、はじめて答え合わせになります。"),
@@ -165,7 +165,7 @@ extension StoryLibrary {
         StoryScene(id: "ch5-close", kind: "close", chapter: "ch5",
                    title: "第5章　幕　夜明け",
                    card: nil,
-                   bg: "dawn", time: "day", end: nil, lines: [
+                   bg: "dawn", time: "day", bgm: "dawn", end: nil, lines: [
             StoryLine(.scene, "夜明け。ハルト君の胸には細いドレーンが入り、モニターの音はまた高く澄んだ音に戻っている。"),
             StoryLine(.me, "手が震えていました。でも、酸素を上げるところまでは、考える前にできました。"),
             StoryLine(.doc, "それで十分です。今夜ハルト君を守ったのは、{名前}先生の最初の一手です。", mood: "happy"),
@@ -182,7 +182,7 @@ extension StoryLibrary {
         StoryScene(id: "ch6-open", kind: "open", chapter: "ch6",
                    title: "第6章　扉　4 日目の朝",
                    card: StoryCard(kicker: "第6章", title: "離脱と抜管", sub: "4 日目の朝　PICU"),
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "翌朝。ハルト君の熱は下がり、お腹の張りも引いた。ドレーンからの空気漏れも止まっている。お母さんが面会に来ている。"),
             StoryLine(.fam, "先生、この管はいつ抜けるんでしょう。あの子、しゃべりたがっていて。", name: "ハルト君のお母さん"),
             StoryLine(.doc, "今日から、それを確かめていきます。{名前}先生、条件を一緒に見ましょう。"),
@@ -192,7 +192,7 @@ extension StoryLibrary {
         StoryScene(id: "ch6-close", kind: "close", chapter: "ch6",
                    title: "第6章　幕　抜管のあと",
                    card: nil,
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "breath", end: nil, lines: [
             StoryLine(.scene, "抜管から 1 時間。ハルト君は酸素マスクをつけて、自分でしっかり咳をしている。"),
             StoryLine(.pt, "…せんせい。のど、いたい。", name: "ハルト君"),
             StoryLine(.puku, "しゃべった！", mood: "excited"),
@@ -211,7 +211,7 @@ extension StoryLibrary {
         StoryScene(id: "ch7-open", kind: "open", chapter: "ch7",
                    title: "第7章　扉　5 日目の朝",
                    card: StoryCard(kicker: "第7章", title: "細い気道", sub: "5 日目の朝　PICU 5 番ベッド"),
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "morning", end: nil, lines: [
             StoryLine(.scene, "ハルト君が抜管された翌朝。空いたベッドに、朝の光が差している。"),
             StoryLine(.nurse, "{名前}先生、5 番ベッドのそうた君、夜のあいだに呼吸回数を 40 まで上げています。"),
             StoryLine(.doc, "そうた君は、今日から{名前}先生の受け持ちです。挿管した夜のこと、覚えていますか。", mood: "think"),
@@ -222,7 +222,7 @@ extension StoryLibrary {
         StoryScene(id: "ch7-close", kind: "close", chapter: "ch7",
                    title: "第7章　幕　8 日目の昼前",
                    card: nil,
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "breath", end: nil, lines: [
             StoryLine(.scene, "8 日目の昼前。そうた君は鼻のカニュラで、ゆっくりと息をしている。"),
             StoryLine(.scene, "お母さんが差し出した指を、小さな手がぎゅっと握った。"),
             StoryLine(.fam, "先生、この子、握り返してくれました…！", name: "そうた君のお母さん"),
@@ -249,7 +249,7 @@ extension StoryLibrary {
         StoryScene(id: "ch8-close", kind: "close", chapter: "ch8",
                    title: "第8章　幕　12 日目の夕方",
                    card: nil,
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "memory", end: nil, lines: [
             StoryLine(.scene, "12 日目の夕方。ミオちゃんは HFNC をつけたまま、お母さんの膝で絵本を見ている。"),
             StoryLine(.fam, "チューブが抜けた日は、心臓が止まるかと思いました。", name: "ミオちゃんのお母さん"),
             StoryLine(.doc, "わたしもです。でも、{名前}先生が設定を一から組み直してくれました。"),
@@ -266,7 +266,7 @@ extension StoryLibrary {
         StoryScene(id: "ch9-open", kind: "open", chapter: "ch9",
                    title: "第9章　扉　NICU の夜",
                    card: StoryCard(kicker: "第9章", title: "手のひらの肺", sub: "2 週目の夜　NICU"),
-                   bg: "nicu", time: "night", end: nil, lines: [
+                   bg: "nicu", time: "night", bgm: "nicu", end: nil, lines: [
             StoryLine(.scene, "2 週目。NICU の夜は、PICU よりさらに静かだ。保育器のファンの音だけが続いている。"),
             StoryLine(.nurse, "{名前}先生、産科から連絡です。在胎 28 週、もうすぐ生まれます。"),
             StoryLine(.doc, "ローテの初日に見た、保育器の子と同じ週数です。分娩室へ行きましょう。"),
@@ -279,7 +279,7 @@ extension StoryLibrary {
         StoryScene(id: "ch9-close", kind: "close", chapter: "ch9",
                    title: "第9章　幕　生まれて 4 日目",
                    card: nil,
-                   bg: "nicu", time: "day", end: nil, lines: [
+                   bg: "nicu", time: "day", bgm: "nicu", end: nil, lines: [
             StoryLine(.scene, "生まれて 4 日目。あおい君は nCPAP のまま、保育器の中で手足を伸ばしている。"),
             StoryLine(.fam, "小さすぎて、触ったら壊れてしまいそうで…。", name: "あおい君のお父さん"),
             StoryLine(.doc, "{名前}先生、お父さんに声をかけてあげてください。"),
@@ -292,7 +292,7 @@ extension StoryLibrary {
             StoryLine(.me, "小さじ 1 杯の空気が、こんなに重いとは思いませんでした。"),
             StoryLine(.puku, "あおい君、生まれたとき泣いた？"),
             StoryLine(.doc, "小さな声で。産声は、水で満ちていた肺に初めて空気を入れて、それを吐きながら上げる声です。"),
-            StoryLine(.scene, "保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。"),
+            StoryLine(.scene, "保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。", bgm: "memory"),
             StoryLine(.scene, "端の色あせた 1 枚に、手書きの文字。「いぶきちゃん　在胎 28 週　980 g」"),
             StoryLine(.me, "（色あせた写真から、目が離せない）", pick: "photo", choices: [
                 StoryChoice(label: "先生、これって…", reply: "あ…見つかっちゃった。", who: .puku, mood: "alert"),
@@ -304,7 +304,7 @@ extension StoryLibrary {
         StoryScene(id: "ch10-open", kind: "open", chapter: "ch10",
                    title: "第10章　扉　救急外来からの電話",
                    card: StoryCard(kicker: "第10章", title: "吐けない息", sub: "3 週目の夕方　救急外来"),
-                   bg: "station", time: "night", end: nil, lines: [
+                   bg: "station", time: "night", bgm: "urgent", end: nil, lines: [
             StoryLine(.scene, "3 週目、PICU に戻って最初の当直。夕方、救急外来から電話が鳴った。"),
             StoryLine(.nurse, "11 歳の男の子、喘息の発作です。吸入が効かなくて、いま挿管しています！"),
             StoryLine(.doc, "{名前}先生、行きましょう。喘息の子の呼吸器は、ほかのどの子とも違います。", mood: "alert"),
@@ -347,7 +347,7 @@ extension StoryLibrary {
         StoryScene(id: "ch11-close", kind: "close", chapter: "ch11",
                    title: "第11章　幕　4 週間ぶりの声",
                    card: nil,
-                   bg: "picu", time: "day", end: nil, lines: [
+                   bg: "picu", time: "day", bgm: "breath", end: nil, lines: [
             StoryLine(.scene, "抜管の翌日。あかりちゃんは NPPV のマスクを外して、窓の外を見ている。"),
             StoryLine(.pt, "…{名前}せんせい。こえ、でた。", name: "あかりちゃん", caseID: "gbs"),
             StoryLine(.pt, "…やくそく、まもったよ。", name: "あかりちゃん", caseID: "gbs", when: "akari:0"),
@@ -358,7 +358,7 @@ extension StoryLibrary {
         StoryScene(id: "ch12-open", kind: "open", chapter: "ch12",
                    title: "第12章　扉　揺れる保育器",
                    card: StoryCard(kicker: "第12章", title: "ふるえる息", sub: "4 週目の朝　NICU"),
-                   bg: "nicu", time: "day", end: nil, lines: [
+                   bg: "nicu", time: "day", bgm: "nicu", end: nil, lines: [
             StoryLine(.scene, "ローテ最後の週。NICU の奥の保育器にだけ、見慣れない呼吸器がつながっていた。"),
             StoryLine(.nurse, "{名前}先生、夜中に生まれた子です。在胎 25 週、720 g。いぶき先生がずっとついています。"),
             StoryLine(.doc, "来ましたね。この子には、ふつうの換気がうまく届きません。"),
@@ -370,7 +370,7 @@ extension StoryLibrary {
         StoryScene(id: "ch12-close", kind: "close", chapter: "ch12",
                    title: "第12章　幕　糸をつむぐ",
                    card: nil,
-                   bg: "nicu", time: "day", end: nil, lines: [
+                   bg: "nicu", time: "day", bgm: "nicu", end: nil, lines: [
             StoryLine(.scene, "生まれて 3 日目の夕方。つむぎちゃんのお母さんが、車いすで初めて NICU に来た。"),
             StoryLine(.fam, "体がずっと震えてて…。寒いんですか？ 痛くないんですか？", name: "つむぎちゃんのお母さん"),
             StoryLine(.doc, "{名前}先生、説明してあげてください。"),
@@ -386,7 +386,7 @@ extension StoryLibrary {
         StoryScene(id: "ch13-open", kind: "open", chapter: "ch13",
                    title: "第13章　扉　横隔膜の声",
                    card: StoryCard(kicker: "第13章", title: "自分のリズム", sub: "4 週目の終わり　NICU"),
-                   bg: "nicu", time: "day", end: nil, lines: [
+                   bg: "nicu", time: "day", bgm: "nicu", end: nil, lines: [
             StoryLine(.scene, "生まれて 5 日目。つむぎちゃんは HFO を降りた。胃の管が、先に電極の並んだものに替わっている。"),
             StoryLine(.doc, "今日からは、つむぎちゃんの呼吸中枢の声を聞いて換気します。"),
             StoryLine(.puku, "声？ 赤ちゃん、まだしゃべれないよ？", mood: "alert"),
@@ -398,7 +398,7 @@ extension StoryLibrary {
         StoryScene(id: "ch13-close", kind: "close", chapter: "ch13",
                    title: "第13章　幕　胸の上の息",
                    card: nil,
-                   bg: "nicu", time: "day", end: nil, lines: [
+                   bg: "nicu", time: "day", bgm: "breath", end: nil, lines: [
             StoryLine(.scene, "4 週目の終わり。つむぎちゃんは鼻のマスクで NAVA を続け、あおい君は細いカニュラで眠っている。"),
             StoryLine(.fam, "先生、つむぎが吸いたいときに、機械が待っていてくれるんですね。", name: "つむぎちゃんのお母さん"),
             StoryLine(.fam, "「息をしてる証拠」って言われてから、毎日、揺れを数えていました。", name: "つむぎちゃんのお母さん", when: "tsumugiMom:0"),
@@ -416,7 +416,7 @@ extension StoryLibrary {
         StoryScene(id: "epilogue", kind: "epilogue", chapter: nil,
                    title: "エピローグ　ローテーション最終日",
                    card: StoryCard(kicker: "エピローグ", title: "ローテーション最終日", sub: "夕方　PICU"),
-                   bg: "dawn", time: "day", end: StoryEnd(label: "症例で練習する", action: "cases", say: "おつかれさまでした。7 人の子どもたちを、今度はひとりで受け持ってみましょう。"), lines: [
+                   bg: "dawn", time: "day", bgm: "epilogue", end: StoryEnd(label: "症例で練習する", action: "cases", say: "おつかれさまでした。7 人の子どもたちを、今度はひとりで受け持ってみましょう。"), lines: [
             StoryLine(.scene, "4 週間のローテーション、最終日。夕方の PICU で、また新しい入院の電話が鳴っている。"),
             StoryLine(.scene, "ベッドの顔ぶれは入れ替わった。ミオちゃんは一般病棟へ移り、そうた君はとうに家へ帰った。"),
             StoryLine(.scene, "あかりちゃんはリハビリで車いすに乗れるようになり、レン君は吸入を続けると約束して退院した。"),
@@ -429,7 +429,7 @@ extension StoryLibrary {
             StoryLine(.doc, "それでいいんです。分からないと思える人は、確かめに戻ってこられます。", mood: "happy"),
             StoryLine(.doc, "初日、とても緊張していると言っていましたね。その緊張が、ずっと子どもたちを守っていました。", when: "nerves:0"),
             StoryLine(.doc, "初日、楽しみだと言っていましたね。その顔のまま、最後まで来ました。", when: "nerves:1"),
-            StoryLine(.me, "先生。NICU の写真の続き、聞いてもいいですか。"),
+            StoryLine(.me, "先生。NICU の写真の続き、聞いてもいいですか。", bgm: "memory"),
             StoryLine(.doc, "約束でしたね。", mood: "happy", when: "photo:0"),
             StoryLine(.doc, "あの写真の前で、何も聞かずにいてくれましたね。…お話しします。", mood: "happy", when: "photo:1"),
             StoryLine(.doc, "わたしは 28 週、980 g で生まれて、2 週間、呼吸器につながっていました。"),
@@ -438,7 +438,7 @@ extension StoryLibrary {
             StoryLine(.doc, "…ということに、なっています。研修医としてここへ戻った日、ポケットから出てきました。"),
             StoryLine(.doc, "「息を引き取る」という言葉があります。始まりが息なら、終わりも息で言い表すんです。", mood: "think"),
             StoryLine(.doc, "そのあいだを少しでも長く、楽にする。それが、わたしたちの仕事です。"),
-            StoryLine(.puku, "ねえ{名前}先生。初日に聞いたこと、覚えてる？ なに科になるの？"),
+            StoryLine(.puku, "ねえ{名前}先生。初日に聞いたこと、覚えてる？ なに科になるの？", bgm: "epilogue"),
             StoryLine(.me, "…やっぱり、小児科です。ここに戻ってきたいです。", when: "path:0"),
             StoryLine(.doc, "待っています。わたしも、そうやってここへ戻ってきましたから。", mood: "happy", when: "path:0"),
             StoryLine(.me, "まだ決めていません。でも、子どもの息の音は、たぶん一生忘れません。", when: "path:1"),

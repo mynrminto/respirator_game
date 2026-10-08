@@ -40,7 +40,9 @@
 
   var KEY = 'ventsim.bgm.v1';
   var RATE = 24000;          // BGM は 24 kHz で作る（メモリを抑える。中身は 8 kHz より下）
-  var FILES = { title: 3617874, day: 4330165, night: 3041544, alarm: 1693495 }, FILE_RATE = 44100;
+  var FILES = { title: 3617874, day: 4330165, night: 3041544, alarm: 1693495, breath: 2529028, nicu: 1957520, memory: 2557079, epilogue: 3512661, morning: 1746120, urgent: 1435953, dawn: 2917042, notebook: 3223111 }, FILE_RATE = 44100;
+  /* 録音しかない曲が読めないときに代わりに合成する曲。 */
+  var FALLBACK = { breath: 'day', nicu: 'night', memory: 'night', epilogue: 'day', morning: 'day', urgent: 'day', dawn: 'day', notebook: 'day' };
   var GAIN = 0.15;           // 仕上がりのピークを 0.8 にそろえたうえで掛ける（ピーク 0.12）。パルス音 0.16・アラーム 0.26〜0.34 より小さい
   var DUCK = 0.5;            // アラームが鳴っているあいだの倍率（アラームの曲ごと下げる）
   var FADE = 2.5;            // 曲の切り替え（秒）
@@ -422,7 +424,7 @@
   try { on = root.localStorage ? root.localStorage.getItem(KEY) !== 'off' : true; } catch (e) { on = true; }
 
   var wanted = null, playing = null, ducked = false, hidden = false;
-  var cache = {}, bus = null, nodes = {};   // nodes[track] = { src, gain }
+  var cache = {}, bus = null, mbus = null, nodes = {};   // nodes[track] = { src, gain }
 
   function soundOn() { return !root.VentSound || root.VentSound.enabled(); }
   function level() { return GAIN * (ducked ? DUCK : 1); }
@@ -431,7 +433,10 @@
     var S = root.VentSound;
     var io = S && S.audio ? S.audio() : null;
     if (!io) return null;
-    if (!bus) { bus = io.ctx.createGain(); bus.gain.value = level(); bus.connect(io.master); }
+    if (!bus) {
+      bus = io.ctx.createGain(); bus.gain.value = level(); bus.connect(io.master);
+      mbus = io.ctx.createGain(); mbus.connect(bus);   // 曲だけの音量（ジングルのあいだ下げる）
+    }
     return io.ctx;
   }
 
@@ -465,7 +470,7 @@
   }
 
   function synth(ctx, track) {
-    var job = jobs[track] = new Renderer(track, RATE);
+    var job = jobs[track] = new Renderer(SONGS[track] ? track : FALLBACK[track], RATE);
     (function tick() {
       if (!job.step(18)) { setTimeout(tick, 16); return; }
       var w = job.result, b = ctx.createBuffer(2, w.L.length, w.rate);
@@ -500,9 +505,36 @@
     var src = ctx.createBufferSource(), g = ctx.createGain(), t = ctx.currentTime;
     src.buffer = cache[target]; src.loop = true;
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + FADE);
-    src.connect(g); g.connect(bus);
+    src.connect(g); g.connect(mbus);
     src.start(t);
     nodes[target] = { src: src, gain: g };
+  }
+
+  /* ジングル（章の扉・手帳に書き留めたとき）。1 回だけ鳴らし、そのあいだ曲を下げる。
+   * assets/bgm/bgm_jingle_<名前>.m4a。読めなければ鳴らさない。 */
+  var JINGLES = { chapter: true, note: true }, JINGLE_DIP = 0.35, jingles = {};
+  /** 鳴らすつもりなら true（読めなかったときは黙る）。false なら呼び出し側がほかの音で代える。 */
+  function jingle(name) {
+    if (!JINGLES[name] || !on || !soundOn() || hidden) return false;
+    var ctx = context(), page = root.location ? root.location.protocol : 'file:';
+    if (!ctx || ctx.state !== 'running' || !root.fetch || page === 'file:') return false;
+    var play = function (b) {
+      var src = ctx.createBufferSource(), t = ctx.currentTime;
+      src.buffer = b; src.connect(bus); src.start(t);
+      mbus.gain.cancelScheduledValues(t);
+      mbus.gain.setValueAtTime(mbus.gain.value, t);
+      mbus.gain.linearRampToValueAtTime(JINGLE_DIP, t + 0.15);
+      mbus.gain.setValueAtTime(JINGLE_DIP, t + b.duration - 0.6);
+      mbus.gain.linearRampToValueAtTime(1, t + b.duration + 0.4);
+    };
+    if (jingles[name]) { if (jingles[name] !== 'loading') play(jingles[name]); return true; }
+    jingles[name] = 'loading';
+    root.fetch('assets/bgm/bgm_jingle_' + name + '.m4a')
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(function (a) { return ctx.decodeAudioData(a); })
+      .then(function (b) { jingles[name] = b; play(b); })
+      .catch(function () { delete jingles[name]; });
+    return true;
   }
 
   /* アラームの曲から戻るのは、アラームが HOLD 秒続けて消えてから（鳴ったり止んだりで曲が行き来しないように）。 */
@@ -511,7 +543,7 @@
 
   /** 流したい曲を伝える（'title' / 'day' / 'night' / 'alarm' / null）。毎フレーム呼んでよい。 */
   function want(track) {
-    track = SONGS[track] ? track : null;
+    track = SONGS[track] || FILES[track] ? track : null;
     var t = now();
     if (track === 'alarm') lastAlarm = t;
     else if (wanted === 'alarm' && (track === 'day' || track === 'night') && t - lastAlarm < HOLD) return;
@@ -545,11 +577,11 @@
   }
 
   var api = {
-    want: want, duck: duck, enabled: function () { return on; }, setEnabled: setEnabled,
+    want: want, duck: duck, jingle: jingle, JINGLES: JINGLES, enabled: function () { return on; }, setEnabled: setEnabled,
     playing: function () { return playing; }, wanted: function () { return wanted; },
     refresh: apply, clockTrack: clockTrack,
     score: score, render: render, Renderer: Renderer, length: length, mtof: mtof,
-    SONGS: SONGS, INST: INST, RATE: RATE, FILES: FILES, FILE_RATE: FILE_RATE, GAIN: GAIN, DUCK: DUCK, FADE: FADE, HOLD: HOLD
+    SONGS: SONGS, INST: INST, RATE: RATE, FILES: FILES, FILE_RATE: FILE_RATE, FALLBACK: FALLBACK, GAIN: GAIN, DUCK: DUCK, FADE: FADE, HOLD: HOLD
   };
   root.VentBGM = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

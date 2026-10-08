@@ -13,6 +13,9 @@
  *   epilogue   … 最後の章（第13章）の幕のあと
  * 幕ごとに time（'day' / 'night'）を持ち、BGM の昼の曲・夜の曲をこれで選ぶ。
  * レッスンの最中は章の時刻（CHAPTER_TIME）で選ぶ。
+ * bgm を持つ幕は、その曲を流す（'breath' 抜管・最初の声 ／ 'nicu' NICU）。章の曲は CHAPTER_BGM。
+ * 録音した曲が無いときは bgm.js が time の曲に落とす。
+ * 行にも bgm を書ける。その行から幕の終わりまで、その曲に替わる（'memory' 先生の打ち明け話など）。
  * 一度見た幕はメニューの「物語を読み返す」から何度でも読める。
  *
  * 行（line）の書き方
@@ -51,6 +54,8 @@
    * 第9章は NICU の夜、第10章は救急外来からの当直の夜、ほかは日中。 */
   var CHAPTER_TIME = { ch1: 'night', ch2: 'day', ch3: 'day', ch4: 'day', ch5: 'night', ch6: 'day',
     ch7: 'day', ch8: 'day', ch9: 'night', ch10: 'night', ch11: 'day', ch12: 'day', ch13: 'day' };
+  /* 章の時刻より優先して流す曲（NICU の章は NICU の曲）。 */
+  var CHAPTER_BGM = { ch9: 'nicu', ch12: 'nicu', ch13: 'nicu' };
 
   /* エピローグは最後の章の幕のあとに流す。 */
   var LAST_CHAPTER = 'ch13';
@@ -61,7 +66,7 @@
     {
       id: 'prologue', kind: 'prologue', title: 'プロローグ　はじめての小児科',
       card: { kicker: 'プロローグ', title: 'はじめての小児科', sub: 'ローテーション初日　朝 8 時' },
-      bg: 'corridor', time: 'day',
+      bg: 'corridor', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: 'Dum spiro, spero.　―― 息をするかぎり、希望はある。（ラテン語の格言）' },
         { who: 'scene', say: '初期研修の小児科ローテーション、初日。朝の病棟は、思っていたよりずっと静かだった。' },
@@ -102,7 +107,7 @@
         { who: 'scene', say: '隣には、RSV で入院した生後 4 か月の男の子。鼻のカニュラから高流量の酸素を受け、速い息をしている。' },
         { who: 'scene', say: '窓際の 7 歳の女の子は、ギラン・バレー症候群。呼吸の筋肉まで力が抜け、呼吸器につながって 2 週間になる。' },
         { who: 'doc', say: '覚えることは多いけれど、根っこは 1 つ。この機械が何を保証して、何をこの子に預けているか。' },
-        { who: 'nurse', say: 'いぶき先生、救急外来から電話です。' },
+        { who: 'nurse', say: 'いぶき先生、救急外来から電話です。', bgm: 'urgent' },
         { who: 'doc', mood: 'think', say: '…はい。…分かりました。ベッドを空けて待っています。' },
         { who: 'doc', say: '8 歳の男の子。虫垂炎が破れて、お腹じゅうに膿が広がっています。血圧が保てない、ショックです。' },
         { who: 'doc', say: '昼から緊急手術。終わったら、挿管のままここへ来ます。ハルト君です。' },
@@ -145,7 +150,7 @@
     {
       id: 'ch2-open', kind: 'open', chapter: 'ch2', title: '第2章　扉　2 日目の朝',
       card: { kicker: '第2章', title: '挿管直後の初期設定', sub: '2 日目の朝　回診' },
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: '翌朝 8 時。ハルト君の昇圧薬は、夜のうちに半分まで減った。回診の前に、夜勤の看護師から申し送りを受ける。' },
         { who: 'nurse', say: '夜中に何度か換気量のアラームが鳴って、当直の先生が一回換気量を上げていきました。' },
@@ -219,7 +224,7 @@
     {
       id: 'ch4-open', kind: 'open', chapter: 'ch4', title: '第4章　扉　3 日目の朝',
       card: { kicker: '第4章', title: '血液ガスを読む', sub: '3 日目の朝　回診前' },
-      bg: 'station', time: 'day',
+      bg: 'station', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: '3 日目の朝。回診の前に、ナースステーションに夜のあいだの採血の結果が並んでいる。' },
         { who: 'me', say: '数字が多すぎて、どれから見ればいいのか…。' },
@@ -257,7 +262,7 @@
     },
     {
       id: 'ch5-close', kind: 'close', chapter: 'ch5', title: '第5章　幕　夜明け',
-      bg: 'dawn', time: 'day',
+      bg: 'dawn', time: 'day', bgm: 'dawn',
       lines: [
         { who: 'scene', say: '夜明け。ハルト君の胸には細いドレーンが入り、モニターの音はまた高く澄んだ音に戻っている。' },
         { who: 'me', say: '手が震えていました。でも、酸素を上げるところまでは、考える前にできました。' },
@@ -278,7 +283,7 @@
     {
       id: 'ch6-open', kind: 'open', chapter: 'ch6', title: '第6章　扉　4 日目の朝',
       card: { kicker: '第6章', title: '離脱と抜管', sub: '4 日目の朝　PICU' },
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: '翌朝。ハルト君の熱は下がり、お腹の張りも引いた。ドレーンからの空気漏れも止まっている。お母さんが面会に来ている。' },
         { who: 'fam', name: 'ハルト君のお母さん', say: '先生、この管はいつ抜けるんでしょう。あの子、しゃべりたがっていて。' },
@@ -289,7 +294,7 @@
     },
     {
       id: 'ch6-close', kind: 'close', chapter: 'ch6', title: '第6章　幕　抜管のあと',
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'breath',
       lines: [
         { who: 'scene', say: '抜管から 1 時間。ハルト君は酸素マスクをつけて、自分でしっかり咳をしている。' },
         { who: 'pt', name: 'ハルト君', say: '…せんせい。のど、いたい。' },
@@ -312,7 +317,7 @@
     {
       id: 'ch7-open', kind: 'open', chapter: 'ch7', title: '第7章　扉　5 日目の朝',
       card: { kicker: '第7章', title: '細い気道', sub: '5 日目の朝　PICU 5 番ベッド' },
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'morning',
       lines: [
         { who: 'scene', say: 'ハルト君が抜管された翌朝。空いたベッドに、朝の光が差している。' },
         { who: 'nurse', say: '{名前}先生、5 番ベッドのそうた君、夜のあいだに呼吸回数を 40 まで上げています。' },
@@ -324,7 +329,7 @@
     },
     {
       id: 'ch7-close', kind: 'close', chapter: 'ch7', title: '第7章　幕　8 日目の昼前',
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'breath',
       lines: [
         { who: 'scene', say: '8 日目の昼前。そうた君は鼻のカニュラで、ゆっくりと息をしている。' },
         { who: 'scene', say: 'お母さんが差し出した指を、小さな手がぎゅっと握った。' },
@@ -356,7 +361,7 @@
     },
     {
       id: 'ch8-close', kind: 'close', chapter: 'ch8', title: '第8章　幕　12 日目の夕方',
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'memory',
       lines: [
         { who: 'scene', say: '12 日目の夕方。ミオちゃんは HFNC をつけたまま、お母さんの膝で絵本を見ている。' },
         { who: 'fam', name: 'ミオちゃんのお母さん', say: 'チューブが抜けた日は、心臓が止まるかと思いました。' },
@@ -377,7 +382,7 @@
     {
       id: 'ch9-open', kind: 'open', chapter: 'ch9', title: '第9章　扉　NICU の夜',
       card: { kicker: '第9章', title: '手のひらの肺', sub: '2 週目の夜　NICU' },
-      bg: 'nicu', time: 'night',
+      bg: 'nicu', time: 'night', bgm: 'nicu',
       lines: [
         { who: 'scene', say: '2 週目。NICU の夜は、PICU よりさらに静かだ。保育器のファンの音だけが続いている。' },
         { who: 'nurse', say: '{名前}先生、産科から連絡です。在胎 28 週、もうすぐ生まれます。' },
@@ -391,7 +396,7 @@
     },
     {
       id: 'ch9-close', kind: 'close', chapter: 'ch9', title: '第9章　幕　生まれて 4 日目',
-      bg: 'nicu', time: 'day',
+      bg: 'nicu', time: 'day', bgm: 'nicu',
       lines: [
         { who: 'scene', say: '生まれて 4 日目。あおい君は nCPAP のまま、保育器の中で手足を伸ばしている。' },
         { who: 'fam', name: 'あおい君のお父さん', say: '小さすぎて、触ったら壊れてしまいそうで…。' },
@@ -410,7 +415,7 @@
         { who: 'me', say: '小さじ 1 杯の空気が、こんなに重いとは思いませんでした。' },
         { who: 'puku', say: 'あおい君、生まれたとき泣いた？' },
         { who: 'doc', say: '小さな声で。産声は、水で満ちていた肺に初めて空気を入れて、それを吐きながら上げる声です。' },
-        { who: 'scene', say: '保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。' },
+        { who: 'scene', say: '保育器の向こうの壁に、NICU を巣立った子どもたちの写真が並んでいる。', bgm: 'memory' },
         { who: 'scene', say: '端の色あせた 1 枚に、手書きの文字。「いぶきちゃん　在胎 28 週　980 g」' },
         {
           who: 'me', say: '（色あせた写真から、目が離せない）', pick: 'photo',
@@ -428,7 +433,7 @@
     {
       id: 'ch10-open', kind: 'open', chapter: 'ch10', title: '第10章　扉　救急外来からの電話',
       card: { kicker: '第10章', title: '吐けない息', sub: '3 週目の夕方　救急外来' },
-      bg: 'station', time: 'night',
+      bg: 'station', time: 'night', bgm: 'urgent',
       lines: [
         { who: 'scene', say: '3 週目、PICU に戻って最初の当直。夕方、救急外来から電話が鳴った。' },
         { who: 'nurse', say: '11 歳の男の子、喘息の発作です。吸入が効かなくて、いま挿管しています！' },
@@ -482,7 +487,7 @@
     },
     {
       id: 'ch11-close', kind: 'close', chapter: 'ch11', title: '第11章　幕　4 週間ぶりの声',
-      bg: 'picu', time: 'day',
+      bg: 'picu', time: 'day', bgm: 'breath',
       lines: [
         { who: 'scene', say: '抜管の翌日。あかりちゃんは NPPV のマスクを外して、窓の外を見ている。' },
         { who: 'pt', case: 'gbs', name: 'あかりちゃん', say: '…{名前}せんせい。こえ、でた。' },
@@ -497,7 +502,7 @@
     {
       id: 'ch12-open', kind: 'open', chapter: 'ch12', title: '第12章　扉　揺れる保育器',
       card: { kicker: '第12章', title: 'ふるえる息', sub: '4 週目の朝　NICU' },
-      bg: 'nicu', time: 'day',
+      bg: 'nicu', time: 'day', bgm: 'nicu',
       lines: [
         { who: 'scene', say: 'ローテ最後の週。NICU の奥の保育器にだけ、見慣れない呼吸器がつながっていた。' },
         { who: 'nurse', say: '{名前}先生、夜中に生まれた子です。在胎 25 週、720 g。いぶき先生がずっとついています。' },
@@ -510,7 +515,7 @@
     },
     {
       id: 'ch12-close', kind: 'close', chapter: 'ch12', title: '第12章　幕　糸をつむぐ',
-      bg: 'nicu', time: 'day',
+      bg: 'nicu', time: 'day', bgm: 'nicu',
       lines: [
         { who: 'scene', say: '生まれて 3 日目の夕方。つむぎちゃんのお母さんが、車いすで初めて NICU に来た。' },
         { who: 'fam', name: 'つむぎちゃんのお母さん', say: '体がずっと震えてて…。寒いんですか？ 痛くないんですか？' },
@@ -535,7 +540,7 @@
     {
       id: 'ch13-open', kind: 'open', chapter: 'ch13', title: '第13章　扉　横隔膜の声',
       card: { kicker: '第13章', title: '自分のリズム', sub: '4 週目の終わり　NICU' },
-      bg: 'nicu', time: 'day',
+      bg: 'nicu', time: 'day', bgm: 'nicu',
       lines: [
         { who: 'scene', say: '生まれて 5 日目。つむぎちゃんは HFO を降りた。胃の管が、先に電極の並んだものに替わっている。' },
         { who: 'doc', say: '今日からは、つむぎちゃんの呼吸中枢の声を聞いて換気します。' },
@@ -548,7 +553,7 @@
     },
     {
       id: 'ch13-close', kind: 'close', chapter: 'ch13', title: '第13章　幕　胸の上の息',
-      bg: 'nicu', time: 'day',
+      bg: 'nicu', time: 'day', bgm: 'breath',
       lines: [
         { who: 'scene', say: '4 週目の終わり。つむぎちゃんは鼻のマスクで NAVA を続け、あおい君は細いカニュラで眠っている。' },
         { who: 'fam', name: 'つむぎちゃんのお母さん', say: '先生、つむぎが吸いたいときに、機械が待っていてくれるんですね。' },
@@ -570,7 +575,7 @@
     {
       id: 'epilogue', kind: 'epilogue', title: 'エピローグ　ローテーション最終日',
       card: { kicker: 'エピローグ', title: 'ローテーション最終日', sub: '夕方　PICU' },
-      bg: 'dawn', time: 'day',
+      bg: 'dawn', time: 'day', bgm: 'epilogue',
       end: { label: '症例で練習する', action: 'cases', say: 'おつかれさまでした。7 人の子どもたちを、今度はひとりで受け持ってみましょう。' },
       lines: [
         { who: 'scene', say: '4 週間のローテーション、最終日。夕方の PICU で、また新しい入院の電話が鳴っている。' },
@@ -585,7 +590,7 @@
         { who: 'doc', mood: 'happy', say: 'それでいいんです。分からないと思える人は、確かめに戻ってこられます。' },
         { who: 'doc', say: '初日、とても緊張していると言っていましたね。その緊張が、ずっと子どもたちを守っていました。', when: 'nerves:0' },
         { who: 'doc', say: '初日、楽しみだと言っていましたね。その顔のまま、最後まで来ました。', when: 'nerves:1' },
-        { who: 'me', say: '先生。NICU の写真の続き、聞いてもいいですか。' },
+        { who: 'me', say: '先生。NICU の写真の続き、聞いてもいいですか。', bgm: 'memory' },
         { who: 'doc', mood: 'happy', say: '約束でしたね。', when: 'photo:0' },
         { who: 'doc', mood: 'happy', say: 'あの写真の前で、何も聞かずにいてくれましたね。…お話しします。', when: 'photo:1' },
         { who: 'doc', say: 'わたしは 28 週、980 g で生まれて、2 週間、呼吸器につながっていました。' },
@@ -594,7 +599,7 @@
         { who: 'doc', say: '…ということに、なっています。研修医としてここへ戻った日、ポケットから出てきました。' },
         { who: 'doc', mood: 'think', say: '「息を引き取る」という言葉があります。始まりが息なら、終わりも息で言い表すんです。' },
         { who: 'doc', say: 'そのあいだを少しでも長く、楽にする。それが、わたしたちの仕事です。' },
-        { who: 'puku', say: 'ねえ{名前}先生。初日に聞いたこと、覚えてる？ なに科になるの？' },
+        { who: 'puku', say: 'ねえ{名前}先生。初日に聞いたこと、覚えてる？ なに科になるの？', bgm: 'epilogue' },
         { who: 'me', say: '…やっぱり、小児科です。ここに戻ってきたいです。', when: 'path:0' },
         { who: 'doc', mood: 'happy', say: '待っています。わたしも、そうやってここへ戻ってきましたから。', when: 'path:0' },
         { who: 'me', say: 'まだ決めていません。でも、子どもの息の音は、たぶん一生忘れません。', when: 'path:1' },
@@ -817,6 +822,13 @@
     if (this.index >= ls.length && this.phase === 'line') this.phase = 'end';
   };
 
+  /** いま流す曲。いまの行までで最後に bgm を書いた行の曲、無ければ幕の bgm、無ければ幕の時刻。 */
+  Run.prototype.track = function () {
+    var ls = this.scene.lines, i = Math.min(this.index, ls.length - 1);
+    if (this.phase !== 'card') for (; i >= 0; i--) if (ls[i].bgm && shows(ls[i], this.picks)) return ls[i].bgm;
+    return this.scene.bgm || this.scene.time || 'day';
+  };
+
   Run.prototype.line = function () {
     if (this.phase !== 'line') return null;
     if (this.reply) return this.reply;
@@ -878,7 +890,7 @@
   };
 
   var api = {
-    SCENES: SCENES, SPEAKER: SPEAKER, BG: BG, CHAPTER_TIME: CHAPTER_TIME, LAST_CHAPTER: LAST_CHAPTER,
+    SCENES: SCENES, SPEAKER: SPEAKER, BG: BG, CHAPTER_TIME: CHAPTER_TIME, CHAPTER_BGM: CHAPTER_BGM, LAST_CHAPTER: LAST_CHAPTER,
     DEFAULT_NAME: DEFAULT_NAME, NAME_MAX: NAME_MAX,
     sceneById: sceneById, cleanName: cleanName, fill: fill, speakerName: speakerName, shows: shows,
     before: before, after: after, Run: Run,

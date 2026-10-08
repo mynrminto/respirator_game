@@ -14,6 +14,7 @@ function line(l) {
   if (l.input === 'name') args.push('asksName: true');
   if (l.pick) args.push(`pick: ${q(l.pick)}`);
   if (l.when) args.push(`when: ${q(l.when)}`);
+  if (l.bgm) args.push(`bgm: ${q(l.bgm)}`);
   if (l.choose) {
     args.push('choices: [\n' + l.choose.map(c => {
       const ca = [`label: ${q(c.label)}`, `reply: ${q(c.reply)}`];
@@ -33,7 +34,7 @@ function scene(s) {
   return `        StoryScene(id: ${q(s.id)}, kind: ${q(s.kind)}, chapter: ${s.chapter ? q(s.chapter) : 'nil'},
                    title: ${q(s.title)},
                    card: ${card},
-                   bg: ${q(s.bg)}, time: ${q(s.time)}, end: ${end}, lines: [
+                   bg: ${q(s.bg)}, time: ${q(s.time)},${s.bgm ? ` bgm: ${q(s.bgm)},` : ''} end: ${end}, lines: [
 ${s.lines.map(line).join(',\n')}
         ])`;
 }

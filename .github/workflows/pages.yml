@@ -1,0 +1,35 @@
+# ブラウザ版（web/）を GitHub Pages に公開する。main に web/ の変更が入るたびに更新される。
+# 初回だけ、リポジトリの Settings → Pages → Source を「GitHub Actions」にする必要がある。
+name: Pages
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect the page files
+        run: |
+          mkdir _site
+          cp web/index.html web/*.js _site/
+          rm -f _site/test.js _site/smoke.js _site/build.js
+          cp -r web/vendor web/assets _site/
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

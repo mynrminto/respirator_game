@@ -461,11 +461,13 @@
    *   物語の幕 … 幕の time　／　タイトル … タイトルの曲　／　レッスン … 章の時刻　／　症例で練習 … 端末の時計
    *   レッスン・症例でアラーム（黄・赤）が出ているあいだ … アラームの曲（消音中も、アラームが続くあいだは） */
   function bgmTrack() {
-    if (SV && SV.run) return SV.run.scene.time || 'day';
+    if (document.querySelector('#modals .nbmodal')) return 'notebook';   // 研修手帳を開いているあいだ
+    if (SV && SV.run) return SV.run.track();
     if (!$('title').hidden) return 'title';
     var e = S.eng;
     if (!e.extubated && (e.alarms || []).some(function (x) { return x.sev > 0; })) return 'alarm';
-    if (S.lesson) return (ST && S.lesson.chap && ST.CHAPTER_TIME[S.lesson.chap.id]) || 'day';
+    if (S.lesson) return (ST && S.lesson.chap && (ST.CHAPTER_BGM[S.lesson.chap.id] || ST.CHAPTER_TIME[S.lesson.chap.id])) || 'day';
+    if (S.scen && S.scen.id === 'rds') return 'nicu';   // 早産児の症例は NICU の曲
     return BGM.clockTrack(new Date());
   }
   function bgmSound() { BGM.want(bgmTrack()); }
@@ -2522,7 +2524,7 @@
     if (!SV.replay && !SV.notesShown) {
       SV.notesShown = true;
       var added = ST.notesAdded(SV.seen0, storySeen());
-      if (added.length) { SV.notes = added; SND.play('confirm'); paintStory(); return; }
+      if (added.length) { SV.notes = added; if (!BGM.jingle('note')) SND.play('confirm'); paintStory(); return; }
     }
     SV.notes = null;
     var end = SV.run.scene.end;
@@ -2607,6 +2609,7 @@
     }
 
     if (run.phase === 'card') {
+      if (SV.jingled !== sc.id) { SV.jingled = sc.id; BGM.jingle('chapter'); }   // 章の扉のジングル
       card.hidden = false; box.hidden = true;
       $('sKick').textContent = sc.card.kicker;
       $('sTitle').textContent = sc.card.title;
@@ -2818,7 +2821,7 @@
     if (tab) NB_TAB = tab;
     var seen = storySeen(), name = playerName();
     var open = ST.notesOpen(seen);
-    modal('研修手帳', function (b) {
+    var nb = modal('研修手帳', function (b) {
       var head = el('p', 'note nb-lead', name + '先生の手帳。ローテのあいだに見聞きしたことを書き留めていく。');
       b.appendChild(head);
       var tabs = el('div', 'nbtabs');
@@ -2871,6 +2874,7 @@
       }
       paint();
     });
+    nb.classList.add('nbmodal');
   }
 
   /* 動作確認用。幕を直接流す（web/smoke.js が使う）。 */

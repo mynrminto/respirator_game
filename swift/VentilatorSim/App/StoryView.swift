@@ -451,6 +451,7 @@ struct StoryView: View {
 
     private func advanced() {
         if let l = run?.line, hasPortrait(l) { lastPortrait = l }
+        if let run { BGMPlayer.shared.want(run.track) }   // 行で曲が替わる幕もある（打ち明け話）
         version &+= 1
     }
 
@@ -460,7 +461,8 @@ struct StoryView: View {
             return
         }
         run = StoryRun(scene: scene, picks: StoryProgress.picks)
-        BGMPlayer.shared.want(scene.time)   // 幕の時刻で昼の曲・夜の曲を選ぶ
+        if scene.card != nil { BGMPlayer.shared.jingle("chapter") }   // 章の扉のジングル
+        BGMPlayer.shared.want(scene.bgm ?? scene.time)   // 幕の曲（抜管・NICU）か、幕の時刻で昼の曲・夜の曲
         lastPortrait = nil
         advanced()
     }
@@ -479,7 +481,7 @@ struct StoryView: View {
             let added = StoryLibrary.notesAdded(before: seenAtStart, after: StoryProgress.seen)
             if !added.isEmpty {
                 notes = added
-                SoundBoard.shared.play(.confirm)
+                if !BGMPlayer.shared.jingle("note") { SoundBoard.shared.play(.confirm) }   // 手帳のジングル
                 version &+= 1
                 return
             }

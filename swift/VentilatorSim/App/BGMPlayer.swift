@@ -52,8 +52,15 @@ final class BGMPlayer {
     private let format = AVAudioFormat(standardFormatWithSampleRate: BGMScore.rate, channels: 2)!
     /// 録音した曲の形式。プレイヤーは形式ごとに 2 本ずつ持つ（0・1 が合成、2・3 が録音）。
     private static let fileRate: Double = 44100
+    /// 録音しかない曲が読めないときに代わりに合成する曲（bgm.js の FALLBACK と同じ）。
+    static let fallback: [String: String] = ["breath": "day", "nicu": "night", "memory": "night", "epilogue": "day", "morning": "day", "urgent": "day", "dawn": "day", "notebook": "day"]
     private let fileFormat = AVAudioFormat(standardFormatWithSampleRate: BGMPlayer.fileRate, channels: 2)!
     private let bus = AVAudioMixerNode()
+    /// 曲だけの音量。ジングルのあいだ下げる（ジングルは bus に直接つなぐ）。
+    private let music = AVAudioMixerNode()
+    private let jingleNode = AVAudioPlayerNode()
+    private var jingleBuffers: [String: AVAudioPCMBuffer] = [:]
+    private var jingleDipEnd: DispatchWorkItem?
     private var nodes: [AVAudioPlayerNode] = []
     private var nodeTrack: [String?] = [nil, nil, nil, nil]
     private var active = 0
@@ -74,11 +81,15 @@ final class BGMPlayer {
         let engine = SoundBoard.shared.engine
         engine.attach(bus)
         engine.connect(bus, to: engine.mainMixerNode, format: nil)
+        engine.attach(music)
+        engine.connect(music, to: bus, format: nil)
+        engine.attach(jingleNode)
+        engine.connect(jingleNode, to: bus, format: fileFormat)
         bus.outputVolume = BGMScore.gain * (ducked ? BGMScore.duck : 1)
         for f in [format, format, fileFormat, fileFormat] {
             let n = AVAudioPlayerNode()
             engine.attach(n)
-            engine.connect(n, to: bus, format: f)
+            engine.connect(n, to: music, format: f)
             n.volume = 0
             nodes.append(n)
         }
@@ -86,12 +97,12 @@ final class BGMPlayer {
 
     /// 起動直後に一度呼ぶ。全曲を裏で作り始める（タイトルの曲を先に）。何度呼んでもよい。
     func prepareAll() {
-        for track in ["title", "day", "night", "alarm"] { prepare(track) }
+        for track in ["title", "day", "night", "alarm", "breath", "nicu", "memory", "epilogue", "morning", "urgent", "dawn", "notebook"] { prepare(track) }
     }
 
     /// 流したい曲を伝える（"title" / "day" / "night" / "alarm" / nil）。何度呼んでもよい。
     func want(_ track: String?) {
-        let track = track.flatMap { BGMScore.songs[$0] == nil && Self.fileURL($0) == nil ? nil : $0 }
+        let track = track.flatMap { BGMScore.songs[$0] ?? Self.fallback[$0].flatMap { BGMScore.songs[$0] } == nil && Self.fileURL($0) == nil ? nil : $0 }
         let now = ProcessInfo.processInfo.systemUptime
         if track == "alarm" {
             lastAlarm = now
@@ -100,6 +111,43 @@ final class BGMPlayer {
         }
         wanted = track
         apply()
+    }
+
+    /// 画面の上にかぶせて流す曲（研修手帳を開いているあいだ "notebook"）。nil で元の曲に戻る。
+    var overlay: String? {
+        didSet { if overlay != oldValue { apply() } }
+    }
+
+    /// ジングル（"chapter" 章の扉 / "note" 手帳に書き留めた）を 1 回鳴らし、そのあいだ曲を下げる。
+    /// Bundle.main/assets/bgm/bgm_jingle_<名前>.m4a。無ければ鳴らさない（bgm.js の jingle と同じ）。
+    /// 鳴らすつもりなら true。false なら呼び出し側がほかの音で代える。
+    @discardableResult
+    func jingle(_ name: String) -> Bool {
+        guard isEnabled, SoundBoard.shared.isEnabled,
+              let url = Bundle.main.url(forResource: "bgm_jingle_\(name)", withExtension: "m4a", subdirectory: "assets/bgm") else { return false }
+        attach()
+        if let b = jingleBuffers[name] { playJingle(b); return true }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let b = Self.read(url, frames: nil)
+            DispatchQueue.main.async {
+                guard let b else { return }
+                self.jingleBuffers[name] = b
+                self.playJingle(b)
+            }
+        }
+        return true
+    }
+
+    private func playJingle(_ b: AVAudioPCMBuffer) {
+        guard SoundBoard.shared.start() else { return }
+        jingleNode.stop()
+        jingleNode.scheduleBuffer(b, at: nil)
+        jingleNode.play()
+        music.outputVolume = 0.35
+        jingleDipEnd?.cancel()
+        let end = DispatchWorkItem { [weak self] in self?.music.outputVolume = 1 }
+        jingleDipEnd = end
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(b.frameLength) / b.format.sampleRate - 0.4, execute: end)
     }
 
     /// アラームが鳴っているあいだは下げる。
@@ -111,7 +159,7 @@ final class BGMPlayer {
 
     /// 音の設定が変わったとき・画面が変わったときに呼ぶ。
     func apply() {
-        let target = isEnabled && SoundBoard.shared.isEnabled ? wanted : nil
+        let target = isEnabled && SoundBoard.shared.isEnabled ? (overlay ?? wanted) : nil
         attach()
         // エンジンが止まって再開した（着信・バックグラウンドなど）ときは、流していた曲をかけ直す
         if let playing, playing == target, !nodes[active].isPlaying, let buffer = buffers[playing] {
@@ -178,7 +226,8 @@ final class BGMPlayer {
     }
 
     private func synthesize(_ track: String) {
-        guard buffers[track] == nil, !rendering.contains(track), let song = BGMScore.songs[track] else { return }
+        guard buffers[track] == nil, !rendering.contains(track),
+              let song = BGMScore.songs[track] ?? Self.fallback[track].flatMap({ BGMScore.songs[$0] }) else { return }
         rendering.insert(track)
         let format = self.format
         DispatchQueue.global(qos: track == "title" ? .userInitiated : .utility).async {
