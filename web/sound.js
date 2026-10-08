@@ -76,7 +76,12 @@
 
   /* ---- Web Audio ---- */
   var ctx = null, master = null;
+  /* ページが見えていないあいだ（ほかのアプリ・画面ロック・タブの裏）は音を一切出さない。
+   * iPhone の Safari は裏に回っても AudioContext が鳴り続けることがあるので、止めておく。 */
+  function pageHidden() { return !!(root.document && root.document.hidden); }
+  var away = false;
   function audio() {
+    if (away || pageHidden()) return null;
     if (!ctx) {
       var AC = root.AudioContext || root.webkitAudioContext;
       if (!AC) return null;
@@ -187,6 +192,18 @@
     var unlock = function () { if (on) audio(); };
     root.addEventListener('pointerdown', unlock, { capture: true, passive: true });
     root.addEventListener('keydown', unlock, { capture: true, passive: true });
+  }
+
+  /* 見えなくなったら AudioContext ごと止め、戻ったら再開する（BGM は bgm.js が戻ったときにかけ直す）。 */
+  function setAway(v) {
+    away = !!v;
+    if (!ctx) return;
+    try { if (away) ctx.suspend(); else ctx.resume(); } catch (e) { /* 次の操作で再開する */ }
+  }
+  if (root.document && root.addEventListener) {
+    root.document.addEventListener('visibilitychange', function () { setAway(pageHidden()); });
+    root.addEventListener('pagehide', function () { setAway(true); });
+    root.addEventListener('pageshow', function () { setAway(pageHidden()); });
   }
 
   var api = {

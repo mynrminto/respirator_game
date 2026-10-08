@@ -436,6 +436,8 @@
     if (!bus) {
       bus = io.ctx.createGain(); bus.gain.value = level(); bus.connect(io.master);
       mbus = io.ctx.createGain(); mbus.connect(bus);   // 曲だけの音量（ジングルのあいだ下げる）
+      // 画面に戻って AudioContext が動き出したら、そこで曲をかけ直す
+      if (io.ctx.addEventListener) io.ctx.addEventListener('statechange', function () { apply(); });
     }
     return io.ctx;
   }
@@ -571,7 +573,19 @@
   }
 
   if (root.document && root.addEventListener) {
-    root.document.addEventListener('visibilitychange', function () { hidden = !!root.document.hidden; apply(); });
+    // 見えなくなったら曲を止める（sound.js が AudioContext ごと止める）。戻ったら今の場面の曲を最初からかけ直す。
+    var away = function (v) {
+      hidden = v;
+      if (hidden && playing && nodes[playing]) {
+        try { nodes[playing].src.stop(); } catch (e) { /* 止まっている */ }
+        delete nodes[playing];
+        playing = null;
+      }
+      apply();
+    };
+    root.document.addEventListener('visibilitychange', function () { away(!!root.document.hidden); });
+    root.addEventListener('pagehide', function () { away(true); });
+    root.addEventListener('pageshow', function () { away(!!root.document.hidden); });
     // 最初に触ったとき（音が解禁されたあと）に始める
     root.addEventListener('pointerup', function () { setTimeout(apply, 0); }, { capture: true, passive: true });
   }
