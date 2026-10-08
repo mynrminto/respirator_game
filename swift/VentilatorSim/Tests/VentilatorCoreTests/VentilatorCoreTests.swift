@@ -406,7 +406,9 @@ struct ScenarioStartTests {
         "bronchiolitis": .init(tidalPerKg: 6.5...8.0, pH: 7.18...7.42),
         "ards":          .init(tidalPerKg: 5.5...6.5, pH: 7.18...7.45),
         "asthma":        .init(tidalPerKg: 6.5...7.8, pH: 7.10...7.30),
-        "gbs":           .init(tidalPerKg: 6.5...7.6, pH: 7.32...7.48)
+        "gbs":           .init(tidalPerKg: 6.5...7.6, pH: 7.32...7.48),
+        // 従来の換気では CO₂ が下がらない超早産児（HFO に切り替える前の状態）
+        "micro":         .init(tidalPerKg: 4.5...6.5, pH: 7.05...7.25)
     ]
 
     @Test("推奨初期設定で 15 分後の状態", arguments: ScenarioLibrary.all.map(\.id))
