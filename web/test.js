@@ -1182,6 +1182,9 @@ console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ�
     && same(ST.after('6-3', ch('6-3'), []), ['ch6-close'])
     && same(ST.after('11-2', ch('11-2'), []), ['ch11-close'])
     && same(ST.after('13-4', ch('13-4'), []), ['ch13-close', 'epilogue'])
+    // 前の版のエピローグを読んだ人も、第13章を初めて終えたときに書き直したエピローグを読む。二度目は流さない。
+    && same(ST.after('13-4', ch('13-4'), ['epilogue']), ['ch13-close', 'epilogue'])
+    && same(ST.after('13-4', ch('13-4'), ['epilogue', 'ch13-close']), [])
     && ST.LAST_CHAPTER === LS.CHAPTERS[LS.CHAPTERS.length - 1].id);
 
   // 進行

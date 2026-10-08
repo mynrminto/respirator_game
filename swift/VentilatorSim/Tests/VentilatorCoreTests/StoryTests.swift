@@ -26,6 +26,8 @@ import Testing
     #expect(StoryLibrary.after(lessonID: "11-2", chapter: last, seen: []) == ["ch11-close"])
     let nicu = LessonLibrary.chapter(of: "13-4")
     #expect(StoryLibrary.after(lessonID: "13-4", chapter: nicu, seen: []) == ["ch13-close", "epilogue"])
+    #expect(StoryLibrary.after(lessonID: "13-4", chapter: nicu, seen: ["epilogue"]) == ["ch13-close", "epilogue"])
+    #expect(StoryLibrary.after(lessonID: "13-4", chapter: nicu, seen: ["epilogue", "ch13-close"]).isEmpty)
 }
 
 @Test func storyNameIsCleaned() {

@@ -9,7 +9,7 @@ import Foundation
 ///   prologue … いちばん最初にコースへ入るとき（名前を決める）
 ///   chN-open … その章のレッスンを初めて始めるとき（章の扉）
 ///   chN-close … その章の最後のレッスンを初めて終えたとき
-///   epilogue … 第6章の幕のあと
+///   epilogue … 最後の章（第13章）の幕のあと
 /// 台本そのもの（StoryScenes.swift）は `node web/tools/story-swift.js` が story.js から書き出す。
 /// 手で直さないこと（web/test.js の 26 番が、書き出し直した結果との一致を確かめる）。
 
@@ -242,7 +242,8 @@ public enum StoryLibrary {
         var out: [String] = []
         let close = chapter.id + "-close"
         if scene(id: close) != nil && !seen.contains(close) { out.append(close) }
-        if chapter.id == lastChapter && !seen.contains("epilogue") { out.append("epilogue") }
+        // 最後の章を初めて終えたときは、前の版のエピローグを読んだ人にも書き直したエピローグを流す。
+        if chapter.id == lastChapter && (!seen.contains("epilogue") || !seen.contains(close)) { out.append("epilogue") }
         return out
     }
 }

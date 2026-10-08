@@ -788,7 +788,8 @@
     if (chapter.lessons[chapter.lessons.length - 1].id !== lessonId) return out;
     var close = chapter.id + '-close';
     if (sceneById(close) && seen.indexOf(close) < 0) out.push(close);
-    if (chapter.id === LAST_CHAPTER && seen.indexOf('epilogue') < 0) out.push('epilogue');
+    // 最後の章を初めて終えたときは、前の版のエピローグを読んだ人にも書き直したエピローグを流す。
+    if (chapter.id === LAST_CHAPTER && (seen.indexOf('epilogue') < 0 || seen.indexOf(close) < 0)) out.push('epilogue');
     return out;
   }
 
