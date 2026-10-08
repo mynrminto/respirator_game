@@ -368,7 +368,27 @@ struct Readout: Identifiable {
 
     var id: String { caption }
 
-    static func find(_ caption: String) -> Readout? { all.first { $0.caption == caption } }
+    static func find(_ caption: String) -> Readout? { (all + nicu).first { $0.caption == caption } }
+
+    /// モードごとに出す計測値。web/app.js の VALS_BY_MODE と同じ。書いていないモードは、ふつうの 16 枚。
+    static func shown(for mode: VentilationMode) -> [Readout] {
+        let names: [String]
+        switch mode {
+        case .hfo:     names = ["Pmean", "VThf", "DCO₂", "tcPCO₂", "SpO₂", "HR", "ABP mean"]
+        case .nava:    names = ["Edi peak", "Edi min", "PIP", "PEEP tot", "Vte", "MV", "RR tot", "f/VT",
+                                "SpO₂", "etCO₂", "HR", "ABP mean"]
+        case .nivNava: names = ["Edi peak", "Edi min", "PIP", "Pmean", "Vte", "Leak", "RR tot", "SpO₂",
+                                "tcPCO₂", "HR", "ABP mean"]
+        case .hfnc:    names = ["RR tot", "SpO₂", "tcPCO₂", "HR", "ABP mean"]
+        default:       return all
+        }
+        return names.compactMap(find)
+    }
+
+    /// NIV-NAVA は鼻から漏れるので、戻ってくる量（Vte）は肺に入った量より少なく出る。
+    static func shownTidal(_ e: VentilatorEngine) -> Double {
+        e.settings.mode.isNoninvasive ? e.measured.tidalVolumeExp * (1 - e.measured.leak) : e.measured.tidalVolumeExp
+    }
 
     private static func whole(_ v: Double) -> String { v.isFinite ? String(Int(v.rounded())) : "––" }
     private static func wholeOpt(_ v: Double?) -> String { v.map { whole($0) } ?? "––" }
@@ -390,9 +410,9 @@ struct Readout: Identifiable {
                     ? Chrome.critical : Chrome.screenInk }),
         Readout(caption: "Vte", unit: "mL",
                 value: { $0.patient.predictedBodyWeight < 6
-                    ? one($0.measured.tidalVolumeExp) : whole($0.measured.tidalVolumeExp) },
+                    ? one(shownTidal($0)) : whole(shownTidal($0)) },
                 limit: { String(format: "%.1f mL/kg",
-                                $0.measured.tidalVolumeExp / $0.patient.predictedBodyWeight) },
+                                shownTidal($0) / $0.patient.predictedBodyWeight) },
                 tone: { $0.measured.tidalVolumeExp / $0.patient.predictedBodyWeight
                     > $0.norms.tidalPerKg.upperBound + 1.5 ? Chrome.critical : Chrome.screenInk }),
         Readout(caption: "MV", unit: "L/min",
@@ -437,6 +457,28 @@ struct Readout: Identifiable {
                 tone: { $0.meanArterialPressure < $0.norms.meanArterialPressureMin ? Chrome.critical
                     : ($0.meanArterialPressure < $0.norms.meanArterialPressureMin + 5
                        ? Chrome.warning : Chrome.screenInk) })
+    ]
+
+    /// NICU のモード（HFO・NAVA・NIV-NAVA・HFNC）でだけ出す計測値。web/app.js の VALS の後半と同じ。
+    static let nicu: [Readout] = [
+        Readout(caption: "Pmean", unit: "cmH₂O", value: { one($0.measured.meanAirwayPressure) }),
+        // HFO の一回換気量。死腔（約 2 mL/kg）より小さいのがふつう。
+        Readout(caption: "VThf", unit: "mL", value: { one($0.measured.hfoTidalVolume) },
+                limit: { String(format: "%.1f mL/kg", $0.measured.hfoTidalVolume / $0.patient.predictedBodyWeight) }),
+        // CO₂ を出す力（f × VThf²）。
+        Readout(caption: "DCO₂", unit: "mL²/s", value: { whole($0.measured.dco2) }),
+        // 経皮 CO₂。HFO と鼻から支えるときは etCO₂ が測れないので、こちらで CO₂ を追う。
+        Readout(caption: "tcPCO₂", unit: "mmHg", value: { whole($0.tcpco2) }),
+        Readout(caption: "Edi peak", unit: "µV", value: { $0.measured.ediPeak.map { one($0) } ?? "––" },
+                limit: { _ in "5–15" },
+                tone: { e in
+                    guard let v = e.measured.ediPeak else { return Chrome.screenInk }
+                    return v > 15 || v < 4 ? Chrome.warning : Chrome.screenInk
+                }),
+        Readout(caption: "Edi min", unit: "µV", value: { $0.measured.ediMin.map { one($0) } ?? "––" },
+                limit: { _ in "<4" },
+                tone: { ($0.measured.ediMin ?? 0) >= 4 ? Chrome.warning : Chrome.screenInk }),
+        Readout(caption: "Leak", unit: "%", value: { whole($0.measured.leak * 100) })
     ]
 }
 

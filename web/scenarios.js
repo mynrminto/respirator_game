@@ -34,7 +34,7 @@
         flow: 18, ti: 0.7, pinsp: 12, ps: 8, rise: 0.12, trigFlow: 1.0, pause: 0 }
     },
     {
-      id: 'rds', tone: 'mid',
+      id: 'rds', tone: 'mid', modes: 'nicu',
       ward: 'NICU',  nickname: 'あおい君',
       title: '早産児の呼吸窮迫症候群（RDS）',
       tag: '新生児',
@@ -58,6 +58,36 @@
       },
       suggested: { mode: 'PC-AC', pinsp: 10, peep: 6, rr: 55, fio2: 0.35, ti: 0.30,
         vt: 6, flow: 2, ps: 6, rise: 0.06, trigFlow: 0.4, pause: 0 }
+    },
+    {
+      id: 'micro', tone: 'bad', artAs: 'rds',
+      ward: 'NICU',  nickname: 'つむぎちゃん',
+      modes: 'nicu',
+      title: '超早産児の重症 RDS（HFO・NAVA）',
+      tag: 'NICU',
+      oneLine: '在胎 25 週・720 g。HFO で肺を開き、NAVA で自分のリズムに合わせ、鼻からの支えへ。',
+      history: '在胎 25週3日、日齢 1、出生体重 720 g の女児。分娩室で挿管し、サーファクタントを 2 回投与した。'
+        + '従来の換気で最高気道内圧が 25 cmH₂O を超えても PaCO₂ が下がらない。'
+        + '胸部X線はすりガラス様陰影が強く、左肺に間質性肺気腫が出はじめている。',
+      findings: ['体温 36.8℃（保育器内、湿度 80%）', '心拍 165 /分', '平均血圧 33 mmHg', 'Hb 15.0 g/dL',
+        '気管チューブ：カフなし 2.5 mm、口角 6.5 cm', '胃管：Edi カテーテル（NAVA 用）'],
+      teaching: ['HFO：酸素化は MAP、CO₂ は振幅（と周波数）', '周波数を下げると CO₂ が下がる',
+        'NAVA：Edi を見て NAVA レベルを合わせる', '鼻から支える：NIV-NAVA と HFNC'],
+      patient: {
+        name: '在胎25週 日齢1', sex: 'F', heightCm: 32, age: 0, ageMonths: 0, weightKg: 0.72,
+        ageLabel: '在胎25週 日齢1', vdCircuit: 1.0,
+        compliance: 0.0002, Rinsp: 110, Rexp: 140,
+        shunt0: 0.55, shuntMin: 0.10, recruitP: 11, recruitK: 2.0, vdAlvFrac: 0.15,
+        vco2: 4.0, hb: 15.0, hco3: 19, hco3Base: 19, paco2: 62, pao2: 45,
+        co: 0.15, hr: 165, map: 33, temp: 36.8,
+        sedation: 0.85, driveGain: 1.0, maxPmus: 8, co2Setpoint: 45, nme: 0.5, leak: 0.35,
+        fatigueLoad: 1.0, fatigueTau: 600,
+        norms: { mapMin: 25 },
+        goals: { ph: [7.20, 7.40], paco2: [45, 60], pao2: [45, 70] }
+      },
+      suggested: { mode: 'PC-AC', pinsp: 20, peep: 6, rr: 55, fio2: 0.7, ti: 0.3,
+        vt: 4, flow: 2, ps: 6, rise: 0.06, trigFlow: 0.4, pause: 0,
+        hfoMap: 12, hfoAmp: 18, hfoFreq: 12, navaLevel: 1.5, hfncFlow: 6 }
     },
     {
       id: 'bronchiolitis', tone: 'mid',
@@ -222,8 +252,20 @@
     return x > 0.75 ? '深い' : (x > 0.4 ? '中くらい' : '浅い（覚醒）');
   }
 
+  /* レッスンの日の姿。物語の日にちが進んで体重や肺が変わった子は、レッスンの patient で
+   * 症例の値を上書きする（あおい君の 3 週目は 1,400 g、など）。上書きが無ければ症例そのもの。 */
+  function forLesson(sc, lesson) {
+    if (!lesson || !lesson.patient) return sc;
+    var out = {}, k;
+    for (k in sc) if (Object.prototype.hasOwnProperty.call(sc, k)) out[k] = sc[k];
+    out.patient = {};
+    for (k in sc.patient) if (Object.prototype.hasOwnProperty.call(sc.patient, k)) out.patient[k] = sc.patient[k];
+    for (k in lesson.patient) if (Object.prototype.hasOwnProperty.call(lesson.patient, k)) out.patient[k] = lesson.patient[k];
+    return out;
+  }
+
   var api = { SCENARIOS: SCENARIOS, weaningReadiness: weaningReadiness, spontOk: spontOk,
-    patientProfile: patientProfile, targetsFor: targetsFor, sedationLabel: sedationLabel };
+    patientProfile: patientProfile, targetsFor: targetsFor, sedationLabel: sedationLabel, forLesson: forLesson };
   root.VentScenarios = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

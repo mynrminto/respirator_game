@@ -406,7 +406,9 @@ struct ScenarioStartTests {
         "bronchiolitis": .init(tidalPerKg: 6.5...8.0, pH: 7.18...7.42),
         "ards":          .init(tidalPerKg: 5.5...6.5, pH: 7.18...7.45),
         "asthma":        .init(tidalPerKg: 6.5...7.8, pH: 7.10...7.30),
-        "gbs":           .init(tidalPerKg: 6.5...7.6, pH: 7.32...7.48)
+        "gbs":           .init(tidalPerKg: 6.5...7.6, pH: 7.32...7.48),
+        // 従来の換気では CO₂ が下がらない超早産児（HFO に切り替える前の状態）
+        "micro":         .init(tidalPerKg: 4.5...6.5, pH: 7.05...7.25)
     ]
 
     @Test("推奨初期設定で 15 分後の状態", arguments: ScenarioLibrary.all.map(\.id))
@@ -477,5 +479,41 @@ struct HoldTimingTests {
         #expect(e.measured.autoPEEP > 0.5)
         run(e, seconds: 30)
         #expect(e.measured.tidalVolumeExp > 35)
+    }
+}
+
+@Suite("NICU のモード（web/test.js の 29 番と同じ）")
+struct NICUModeTests {
+
+    @Test("HFO は周波数を下げると VThf が増え PaCO₂ が下がる")
+    func hfoFrequency() {
+        let f12 = makeEngine("micro") { s in
+            s.mode = .hfo; s.hfoMeanPressure = 14; s.hfoAmplitude = 26; s.hfoFrequency = 12
+        }
+        let f8 = makeEngine("micro") { s in
+            s.mode = .hfo; s.hfoMeanPressure = 14; s.hfoAmplitude = 26; s.hfoFrequency = 8
+        }
+        run(f12, seconds: 300, dt: 0.01)
+        run(f8, seconds: 300, dt: 0.01)
+        #expect(f8.measured.hfoTidalVolume > f12.measured.hfoTidalVolume)
+        #expect(f8.paco2 < f12.paco2)
+    }
+
+    @Test("NAVA は無呼吸が続くとバックアップ換気に切り替わる")
+    func navaBackup() {
+        let e = makeEngine("micro") { s in s.mode = .nava; s.navaLevel = 1.5 }
+        run(e, seconds: 60, dt: 0.01)
+        #expect(e.measured.ediPeak != nil)
+        e.centralApnea(seconds: 20)
+        var backup = false
+        for _ in 0..<1500 { e.step(dt: 0.01); if e.navaBackup { backup = true } }
+        #expect(backup)
+    }
+
+    @Test("HFNC は流量で咽頭の圧が上がる")
+    func hfncPressure() {
+        let lo = makeEngine("rds") { s in s.mode = .hfnc; s.hfncFlow = 2 }
+        let hi = makeEngine("rds") { s in s.mode = .hfnc; s.hfncFlow = 8 }
+        #expect(hi.hfncPressure() > lo.hfncPressure())
     }
 }

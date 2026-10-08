@@ -64,6 +64,11 @@ public struct DialLimits: Equatable, Sendable {
     public var trigger: DialRange
     public var inspiratoryPressure: DialRange
     public var pressureSupport: DialRange
+    public var hfoMeanPressure: DialRange
+    public var hfoAmplitude: DialRange
+    public var hfoFrequency: DialRange
+    public var navaLevel: DialRange
+    public var hfncFlow: DialRange
 }
 
 public extension Physiology {
@@ -155,7 +160,13 @@ public extension Physiology {
                                         step: fine ? 0.05 : 0.1, decimals: 2),
             trigger: DialRange(min: 0.2, max: fine ? 3 : 8, step: fine ? 0.1 : 0.5, decimals: 1),
             inspiratoryPressure: DialRange(min: 4, max: fine ? 30 : 40, step: 1, decimals: 0),
-            pressureSupport: DialRange(min: 0, max: fine ? 20 : 25, step: 1, decimals: 0))
+            pressureSupport: DialRange(min: 0, max: fine ? 20 : 25, step: 1, decimals: 0),
+            hfoMeanPressure: DialRange(min: 5, max: 25, step: 1, decimals: 0),
+            hfoAmplitude: DialRange(min: 5, max: fine ? 50 : 80, step: 1, decimals: 0),
+            hfoFrequency: DialRange(min: fine ? 6 : 4, max: 15, step: 1, decimals: 0),
+            navaLevel: DialRange(min: 0, max: 4, step: 0.1, decimals: 1),
+            hfncFlow: fine ? DialRange(min: 1, max: 8, step: 0.5, decimals: 1)
+                           : DialRange(min: 2, max: Swift.min(60, (w * 2.5).rounded(.up)), step: 1, decimals: 0))
     }
 }
 

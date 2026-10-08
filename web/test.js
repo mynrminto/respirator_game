@@ -306,7 +306,9 @@ console.log('\n15. 症例が意図した状態で始まる');
     bronchiolitis: { vtkg: [6.5, 8.0], ph: [7.18, 7.42] },
     ards:          { vtkg: [5.5, 6.5], ph: [7.18, 7.45] },
     asthma:        { vtkg: [6.5, 7.8], ph: [7.10, 7.30] },
-    gbs:           { vtkg: [6.5, 7.6], ph: [7.32, 7.48] }
+    gbs:           { vtkg: [6.5, 7.6], ph: [7.32, 7.48] },
+    /* 従来の換気では CO₂ が下がらない超早産児（HFO に切り替える前の状態） */
+    micro:         { vtkg: [4.5, 6.5], ph: [7.05, 7.25] }
   };
   for (const sc of SCENARIOS) {
     const e = mk(sc.id);
@@ -369,7 +371,7 @@ console.log('\n18. 学習コースの構造');
 {
   const LS = require('./lessons.js');
   const flat = LS.allLessons();
-  ok('章とレッスンがある', LS.CHAPTERS.length === 11 && flat.length === 33,
+  ok('章とレッスンがある', LS.CHAPTERS.length === 13 && flat.length === 40,
     `${LS.CHAPTERS.length} 章 / ${flat.length} レッスン`);
 
   const ids = flat.map(x => x.lesson.id);
@@ -519,7 +521,7 @@ console.log('\n18b. 教材は読み物ではなく操作であること');
     captions.add('名前');          // 主人公（プレイヤー）の名前。fillSay が差し込む
     const swiftDir = path.join(__dirname, '..', 'swift', 'VentilatorSim', 'Sources', 'VentilatorCore');
     const sources = { 'lessons.js': fs.readFileSync(path.join(__dirname, 'lessons.js'), 'utf8') };
-    for (const f of ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift', 'LessonsChapter7to11.swift']) {
+    for (const f of ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift', 'LessonsChapter7to11.swift', 'LessonsChapter12to13.swift']) {
       const fp = path.join(swiftDir, f);
       if (fs.existsSync(fp)) sources[f] = fs.readFileSync(fp, 'utf8');
     }
@@ -738,7 +740,7 @@ console.log('\n21. Web 版と iPhone 版がそろっているか');
   if (!fs.existsSync(dir)) {
     console.log('  --   swift/ が無いので省略');
   } else {
-    const src = ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift', 'LessonsChapter7to11.swift']
+    const src = ['LessonsChapter1to3.swift', 'LessonsChapter4to6.swift', 'LessonsChapter7to11.swift', 'LessonsChapter12to13.swift']
       .map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
 
     // Swift 側のレッスンを、id ごとに切り出す
@@ -1178,7 +1180,8 @@ console.log('\n26. 物語（プロローグ・章の扉と幕・エピローグ�
     && same(ST.after('1-2', ch('1-2'), []), [])
     && same(ST.after('4-4', ch('4-4'), ['ch4-close']), [])
     && same(ST.after('6-3', ch('6-3'), []), ['ch6-close'])
-    && same(ST.after('11-2', ch('11-2'), []), ['ch11-close', 'epilogue'])
+    && same(ST.after('11-2', ch('11-2'), []), ['ch11-close'])
+    && same(ST.after('13-4', ch('13-4'), []), ['ch13-close', 'epilogue'])
     && ST.LAST_CHAPTER === LS.CHAPTERS[LS.CHAPTERS.length - 1].id);
 
   // 進行
@@ -1366,7 +1369,7 @@ console.log('\n28. 物語の後半（第7〜11章）を機械で通しプレイ�
   const AP = require('./tools/autoplay.js');
   const LS = require('./lessons.js');
   const ST = require('./story.js');
-  const late = LS.CHAPTERS.slice(6);
+  const late = LS.CHAPTERS.slice(6, 11);
   const ids = late.reduce((a, ch) => a.concat(ch.lessons.map(l => l.id)), []);
   const failed = [], badExt = [];
   for (const id of ids) {
@@ -1383,6 +1386,42 @@ console.log('\n28. 物語の後半（第7〜11章）を機械で通しプレイ�
   const endsInExtubation = late.every(ch => ch.lessons[ch.lessons.length - 1].tasks.some(t => t.event === 'extubate'));
   ok('どの章も抜管で終わる', endsInExtubation);
   ok('どの章にも BGM の時刻がある', LS.CHAPTERS.every(ch => ST.CHAPTER_TIME[ch.id] === 'day' || ST.CHAPTER_TIME[ch.id] === 'night'));
+}
+
+console.log('\n29. NICU の章（第12・13章 HFO・NAVA・NIV-NAVA・HFNC）を機械で通しプレイする');
+{
+  const AP = require('./tools/autoplay.js');
+  const LS = require('./lessons.js');
+  const nicu = LS.CHAPTERS.slice(11);
+  const ids = nicu.reduce((a, ch) => a.concat(ch.lessons.map(l => l.id)), []);
+  const failed = [];
+  for (const id of ids) {
+    try { if (!AP.play(id).ok) failed.push(id); } catch (err) { failed.push(id + ':' + err.message); }
+  }
+  ok('第12・13章の 7 レッスンが、プレイヤーの手順で最後まで進む', ids.length === 7 && failed.length === 0, failed.join(' / '));
+  const modes = new Set();
+  nicu.forEach(ch => ch.lessons.forEach(l => {
+    if (l.settings && l.settings.mode) modes.add(l.settings.mode);
+    (l.tasks || []).forEach(t => { if (/^mode:/.test(t.event || '')) modes.add(t.event.slice(5)); });
+  }));
+  ok('HFO・NAVA・NIV-NAVA・HFNC をすべて扱う', ['HFO', 'NAVA', 'NIV-NAVA', 'HFNC'].every(m => modes.has(m)), [...modes].join(','));
+
+  // HFO: 周波数を下げると一回の揺れが大きくなり、CO₂ が下がる
+  const hf = (set, sec) => { const e = mk('micro', set); run(e, sec, 0.01); return e; };
+  const f12 = hf({ mode: 'HFO', hfoMap: 14, hfoAmp: 26, hfoFreq: 12 }, 300);
+  const f8 = hf({ mode: 'HFO', hfoMap: 14, hfoAmp: 26, hfoFreq: 8 }, 300);
+  ok('HFO は周波数を下げると VThf が増え PaCO₂ が下がる', f8.m.vtHf > f12.m.vtHf && f8.paco2 < f12.paco2,
+    `VThf ${f12.m.vtHf.toFixed(2)}→${f8.m.vtHf.toFixed(2)} mL, PaCO₂ ${f12.paco2.toFixed(0)}→${f8.paco2.toFixed(0)}`);
+  // NAVA: 中枢性無呼吸ではバックアップ換気が入る
+  const nv = hf({ mode: 'NAVA', navaLevel: 1.5 }, 60);
+  nv.centralApnea(20);
+  let backup = false;
+  for (let i = 0; i < 1500; i++) { nv.step(0.01, false); if (nv.navaBackup) backup = true; }
+  ok('NAVA は無呼吸が続くとバックアップ換気に切り替わる', backup);
+  // HFNC: 流量を上げると咽頭の圧が上がる
+  const lo = hf({ mode: 'HFNC', hfncFlow: 2 }, 5), hi = hf({ mode: 'HFNC', hfncFlow: 8 }, 5);
+  ok('HFNC は流量で咽頭の圧が上がる', hi.hfncPressure() > lo.hfncPressure(),
+    `${lo.hfncPressure().toFixed(1)} → ${hi.hfncPressure().toFixed(1)} cmH₂O`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

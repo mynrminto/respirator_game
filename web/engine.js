@@ -14,6 +14,19 @@
   var CO2_STORE_PER_KG = 0.33;   // mL/kg/mmHg  速く平衡する CO2 の貯え
   var PA_O2_FLOOR = 12;          // mmHg
 
+  /* ---------- NICU のモード（HFO・NAVA・NIV-NAVA・HFNC）で使う定数 ----------
+   * HFO_R_FACTOR … 10 Hz を超える振動では、細い気管チューブの慣性と乱流で抵抗が見かけ上 2〜3 倍になる。
+   *                振幅がチューブの先でどれだけ減るか（数十分の 1 になる）を、この倍率で表す。
+   * HFO_K        … HFO の CO₂ 排出は f × VThf² に比例する（DCO₂）。死腔より小さい一回換気量でも
+   *                CO₂ が出ていく分を、肺胞換気量に置き換える係数。新生児の典型的な設定
+   *                （12 Hz、VThf 2 mL/kg）で PaCO₂ 40〜50 になるように合わせてある。
+   * NATURAL_R    … 抜管して鼻から支えるとき（NIV-NAVA・HFNC）の気道抵抗。気管チューブが無いぶん下がる。
+   * NAVA_APNEA   … NAVA で Edi が出ない時間がこれを超えると、設定の P insp・RR でバックアップ換気する（秒）。 */
+  var HFO_R_FACTOR = 2.5;
+  var HFO_K = 0.11;
+  var NATURAL_R = 0.6;
+  var NAVA_APNEA = 5;
+
   /* ---------- 酸素解離曲線 (Severinghaus) ---------- */
   function satFromPO2(p) {
     if (p <= 0) return 0;
@@ -129,7 +142,13 @@
       pause: { min: 0, max: fine ? 0.4 : 0.8, step: fine ? 0.05 : 0.1, dec: 2 },
       trig:  { min: 0.2, max: fine ? 3 : 8, step: fine ? 0.1 : 0.5, dec: 1 },
       pinsp: { min: 4, max: fine ? 30 : 40, step: 1 },
-      ps:    { min: 0, max: fine ? 20 : 25, step: 1 }
+      ps:    { min: 0, max: fine ? 20 : 25, step: 1 },
+      hfoMap:  { min: 5, max: 25, step: 1 },
+      hfoAmp:  { min: 5, max: fine ? 50 : 80, step: 1 },
+      hfoFreq: { min: fine ? 6 : 4, max: 15, step: 1 },
+      navaLevel: { min: 0, max: 4, step: 0.1, dec: 1 },
+      hfncFlow: fine ? { min: 1, max: 8, step: 0.5, dec: 1 }
+                     : { min: 2, max: Math.min(60, Math.ceil(pbw * 2.5)), step: 1 }
     };
   }
 
@@ -149,7 +168,7 @@
 
   function defaultSettings() {
     return {
-      mode: 'VC-AC',      // VC-AC | PC-AC | SIMV-VC | PSV | CPAP
+      mode: 'VC-AC',      // VC-AC | PC-AC | SIMV-VC | PSV | CPAP | HFO | NAVA | NIV-NAVA | HFNC
       vt: 450,            // mL
       rr: 14,             // 回/分（設定換気回数）
       peep: 5,            // cmH2O
@@ -163,6 +182,11 @@
       eSens: 0.25,        // 呼気トリガ（ピーク流量比）
       pause: 0,           // 吸気ポーズ (s)
       rise: 0.15,         // 立ち上がり時間 (s)
+      hfoMap: 12,         // HFO の平均気道内圧 MAP (cmH2O)
+      hfoAmp: 20,         // HFO の振幅 ΔP（山から谷まで, cmH2O）
+      hfoFreq: 12,        // HFO の周波数 (Hz)
+      navaLevel: 1.5,     // NAVA レベル (cmH2O/µV)：Edi 1 µV あたりに上乗せする圧
+      hfncFlow: 6,        // HFNC の流量 (L/min)
       alarms: { pMax: 35, vtLow: 250, vtHigh: 800, mvLow: 3, mvHigh: 15, rrHigh: 35, apnea: 20 }
     };
   }
@@ -246,7 +270,69 @@
     this.harm = { highPlat: 0, highVt: 0, autoPeep: 0, hypoxia: 0, hypotension: 0, highFio2: 0 };
     this._wfClock = 0;
     this._gasClock = 0;
+
+    // NICU のモード
+    this.apneaUntil = -1;           // この時刻まで呼吸中枢が止まる（無呼吸発作）
+    this.edi = 1.5;                 // 横隔膜の電気活動 Edi (µV)
+    this.ediTonic = 1.5;            // 吐いているあいだも残る緊張（Edi min のもと）
+    this._ediPeakThis = 0;
+    this._ediMinCyc = 99;
+    this.navaBackup = false;        // NAVA のバックアップ換気中
+    this.sinceNeural = 0;           // 最後に Edi で吸気が始まってからの秒
+    this._vMean = this.V;           // HFO：振動を除いた肺の容量
+    this._vAmp = 0;                 // HFO：肺に届く振動の片振幅（L）
+    this._hfoPh = 0;
+    this._ncIn = false;             // HFNC：自分の吸気の途中か
+    this.tcpco2 = this.paco2 + 3;   // 経皮 CO2
+    this.m.ediPeak = null; this.m.ediMin = null;
+    this.m.vtHf = 0; this.m.dco2 = 0; this.m.leak = 0;
+    this._mode = s.mode;
     this._recomputeDrive();
+  };
+
+  /* ---------- モードの種類 ---------- */
+  function isNava(md) { return md === 'NAVA' || md === 'NIV-NAVA'; }
+  /* 気管チューブが入っていないモード（鼻から支える）。 */
+  function isNoninvasive(md) { return md === 'NIV-NAVA' || md === 'HFNC'; }
+
+  /* HFNC の鼻の中の圧（cmH2O）。測れないが、流量が多いほど、体が小さいほど高くなる。
+   * 口が開いたり鼻の隙間が大きいと逃げる（hfncFit）。早産児 1.4 kg・6 L/分 で 3 前後。 */
+  Engine.prototype.hfncPressure = function () {
+    var fit = this.p.hfncFit != null ? this.p.hfncFit : 0.85;
+    return clamp(0.7 * this.s.hfncFlow / Math.sqrt(Math.max(0.5, this.p.pbw)), 0, 8) * fit;
+  };
+
+  /* 吸い込む酸素の濃さ。HFNC の流量が子どもの吸う勢い（最大吸気流量）より少ないと、
+   * 足りない分は口や鼻のまわりの空気（21%）で補われ、設定より薄くなる。 */
+  Engine.prototype.fio2Eff = function () {
+    var s = this.s;
+    if (s.mode !== 'HFNC') return s.fio2;
+    var pif = Math.max(0.3, this.m.peakInsp || 0);                 // L/min
+    if (s.hfncFlow >= pif) return s.fio2;
+    return (s.hfncFlow * s.fio2 + (pif - s.hfncFlow) * 0.21) / pif;
+  };
+
+  /* 波形の換気量の基準。ふだんは PEEP での容量から測る。HFO では振動の谷から測る。 */
+  Engine.prototype.volWave = function () {
+    if (this.s.mode === 'HFO') return (this.V - (this._vMean - this._vAmp)) * 1000;
+    if (this.s.mode === 'HFNC') return (this.V - this.C * this.hfncPressure()) * 1000;
+    return (this.V - this.C * this.s.peep) * 1000;
+  };
+
+  /* モードが変わった瞬間の後始末。HFO に入るときは今の肺の容量から振動を始め、
+   * 出るときは呼気から次の呼吸を始める。 */
+  Engine.prototype._modeChanged = function (from, to) {
+    if (to === 'HFO') {
+      this._vMean = this.V; this._hfoPh = 0;
+      this.hold = null; this.holdPending = null;
+    }
+    if (from === 'HFO' || to === 'HFO' || to === 'HFNC' || from === 'HFNC') {
+      this.phase = 'exp'; this.phaseT = 0; this.sinceMand = 0; this.sinceBreath = 0;
+      this._ncIn = false;
+      this.m.pplat = null; this.m.dp = null; this.m.cstat = null; this.m.raw = null; this.m.autoPeep = 0;
+    }
+    this.navaBackup = false; this.sinceNeural = 0;
+    if (!isNoninvasive(to)) this.m.leak = 0;
   };
 
   Engine.prototype.setSetting = function (k, v) {
@@ -314,8 +400,9 @@
     var load = this.muscleLoad || 0;
     /* A/C では送気の大半を機械が担うので、呼吸筋は休んでいる。SIMV はその中間。 */
     var md = this.s.mode;
-    if (md === 'VC-AC' || md === 'PC-AC') load *= 0.4;
+    if (md === 'VC-AC' || md === 'PC-AC' || md === 'HFO') load *= 0.4;
     else if (md === 'SIMV-VC') load *= 0.7;
+    else if (md === 'HFNC') load *= this.s.hfncFlow >= (this.m.peakInsp || 0) ? 0.85 : 1;
     var th = this.p.fatigueLoad != null ? this.p.fatigueLoad : 0.62;
     var tau = this.p.fatigueTau != null ? this.p.fatigueTau : 95;
     if (load > th) this.fatigue += (load - th) * dt / tau;
@@ -329,9 +416,15 @@
     this.t += dt; this.clock += dt;
     this.phaseT += dt; this.sinceMand += dt; this.sinceBreath += dt;
 
-    /* 神経性の吸気努力 */
+    if (s.mode !== this._mode) { this._modeChanged(this._mode, s.mode); this._mode = s.mode; }
+    this.sinceNeural += dt;
+
+    /* 神経性の吸気努力。無呼吸発作のあいだ（apneaUntil まで）は呼吸中枢が吸気を出さない。 */
     this.neuralT += dt;
-    if (this.neuralT >= this.neuralTtot) { this.neuralT = 0; this.effortActive = true; }
+    if (this.neuralT >= this.neuralTtot) {
+      this.neuralT = 0; this.effortActive = this.clock >= this.apneaUntil;
+      this._neuralFresh = this.effortActive;          // NAVA は 1 回の吸気努力に 1 回だけトリガする
+    }
     if (this.effortActive && this.neuralT <= this.neuralTi && this.pmusAmp > 0) {
       var x = this.neuralT / this.neuralTi;
       // 立ち上がりが速く、終末で急に緩む実際の形に寄せる
@@ -340,6 +433,12 @@
       this.pmus = 0;
       if (this.neuralT > this.neuralTi) this.effortActive = false;
     }
+    /* Edi：横隔膜の電気活動。呼吸中枢の出力そのもので、Pmus を神経と筋の効率（nme, cmH2O/µV）で割ったもの。
+     * 吸っていないときにも、肺がしぼまないよう横隔膜が少し働いている（ediTonic）。 */
+    this.edi = this.ediTonic + this.pmus / (p.nme || 0.5);
+
+    if (s.mode === 'HFO') { this._stepHFO(dt); this._sample(dt, sampleWave); this._gas(dt); return; }
+    if (s.mode === 'HFNC') { this._stepHFNC(dt); this._sample(dt, sampleWave); this._gas(dt); return; }
 
     /* ホールド操作（吸気ポーズ／呼気ポーズ） */
     if (this.hold) {
@@ -368,6 +467,10 @@
     var mandInterval = 60 / Math.max(1, s.rr);
     var spontMode = (s.mode === 'PSV' || s.mode === 'CPAP');
     var simv = (s.mode === 'SIMV-VC');
+    var nava = isNava(s.mode);
+    /* 鼻から支えるときはチューブの抵抗が無い。 */
+    var rNat = isNoninvasive(s.mode) ? NATURAL_R : 1;
+    var Rin = p.Rinsp * rNat, Rex = p.Rexp * rNat;
 
     /* --------- 吸気相 --------- */
     if (this.phase === 'insp') {
@@ -396,13 +499,29 @@
           this._raise('高気道内圧で吸気を中断');
           this._endInsp();
         }
+      } else if (nava && this.breathType !== 'mand') {
+        /* NAVA：Edi に比例した圧を、Edi が出ているあいだだけ上乗せする。
+         * 吸いはじめも吸い終わりも、子どもの呼吸中枢が決める（Edi が山の 70% まで下がったら終わる）。 */
+        if (this.edi > this._ediPeakThis) this._ediPeakThis = this.edi;
+        var ref = this.m.ediMin != null ? this.m.ediMin : this.ediTonic;
+        var pn = Math.min(s.navaLevel * Math.max(0, this.edi - ref), Math.max(0, s.alarms.pMax - 5 - s.peep));
+        target = s.peep + pn;
+        this.paw = target;
+        tau = Rin * this.C;
+        var veqN = this.C * (target + this.pmus);
+        var vN = veqN + (this.V - veqN) * Math.exp(-dt / tau);
+        this.flow = (vN - this.V) / dt;
+        this.vtInsp += (vN - this.V);
+        this.V = vN;
+        if (this.phaseT > 0.04 && (this.edi <= 0.7 * this._ediPeakThis || !this.effortActive)) this._endInsp();
+        else if (this.phaseT > this.nm.tiMin * 7) this._endInsp();
       } else {
         // 圧規定（PC / PS / SIMV の自発）
         var pset = (this.breathType === 'mand') ? s.pinsp : s.ps;
         var rise = clamp(this.phaseT / Math.max(0.02, s.rise), 0, 1);
         target = s.peep + pset * rise;
         this.paw = target;
-        tau = p.Rinsp * this.C;
+        tau = Rin * this.C;
         var veq = this.C * (target + this.pmus);
         var vNew = veq + (this.V - veq) * Math.exp(-dt / tau);
         this.flow = (vNew - this.V) / dt;
@@ -433,7 +552,7 @@
       /* 患者が吸おうとすると、回路の圧は PEEP より少しだけ下がる。
        * 機械が応えなかった努力（トリガを鈍くしたとき）は、この小さな切れ込みとして圧波形に残る。 */
       this.paw = s.peep - 0.5 * this.pmus;
-      var tauE = p.Rexp * this.C;
+      var tauE = Rex * this.C;
       var veqE = this.C * (s.peep + this.pmus);
       var vNewE = veqE + (this.V - veqE) * Math.exp(-dt / tauE);
       this.flow = (vNewE - this.V) / dt;
@@ -442,7 +561,24 @@
       /* トリガ判定 */
       var trigQ = s.trigFlow / 60;
       var canTrigger = this.phaseT > this.nm.trigLock;
-      if (canTrigger && this.flow > trigQ) {
+      if (this.edi < this._ediMinCyc) this._ediMinCyc = this.edi;
+      if (nava) {
+        /* NAVA は流量ではなく Edi でトリガする。吐き終わりの Edi より 0.5 µV 上がったら吸気。
+         * 鼻のマスクで漏れがあっても、トリガも吸い終わりもずれない。 */
+        var base = Math.min(this._ediMinCyc, this.m.ediMin != null ? this.m.ediMin : this._ediMinCyc);
+        if (canTrigger && this.effortActive && this._neuralFresh && this.edi - base >= 0.5) {
+          this._neuralFresh = false;
+          this.navaBackup = false;
+          this.sinceNeural = 0;
+          this._startBreath('spont', 'patient');
+        } else if (this.navaBackup && this.sinceMand >= mandInterval) {
+          this._startBreath('mand', 'timer');
+        } else if (!this.navaBackup && this.sinceNeural > NAVA_APNEA && this.sinceBreath > NAVA_APNEA) {
+          this._raise('無呼吸：バックアップ換気');
+          this.navaBackup = true;
+          this._startBreath('mand', 'backup');
+        }
+      } else if (canTrigger && this.flow > trigQ) {
         if (spontMode) this._startBreath('spont', 'patient');
         else if (simv) {
           var inWindow = this.sinceMand >= mandInterval - 0.6;
@@ -468,6 +604,84 @@
     this._gas(dt);
   };
 
+  /* ---------- HFO（高頻度振動換気） ----------
+   * 平均気道内圧 MAP のまわりで、振幅 ΔP・周波数 f の圧をかけ続ける。肺は R と C の 1 区画なので、
+   * 振動に対する応えは解析的に書ける：肺に届く振幅は 1/√(1+(ωτ)²) に減り、位相が遅れる。
+   * 刻み幅によらない値にするため、振動の部分は解析解、振動を除いた平均の容量だけを積分する。
+   * 一回換気量 VThf は死腔より小さく、CO₂ は f × VThf² に比例して出ていく（_gas）。
+   * 周波数を上げると VThf がほぼ 1/f で減るので、かえって CO₂ が溜まる。 */
+  Engine.prototype._stepHFO = function (dt) {
+    var s = this.s, p = this.p;
+    var w = 2 * Math.PI * s.hfoFreq;
+    var tauHf = p.Rinsp * HFO_R_FACTOR * this.C;
+    var gain = 1 / Math.sqrt(1 + w * w * tauHf * tauHf);
+    var lag = Math.atan(w * tauHf);
+    this._vAmp = this.C * (s.hfoAmp / 2) * gain;
+    /* 振動を除いた平均の容量は MAP（＋自発の吸気努力）に向かって、ふつうの時定数で動く。 */
+    var veq = this.C * (s.hfoMap + this.pmus);
+    this._vMean = veq + (this._vMean - veq) * Math.exp(-dt / (p.Rinsp * this.C));
+    this._hfoPh = (this._hfoPh + s.hfoFreq * dt) % 1;
+    var th = 2 * Math.PI * this._hfoPh;
+    var vOld = this.V;
+    this.V = this._vMean + this._vAmp * Math.sin(th - lag);
+    this.flow = (this.V - vOld) / dt;
+    this.paw = s.hfoMap + (s.hfoAmp / 2) * Math.sin(th);
+    var m = this.m;
+    m.vtHf = 2 * this._vAmp * 1000;                          // mL（山から谷まで）
+    m.dco2 = s.hfoFreq * m.vtHf * m.vtHf;                    // mL²/s
+    m.pip = s.hfoMap + s.hfoAmp / 2;
+    /* 肺胞の圧は MAP のまわりで小さく揺れるだけ。いちばん低いときの圧が、肺胞を開いておく圧になる。 */
+    m.peepTot = Math.max(0, this._vMean / this.C - this._vAmp / this.C);
+    m.pplat = null; m.dp = null; m.cstat = null; m.raw = null; m.autoPeep = 0;
+    m.vte = 0; m.vti = 0; m.mv = 0; m.rrTotal = 0; m.rrSpont = 0; m.rrTrig = 0; m.rsbi = null; m.rsbiKg = null;
+    m.ie = '1:2';
+    this.phase = 'exp';
+  };
+
+  /* ---------- HFNC（高流量鼻カニュラ） ----------
+   * 機械は呼吸を送らない。温めて加湿したガスを鼻から流し続けるだけで、その流れが
+   * 鼻の中に少しの圧（hfncPressure）を作り、鼻と喉の死腔を洗い流す。
+   * 吸うのも吐くのも子ども自身なので、無呼吸を助けることはできない。
+   * 呼吸の数と深さは、呼吸中枢の吸気（Edi と同じ努力）の始まりと終わりで数える（モニターの呼吸数）。 */
+  Engine.prototype._stepHFNC = function (dt) {
+    var p = this.p;
+    var P = this.hfncPressure();
+    this.paw = P;
+    var R = (this.pmus > 0 ? p.Rinsp : p.Rexp) * NATURAL_R;
+    var veq = this.C * (P + this.pmus);
+    var vNew = veq + (this.V - veq) * Math.exp(-dt / (R * this.C));
+    this.flow = (vNew - this.V) / dt;
+    this.V = vNew;
+    this.m.peepTot = P;
+    this.m.pip = P; this.m.leak = 0;
+    if (this.flow > 0 && this.flow > this._fIn) this._fIn = this.flow;
+    if (this.effortActive && this.pmus > 0 && !this._ncIn) {
+      this._ncIn = true;
+      this._ncV0 = this.V; this._ncVmax = this.V;
+      this.m._ttot = this._prevInspStart != null ? (this.clock - this._prevInspStart) : 0;
+      this._prevInspStart = this.clock;
+      this._inspStart = this.clock;
+      this.sinceBreath = 0;
+      this._lastBreathSpont = true; this._lastBreathTrig = 'patient';
+      this._fIn = 0;
+    }
+    if (this._ncIn) {
+      if (this.V > this._ncVmax) this._ncVmax = this.V;
+      if (!this.effortActive) {
+        this._ncIn = false;
+        var vte = Math.max(0, this._ncVmax - this._ncV0) * 1000;
+        this.m.peakInsp = this._fIn * 60;
+        this._lastTi = this.clock - this._inspStart;
+        this.m.vte = vte; this.m.vti = vte;
+        this._lastSpontVte = vte / 1000;
+        this.breaths.push({ t: this.clock, vte: vte, spont: true, trig: 'patient' });
+        if (this.breaths.length > 200) this.breaths.shift();
+        this._recomputeRates();
+      }
+    }
+    this.phase = 'exp';
+  };
+
   Engine.prototype._startBreath = function (type, trig) {
     var s = this.s;
     if (this.holdPending === 'exp') {           // 呼気末でポーズに入り、この呼吸は始めない
@@ -477,6 +691,11 @@
       return;
     }
     this.m.peakExp = -this._fEx * 60; this._fEx = 0;
+    if (this._ediMinCyc < 90) {
+      this.m.ediMin = this.m.ediMin == null ? this._ediMinCyc : this.m.ediMin + 0.3 * (this._ediMinCyc - this.m.ediMin);
+    }
+    this._ediMinCyc = 99;
+    this._ediPeakThis = this.edi;
     this.vEE = this.V;
     /* 肺胞の圧は弾性圧（V/C）から患者の吸気努力を引いたもの。努力で引き込んだ分まで
      * auto-PEEP に数えると、自発のある子で 0.2〜1 cmH₂O の見かけの値が出続ける。 */
@@ -507,8 +726,12 @@
     this.m.pip = this.pipThis;
     this.m.vti = (this.vEI - this.vEE) * 1000;
     this.phase = 'exp'; this.phaseT = 0;
-    var vte = this.m.vti;                      // リークなしを仮定
+    var vte = this.m.vti;                      // リークなしを仮定（鼻から支えるときの漏れは表示の側で引く）
     this.m.vte = vte;
+    if (this._lastBreathSpont && isNava(this.s.mode) && this._ediPeakThis > 0) {
+      this.m.ediPeak = this.m.ediPeak == null ? this._ediPeakThis : this.m.ediPeak + 0.3 * (this._ediPeakThis - this.m.ediPeak);
+    }
+    if (isNoninvasive(this.s.mode)) this.m.leak = this.p.leak != null ? this.p.leak : 0.3;
     if (this._lastBreathSpont) this._lastSpontVte = vte / 1000;
     this.breaths.push({ t: this.clock, vte: vte, spont: this._lastBreathSpont, trig: this._lastBreathTrig });
     if (this.breaths.length > 200) this.breaths.shift();
@@ -560,7 +783,11 @@
       if (B[i].trig === 'patient') nt++;
     }
     if (n >= 1) {
-      var rate = n * 60 / Math.max(0.5, B[B.length - 1].t - B[first].t);
+      var tEnd = B[B.length - 1].t;
+      /* 機械が呼吸を送らない HFNC では、息が止まっているあいだも呼吸数を数え直す（_gas から呼ぶ）。
+       * 止まっている時間を間隔に含めないと、無呼吸の最中も前の呼吸数が出続ける。 */
+      if (this.s.mode === 'HFNC' && now - tEnd > 2 * (tEnd - B[first].t) / n) tEnd = now;
+      var rate = n * 60 / Math.max(0.5, tEnd - B[first].t);
       this.m.rrTotal = rate;
       this.m.rrSpont = nAll ? rate * ns / nAll : 0;
       this.m.rrTrig = nAll ? rate * nt / nAll : 0;
@@ -607,7 +834,7 @@
     if (this._wfClock >= 0.02) {
       this._wfClock = 0;
       var w = this.waveform;
-      w.paw.push(this.paw); w.flow.push(this.flow * 60); w.vol.push((this.V - this.C * this.s.peep) * 1000);
+      w.paw.push(this.paw); w.flow.push(this.flow * 60); w.vol.push(this.volWave());
       if (w.paw.length > this.wfCap) { w.paw.shift(); w.flow.shift(); w.vol.shift(); }
     }
   };
@@ -626,6 +853,10 @@
     var nm = this.nm;
     var vdAnat = 2.0 * p.pbw / 1000;                        // L（2 mL/kg は小児も同じ）
     var vdCircuit = (p.vdCircuit != null ? p.vdCircuit : nm.vdCircuit) / 1000;  // 回路＋フローセンサ
+    var md = s.mode, hfo = md === 'HFO';
+    /* 鼻から支えるときはチューブも回路の死腔も無い。HFNC の流れは鼻と喉の死腔まで洗い流す。 */
+    if (isNoninvasive(md)) vdCircuit = 0;
+    if (md === 'HFNC') vdAnat *= 1 - 0.4 * smoothstep(0.5, 3, s.hfncFlow / p.pbw);
     var vtL = Math.max(0.0002, this.m.vte / 1000);
     var vdAlv = (p.vdAlvFrac || 0) * vtL;
     var vd = vdAnat + vdCircuit + vdAlv;
@@ -637,13 +868,21 @@
     if (this.m.rrTotal > 0.5 && this.sinceBreath > Math.max(4, 2.5 * 60 / this.m.rrTotal)) {
       va = 0.04 * vtL;
     }
+    /* HFO は呼吸の区切りが無い（呼吸回数 0）ので、上の無呼吸の扱いは当たらない。
+     * CO₂ 排出は f × VThf² / 死腔に比例する（HFO_K の説明を参照）。回路の死腔はバイアス流で洗われる。 */
+    if (hfo) {
+      var vth = this.m.vtHf / 1000;
+      va = HFO_K * 60 * s.hfoFreq * vth * vth / Math.max(1e-5, vdAnat);
+    }
+    /* HFNC は機械が呼吸を送らないので、表示の呼吸数も息が止まっているあいだに数え直す。 */
+    if (md === 'HFNC') this._recomputeRates();
 
     // 過膨張は死腔を増やす
-    var plat = this.m.pplat != null ? this.m.pplat : (this.V / this.C);
+    var plat = hfo ? this._vMean / this.C : (this.m.pplat != null ? this.m.pplat : (this.V / this.C));
     if (plat > nm.platMax - 2) va *= clamp(1 - (plat - (nm.platMax - 2)) * 0.02, 0.6, 1);
 
     /* 呼吸が測れるまで（開始直後の数秒）は換気量が 0 に見えるので、ガスを動かさない。 */
-    var measured = this.m.rrTotal > 0 || this.clock > 20;
+    var measured = hfo || this.m.rrTotal > 0 || this.clock > 20;
 
     /* CO2：普段は 3 分ほどの時定数で動く。ただし換気がほとんど無いときの上がり方は
      * 体の CO2 の貯え（速く平衡する分 ≈ 0.33 mL/kg/mmHg）で頭打ちになり、
@@ -660,6 +899,9 @@
     var recr = 1 / (1 + Math.exp((peepTot - (p.recruitP || 12)) / (p.recruitK || 3.0)));
     var shunt = (p.shuntMin || 0.05) + ((p.shunt0 || 0.1) - (p.shuntMin || 0.05)) * recr;
     if (plat > nm.platMax) shunt += (plat - nm.platMax) * 0.006;   // 過膨張で悪化
+    /* HFO は MAP がそのまま肺胞を押し広げ続けるので、肺が開ききったあとの MAP は
+     * 肺を膨らませすぎ、血流を押しのけてかえって酸素化を落とす（胸部X線で横隔膜が下がる）。 */
+    if (hfo) shunt += Math.max(0, peepTot - ((p.recruitP || 12) + 2 * (p.recruitK || 3.0))) * 0.012;
     if (p.prone) shunt *= 0.75;
     if (this.suctionShunt > 0.001) {              // 吸引の陰圧で潰れた肺胞は数分かけて開き直す
       shunt += this.suctionShunt;
@@ -669,6 +911,8 @@
 
     // 循環：平均気道内圧で静脈還流が落ちる
     var coTarget = (p.co || 5.0) * clamp(1 - 0.014 * Math.max(0, this.m.pmean - 5), 0.60, 1);
+    /* HFO で肺が開ききったあとも MAP を保つと、膨らんだ肺が心臓を押して戻りがさらに減る。 */
+    if (s.mode === 'HFO') coTarget *= clamp(1 - 0.06 * Math.max(0, (this.m.peepTot || 0) - ((p.recruitP || 12) + 2 * (p.recruitK || 3.0))), 0.7, 1);
     if (p.volumeDepleted) coTarget *= 0.85;
     coTarget = Math.max(0.35 * (p.co || 5.0), coTarget);
     /* 子どもは一回拍出量をあまり増やせないので、徐脈になると心拍出量はほぼ心拍に比例して落ちる。
@@ -682,7 +926,7 @@
      * 肺に残っているガス（FRC）と、血液のヘモグロビンが手放せる分。
      * 換気が止まると FRC の O2 は 1 分もたずに使い切られ、CO2 より先に SpO2 が落ちる。
      * 釣り合った状態では肺胞気式 PAO2 = PIO2 − PaCO2 / R と同じ値になる。 */
-    var pio2 = s.fio2 * (PB - PH2O);
+    var pio2 = this.fio2Eff() * (PB - PH2O);
     if (measured) {
       var pAss = pio2 - 0.863 * vo2 / va;
       var cap = this._o2Capacity();                               // mL/mmHg
@@ -710,6 +954,12 @@
     var reach = smoothstep(0.5, 1.6, vtL / Math.max(0.0001, vdAnat + vdCircuit));
     var perf = clamp(this.co / (0.5 * (p.co || 5.0)), 0, 1);
     if (measured) this.etco2 = approach(this.etco2, etAlv * reach * perf, d, 8);
+    /* 経皮 CO₂：皮膚を温めて測る。PaCO₂ より少し高めに、数分遅れてついてくる。 */
+    this.tcpco2 = approach(this.tcpco2, this.paco2 + 3, d, 90);
+    /* 吐き終わりの横隔膜の緊張。肺がしぼみかけていると（支える圧が足りないと）、
+     * 横隔膜が吐ききらないようにブレーキをかけ、Edi min が上がる。 */
+    var need = (p.recruitP || 12) - (peepTot || 0);
+    this.ediTonic = approach(this.ediTonic, clamp(1.2 + 0.45 * Math.max(0, need), 1.0, 8), d, 20);
 
     // 心拍・血圧
     var hrScale = nm.hr[1] / 100;
@@ -780,13 +1030,17 @@
   };
 
   Engine.prototype._alarmCheck = function () {
-    var a = [], s = this.s, m = this.m;
-    if (m.pip > s.alarms.pMax) a.push({ k: 'pip', msg: '気道内圧上限', sev: 2 });
-    if (m.vte < s.alarms.vtLow && this.clock > 20) a.push({ k: 'vt', msg: '一回換気量 低下', sev: 2 });
-    if (m.vte > s.alarms.vtHigh) a.push({ k: 'vth', msg: '一回換気量 過大', sev: 1 });
-    if (m.mv < s.alarms.mvLow && this.clock > 30) a.push({ k: 'mv', msg: '分時換気量 低下', sev: 2 });
-    if (m.mv > s.alarms.mvHigh) a.push({ k: 'mvh', msg: '分時換気量 過大', sev: 1 });
-    if (m.rrTotal > s.alarms.rrHigh) a.push({ k: 'rr', msg: '頻呼吸', sev: 1 });
+    var a = [], s = this.s, m = this.m, md = s.mode;
+    /* HFO は一回換気量・呼吸数のアラームが意味を持たない。鼻から支えるときは漏れるので量では見ない。
+     * HFNC は呼吸器ではないので、鳴るのはベッドサイドモニター（SpO₂・心拍・血圧・無呼吸）だけ。 */
+    var conv = md !== 'HFO' && !isNoninvasive(md);
+    if (md !== 'HFO' && md !== 'HFNC' && m.pip > s.alarms.pMax) a.push({ k: 'pip', msg: '気道内圧上限', sev: 2 });
+    if (conv && m.vte < s.alarms.vtLow && this.clock > 20) a.push({ k: 'vt', msg: '一回換気量 低下', sev: 2 });
+    if (conv && m.vte > s.alarms.vtHigh) a.push({ k: 'vth', msg: '一回換気量 過大', sev: 1 });
+    if (conv && m.mv < s.alarms.mvLow && this.clock > 30) a.push({ k: 'mv', msg: '分時換気量 低下', sev: 2 });
+    if (conv && m.mv > s.alarms.mvHigh) a.push({ k: 'mvh', msg: '分時換気量 過大', sev: 1 });
+    if (md !== 'HFO' && m.rrTotal > s.alarms.rrHigh) a.push({ k: 'rr', msg: '頻呼吸', sev: 1 });
+    if (md === 'HFNC' && this.sinceBreath > this.nm.apnea) a.push({ k: 'apnea', msg: '無呼吸', sev: 2 });
     if (this.spo2 < this.nm.spo2[0]) a.push({ k: 'spo2', msg: 'SpO2 低下', sev: 2 });
     if (m.autoPeep > 5) a.push({ k: 'ap', msg: 'auto-PEEP', sev: 1 });
     if (this.map < this.nm.mapMin) a.push({ k: 'map', msg: '血圧低下', sev: 2 });
@@ -806,6 +1060,14 @@
     this.p.Rinsp = Math.max(4, this.p.Rinsp * 0.88);
     this.p.Rexp = Math.max(5, this.p.Rexp * 0.90);
     this._raise('気管吸引を実施');
+  };
+
+  /* ---------- 無呼吸発作 ----------
+   * 早産児の呼吸中枢は未熟で、ときどき吸気を出すのを忘れる。sec 秒のあいだ吸気努力が止まる。
+   * Edi は平らになり、NAVA はバックアップ換気に切り替わる。HFNC は何もしてくれない。 */
+  Engine.prototype.centralApnea = function (sec) {
+    this.apneaUntil = this.clock + sec;
+    this.effortActive = false;
   };
 
   /* ---------- 血液ガス採取 ---------- */
@@ -834,7 +1096,8 @@
       spo2: this.spo2, hr: this.hr, map: this.map, etco2: this.etco2,
       shunt: this.shunt, co: this.co, fatigue: this.fatigue,
       m: this.m, alarms: this.alarms, pmusAmp: this.pmusAmp,
-      rrNeural: 60 / this.neuralTtot, sedation: this.sedation
+      rrNeural: 60 / this.neuralTtot, sedation: this.sedation,
+      edi: this.edi, tcpco2: this.tcpco2
     };
   };
 
@@ -849,7 +1112,9 @@
     satFromPO2: satFromPO2,
     po2FromSat: po2FromSat,
     o2Content: o2Content,
-    clamp: clamp
+    clamp: clamp,
+    isNava: isNava,
+    isNoninvasive: isNoninvasive
   };
   root.VentEngine = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

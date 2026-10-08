@@ -22,13 +22,13 @@ struct VentilatorParameter: Identifiable {
               modes: [.volumeAssistControl, .simvVolume],
               read: { $0.tidalVolume }, write: { $0.tidalVolume = $1 }),
         .init(id: "rr", label: "RR", unit: "/min", range: 4...40, step: 1, digits: 0,
-              modes: [.volumeAssistControl, .pressureAssistControl, .simvVolume],
+              modes: [.volumeAssistControl, .pressureAssistControl, .simvVolume, .nava, .nivNava],
               read: { $0.respiratoryRate }, write: { $0.respiratoryRate = $1 }),
         .init(id: "pinsp", label: "P insp", unit: "cmH₂O", range: 5...40, step: 1, digits: 0,
-              modes: [.pressureAssistControl],
+              modes: [.pressureAssistControl, .nava, .nivNava],
               read: { $0.inspiratoryPressure }, write: { $0.inspiratoryPressure = $1 }),
         .init(id: "ti", label: "Ti", unit: "s", range: 0.4...2.5, step: 0.1, digits: 1,
-              modes: [.pressureAssistControl],
+              modes: [.pressureAssistControl, .nava, .nivNava],
               read: { $0.inspiratoryTime }, write: { $0.inspiratoryTime = $1 }),
         .init(id: "flow", label: "吸気流量", unit: "L/min", range: 20...100, step: 5, digits: 0,
               modes: [.volumeAssistControl, .simvVolume],
@@ -55,7 +55,19 @@ struct VentilatorParameter: Identifiable {
         // 目標圧まで立ち上がる時間。速すぎるとオーバーシュート、遅すぎると吸気努力が残る。
         .init(id: "rise", label: "立上り", unit: "s", range: 0.05...0.4, step: 0.05, digits: 2,
               modes: [.pressureAssistControl, .pressureSupport],
-              read: { $0.riseTime }, write: { $0.riseTime = $1 })
+              read: { $0.riseTime }, write: { $0.riseTime = $1 }),
+        // HFO：酸素化は MAP、CO₂ は振幅と周波数。
+        .init(id: "map", label: "MAP", unit: "cmH₂O", range: 5...25, step: 1, digits: 0,
+              modes: [.hfo], read: { $0.hfoMeanPressure }, write: { $0.hfoMeanPressure = $1 }),
+        .init(id: "amp", label: "Amp", unit: "cmH₂O", range: 5...60, step: 1, digits: 0,
+              modes: [.hfo], read: { $0.hfoAmplitude }, write: { $0.hfoAmplitude = $1 }),
+        .init(id: "freq", label: "Freq", unit: "Hz", range: 5...15, step: 1, digits: 0,
+              modes: [.hfo], read: { $0.hfoFrequency }, write: { $0.hfoFrequency = $1 }),
+        // NAVA レベル：Edi 1 µV あたりに足す圧。
+        .init(id: "nava", label: "NAVA", unit: "cmH₂O/µV", range: 0...4, step: 0.1, digits: 1,
+              modes: [.nava, .nivNava], read: { $0.navaLevel }, write: { $0.navaLevel = $1 }),
+        .init(id: "hflow", label: "Flow", unit: "L/min", range: 1...8, step: 0.5, digits: 1,
+              modes: [.hfnc], read: { $0.hfncFlow }, write: { $0.hfncFlow = $1 })
     ]
 
     /// 鎮静。Web 版の P.sed と同じく、ほかのキーと同じようにダイヤルで決める（0〜100 %）。
@@ -72,6 +84,9 @@ struct VentilatorParameter: Identifiable {
         case .simvVolume:            return ["vt", "rr", "peep", "fio2", "flow", "ps", "trig"]
         case .pressureSupport:       return ["ps", "peep", "fio2", "trig", "esens", "rise"]
         case .cpap:                  return ["peep", "fio2", "trig"]
+        case .hfo:                   return ["map", "amp", "freq", "fio2"]
+        case .nava, .nivNava:        return ["nava", "peep", "fio2", "pinsp", "rr", "ti"]
+        case .hfnc:                  return ["hflow", "fio2"]
         }
     }
 
@@ -103,6 +118,11 @@ struct VentilatorParameter: Identifiable {
         case "trig":    r = limits.trigger
         case "pinsp":   r = limits.inspiratoryPressure
         case "ps":      r = limits.pressureSupport
+        case "map":     r = limits.hfoMeanPressure
+        case "amp":     r = limits.hfoAmplitude
+        case "freq":    r = limits.hfoFrequency
+        case "nava":    r = limits.navaLevel
+        case "hflow":   r = limits.hfncFlow
         default:        r = nil
         }
         if let r {
@@ -163,6 +183,10 @@ extension VentilationMode {
         case .simvVolume:            return "SIMV"
         case .pressureSupport:       return "PSV"
         case .cpap:                  return "CPAP"
+        case .hfo:                   return "HFO"
+        case .nava:                  return "NAVA"
+        case .nivNava:               return "NIV-NAVA"
+        case .hfnc:                  return "HFNC"
         }
     }
 

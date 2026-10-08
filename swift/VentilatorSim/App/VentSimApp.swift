@@ -74,7 +74,7 @@ struct ScenarioListView: View {
     /// 症例ごとの顔色。Web 版の PATIENT_TONE と同じ。
     private func tone(_ id: String) -> PatientView.Tone {
         switch id {
-        case "ards", "asthma": return .bad
+        case "ards", "asthma", "micro": return .bad
         case "rds", "bronchiolitis": return .mid
         default: return .ok
         }
@@ -90,9 +90,9 @@ struct ScenarioListView: View {
                                 CharacterBadge(size: 46, zoom: 1,
                                                ring: Chrome.accent.opacity(0.3),
                                                background: Chrome.panel2) {
-                                    FaceArt(AppAssets.patientNames(caseID: scenario.id,
+                                    FaceArt(AppAssets.patientNames(caseID: scenario.artID,
                                                                    tone: tone(scenario.id)),
-                                            focus: CharacterArt.patientFocus(scenario.id),
+                                            focus: CharacterArt.patientFocus(scenario.artID),
                                             zoom: CharacterArt.patientZoom) {
                                         PatientView(tone: tone(scenario.id))
                                     }

@@ -17,6 +17,26 @@ public struct Scenario: Identifiable, Codable, Equatable {
     public var ward: String = "PICU"
     /// 学習コースの物語での呼び名。物語に出てこない症例は nil。
     public var nickname: String? = nil
+    /// 絵を借りる症例（新しい子に専用の絵がまだ無いとき）。nil なら自分の id。
+    public var artAs: String? = nil
+    /// HFO・NAVA・NIV-NAVA・HFNC のタブを出すか（web の modes: 'nicu'）。
+    public var nicuModes: Bool = false
+
+    /// 絵の名前に使う症例 id。
+    public var artID: String { artAs ?? id }
+
+    /// 機器にタブを出すモード。NICU のモードは新生児の症例でだけ。いま使っているモードは必ず出す。
+    public func offers(_ mode: VentilationMode, current: VentilationMode) -> Bool {
+        !mode.isNICUOnly || nicuModes || mode == current
+    }
+
+    /// レッスンの日の姿。物語の日にちが進んで体重や肺が変わった子は、レッスンが患者の値を差し替える。
+    public func adjusted(_ change: ((inout Patient) -> Void)?) -> Scenario {
+        guard let change else { return self }
+        var copy = self
+        change(&copy.patient)
+        return copy
+    }
 
     public struct SuggestedSettings: Codable, Equatable {
         public var mode: VentilationMode
@@ -30,16 +50,25 @@ public struct Scenario: Identifiable, Codable, Equatable {
         public var pressureSupport: Double
         public var riseTime: Double
         public var triggerFlow: Double
+        public var hfoMeanPressure: Double = 12
+        public var hfoAmplitude: Double = 20
+        public var hfoFrequency: Double = 12
+        public var navaLevel: Double = 1.5
+        public var hfncFlow: Double = 6
 
         public init(mode: VentilationMode, tidalVolume: Double, respiratoryRate: Double,
                     peep: Double, fio2: Double, inspiratoryPressure: Double,
                     inspiratoryTime: Double, inspiratoryFlow: Double,
-                    pressureSupport: Double, riseTime: Double, triggerFlow: Double) {
+                    pressureSupport: Double, riseTime: Double, triggerFlow: Double,
+                    hfoMeanPressure: Double = 12, hfoAmplitude: Double = 20, hfoFrequency: Double = 12,
+                    navaLevel: Double = 1.5, hfncFlow: Double = 6) {
             self.mode = mode; self.tidalVolume = tidalVolume; self.respiratoryRate = respiratoryRate
             self.peep = peep; self.fio2 = fio2; self.inspiratoryPressure = inspiratoryPressure
             self.inspiratoryTime = inspiratoryTime; self.inspiratoryFlow = inspiratoryFlow
             self.pressureSupport = pressureSupport; self.riseTime = riseTime
             self.triggerFlow = triggerFlow
+            self.hfoMeanPressure = hfoMeanPressure; self.hfoAmplitude = hfoAmplitude
+            self.hfoFrequency = hfoFrequency; self.navaLevel = navaLevel; self.hfncFlow = hfncFlow
         }
     }
 
@@ -58,6 +87,11 @@ public struct Scenario: Identifiable, Codable, Equatable {
         s.riseTime = suggested.riseTime
         s.triggerFlow = suggested.triggerFlow
         s.inspiratoryPause = 0
+        s.hfoMeanPressure = suggested.hfoMeanPressure
+        s.hfoAmplitude = suggested.hfoAmplitude
+        s.hfoFrequency = suggested.hfoFrequency
+        s.navaLevel = suggested.navaLevel
+        s.hfncFlow = suggested.hfncFlow
         s.alarms = .forWeight(patient.predictedBodyWeight, norms: patient.norms,
                               tidalVolume: s.tidalVolume, respiratoryRate: s.respiratoryRate)
         return s
@@ -66,7 +100,7 @@ public struct Scenario: Identifiable, Codable, Equatable {
 
 public enum ScenarioLibrary {
 
-    public static let all: [Scenario] = [postoperative, rds, bronchiolitis, ards, asthma, guillainBarre]
+    public static let all: [Scenario] = [postoperative, rds, micro, bronchiolitis, ards, asthma, guillainBarre]
 
     public static let postoperative = Scenario(
         id: "postop", title: "小児外科術後の呼吸管理", tag: "入門",
@@ -111,7 +145,34 @@ public enum ScenarioLibrary {
             goals: .init(pH: 7.22...7.42, paco2: 45...60, pao2: 45...75)),
         suggested: .init(mode: .pressureAssistControl, tidalVolume: 6, respiratoryRate: 55,
                          peep: 6, fio2: 0.35, inspiratoryPressure: 10, inspiratoryTime: 0.30,
-                         inspiratoryFlow: 2, pressureSupport: 6, riseTime: 0.06, triggerFlow: 0.4), ward: "NICU", nickname: "あおい君")
+                         inspiratoryFlow: 2, pressureSupport: 6, riseTime: 0.06, triggerFlow: 0.4), ward: "NICU", nickname: "あおい君",
+        nicuModes: true)
+
+    public static let micro = Scenario(
+        id: "micro", title: "超早産児の重症 RDS（HFO・NAVA）", tag: "NICU",
+        oneLine: "在胎 25 週・720 g。HFO で肺を開き、NAVA で自分のリズムに合わせ、鼻からの支えへ。",
+        history: "在胎 25週3日、日齢 1、出生体重 720 g の女児。分娩室で挿管し、サーファクタントを 2 回投与した。従来の換気で最高気道内圧が 25 cmH₂O を超えても PaCO₂ が下がらない。胸部X線はすりガラス様陰影が強く、左肺に間質性肺気腫が出はじめている。",
+        findings: ["体温 36.8℃（保育器内、湿度 80%）", "心拍 165 /分", "平均血圧 33 mmHg", "Hb 15.0 g/dL",
+                   "気管チューブ：カフなし 2.5 mm、口角 6.5 cm", "胃管：Edi カテーテル（NAVA 用）"],
+        teachingPoints: ["HFO：酸素化は MAP、CO₂ は振幅（と周波数）", "周波数を下げると CO₂ が下がる",
+                         "NAVA：Edi を見て NAVA レベルを合わせる", "鼻から支える：NIV-NAVA と HFNC"],
+        patient: Patient(
+            name: "在胎25週 日齢1", sex: .female, heightCm: 32, age: 0,
+            weightKg: 0.72, ageMonths: 0, ageLabel: "在胎25週 日齢1",
+            circuitDeadSpace: 1.0, normsOverride: NormsOverride(meanArterialPressureMin: 25),
+            compliance: 0.0002, resistanceInsp: 110, resistanceExp: 140,
+            shuntAtLowPEEP: 0.55, shuntMinimum: 0.10, recruitmentP50: 11, recruitmentK: 2.0,
+            alveolarDeadSpaceFraction: 0.15, vco2: 4.0, hemoglobin: 15.0,
+            paco2: 62, pao2: 45, hco3: 19, hco3Base: 19,
+            cardiacOutput: 0.15, heartRate: 165, meanArterialPressure: 33, temperature: 36.8,
+            sedation: 0.85, driveGain: 1.0, maxInspiratoryPressure: 8, co2Setpoint: 45,
+            fatigueLoad: 1.0, fatigueTau: 600, neuroMechanicalEfficiency: 0.5, leak: 0.35,
+            goals: .init(pH: 7.20...7.40, paco2: 45...60, pao2: 45...70)),
+        suggested: .init(mode: .pressureAssistControl, tidalVolume: 4, respiratoryRate: 55,
+                         peep: 6, fio2: 0.7, inspiratoryPressure: 20, inspiratoryTime: 0.30,
+                         inspiratoryFlow: 2, pressureSupport: 6, riseTime: 0.06, triggerFlow: 0.4,
+                         hfoMeanPressure: 12, hfoAmplitude: 18, hfoFrequency: 12, navaLevel: 1.5, hfncFlow: 6),
+        ward: "NICU", nickname: "つむぎちゃん", artAs: "rds", nicuModes: true)
 
     public static let bronchiolitis = Scenario(
         id: "bronchiolitis", title: "RSV 細気管支炎", tag: "auto-PEEP",

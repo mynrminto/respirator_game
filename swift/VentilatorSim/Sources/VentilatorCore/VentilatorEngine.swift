@@ -73,6 +73,8 @@ public final class VentilatorEngine {
     // MARK: - 内部状態
 
     private var compliance: Double { patient.compliance }
+    /// 鼻から支えるときはチューブの抵抗が無い。
+    private var resistanceScale: Double { settings.mode.isNoninvasive ? Self.naturalResistance : 1 }
     /// 年齢相応の基準値。正常域も上限も年齢で決まる。
     public private(set) var norms: AgeNorms
     /// つまみの可動域。体重から作る。
@@ -124,6 +126,44 @@ public final class VentilatorEngine {
     private var breaths: [BreathRecord] = []
 
     private enum BreathType { case mandatory, spontaneous }
+
+    /* ---------- NICU のモード（HFO・NAVA・NIV-NAVA・HFNC） ----------
+     * web/engine.js と同じ定数。
+     * hfoResistanceFactor … 10 Hz を超える振動では、細い気管チューブの慣性と乱流で抵抗が見かけ上 2〜3 倍になる。
+     * hfoK               … HFO の CO₂ 排出（f × VThf²）を肺胞換気量に置き換える係数。
+     *                       新生児の典型的な設定（12 Hz、VThf 2 mL/kg）で PaCO₂ 40〜50 になるように合わせてある。
+     * naturalResistance  … 抜管して鼻から支えるときの気道抵抗の倍率。気管チューブが無いぶん下がる。
+     * navaApnea          … NAVA で Edi が出ない時間がこれを超えると、設定の P insp・RR でバックアップ換気する（秒）。 */
+    static let hfoResistanceFactor = 2.5
+    static let hfoK = 0.11
+    static let naturalResistance = 0.6
+    static let navaApnea = 5.0
+
+    /// 横隔膜の電気活動 Edi（µV）。
+    public private(set) var edi: Double = 1.5
+    /// 吐いているあいだも残る横隔膜の緊張（Edi min のもと）。
+    private var ediTonic: Double = 1.5
+    private var ediPeakThisBreath: Double = 0
+    private var ediMinThisCycle: Double = 99
+    /// NAVA のバックアップ換気中か。
+    public private(set) var navaBackup = false
+    private var sinceNeural: Double = 0
+    /// この時刻まで呼吸中枢が止まる（無呼吸発作）。
+    public private(set) var apneaUntil: Double = -1
+    /// NAVA は 1 回の吸気努力に 1 回だけトリガする。
+    private var neuralFresh = false
+    /// HFO：振動を除いた肺の容量（L）と、肺に届く振動の片振幅（L）。
+    private var hfoMeanVolume: Double = 0
+    private var hfoVolumeAmplitude: Double = 0
+    private var hfoPhase: Double = 0
+    /// HFNC：自分の吸気の途中か。
+    private var hfncInspiring = false
+    private var hfncStartVolume: Double = 0
+    private var hfncMaxVolume: Double = 0
+    private var hfncPeakFlow: Double = 0
+    /// 経皮 CO₂（mmHg）。
+    public private(set) var tcpco2: Double = 43
+    private var currentMode: VentilationMode = .volumeAssistControl
 
     // MARK: - 初期化
 
@@ -177,7 +217,162 @@ public final class VentilatorEngine {
         measured.totalPEEP = settings.peep
         measured.meanAirwayPressure = settings.peep
         breaths.removeAll()
+        apneaUntil = -1
+        edi = 1.5
+        ediTonic = 1.5
+        ediPeakThisBreath = 0
+        ediMinThisCycle = 99
+        navaBackup = false
+        sinceNeural = 0
+        neuralFresh = false
+        hfoMeanVolume = volume
+        hfoVolumeAmplitude = 0
+        hfoPhase = 0
+        hfncInspiring = false
+        tcpco2 = paco2 + 3
+        currentMode = settings.mode
         recomputeDrive()
+    }
+
+    // MARK: - NICU のモード
+
+    /// HFNC の鼻の中の圧（cmH2O）。測れないが、流量が多いほど、体が小さいほど高くなる。
+    /// 口が開いたり鼻の隙間が大きいと逃げる（0.85）。早産児 1.4 kg・6 L/分 で 3 前後。
+    public func hfncPressure() -> Double {
+        Physiology.clamp(0.7 * settings.hfncFlow / sqrt(max(0.5, patient.predictedBodyWeight)), 0, 8) * 0.85
+    }
+
+    /// 吸い込む酸素の濃さ。HFNC の流量が子どもの最大吸気流量より少ないと、
+    /// 足りない分はまわりの空気（21%）で補われ、設定より薄くなる。
+    public var effectiveFiO2: Double {
+        guard settings.mode == .hfnc else { return settings.fio2 }
+        let pif = max(0.3, measured.peakInspiratoryFlow)          // L/min
+        if settings.hfncFlow >= pif { return settings.fio2 }
+        return (settings.hfncFlow * settings.fio2 + (pif - settings.hfncFlow) * 0.21) / pif
+    }
+
+    /// 波形の換気量（mL）。ふだんは PEEP での容量から、HFO では振動の谷から測る。
+    public var waveVolume: Double {
+        switch settings.mode {
+        case .hfo:  return (volume - (hfoMeanVolume - hfoVolumeAmplitude)) * 1000
+        case .hfnc: return (volume - compliance * hfncPressure()) * 1000
+        default:    return (volume - compliance * settings.peep) * 1000
+        }
+    }
+
+    /// 無呼吸発作。早産児の呼吸中枢は未熟で、ときどき吸気を出すのを忘れる。seconds 秒のあいだ吸気努力が止まる。
+    /// Edi は平らになり、NAVA はバックアップ換気に切り替わる。HFNC は何もしてくれない。
+    public func centralApnea(seconds: Double) {
+        apneaUntil = clock + seconds
+        effortActive = false
+    }
+
+    /// モードが変わった瞬間の後始末。HFO に入るときは今の肺の容量から振動を始め、
+    /// 出るときは呼気から次の呼吸を始める。
+    private func modeChanged(from: VentilationMode, to: VentilationMode) {
+        if to == .hfo {
+            hfoMeanVolume = volume
+            hfoPhase = 0
+            hold = nil
+            pendingHold = nil
+        }
+        if from == .hfo || to == .hfo || from == .hfnc || to == .hfnc {
+            phase = .expiration
+            phaseTime = 0
+            sinceMandatory = 0
+            sinceBreath = 0
+            hfncInspiring = false
+            measured.plateauPressure = nil
+            measured.drivingPressure = nil
+            measured.staticCompliance = nil
+            measured.airwayResistance = nil
+            measured.autoPEEP = 0
+        }
+        navaBackup = false
+        sinceNeural = 0
+        if !to.isNoninvasive { measured.leak = 0 }
+    }
+
+    /* HFO（高頻度振動換気）。MAP のまわりで振幅 ΔP・周波数 f の圧をかけ続ける。肺は R と C の 1 区画なので、
+     * 振動への応えは解析的に書ける：肺に届く振幅は 1/√(1+(ωτ)²) に減り、位相が遅れる。
+     * 振動の部分は解析解、振動を除いた平均の容量だけを積分する（刻み幅によらない）。
+     * 周波数を上げると VThf がほぼ 1/f で減るので、かえって CO₂ が溜まる。 */
+    private func stepHFO(dt: Double) {
+        let w = 2 * Double.pi * settings.hfoFrequency
+        let tauHf = patient.resistanceInsp * Self.hfoResistanceFactor * compliance
+        let gain = 1 / sqrt(1 + w * w * tauHf * tauHf)
+        let lag = atan(w * tauHf)
+        hfoVolumeAmplitude = compliance * (settings.hfoAmplitude / 2) * gain
+        let equilibrium = compliance * (settings.hfoMeanPressure + musclePressure)
+        hfoMeanVolume = equilibrium + (hfoMeanVolume - equilibrium)
+            * exp(-dt / (patient.resistanceInsp * compliance))
+        hfoPhase = (hfoPhase + settings.hfoFrequency * dt).truncatingRemainder(dividingBy: 1)
+        let theta = 2 * Double.pi * hfoPhase
+        let old = volume
+        volume = hfoMeanVolume + hfoVolumeAmplitude * sin(theta - lag)
+        flow = (volume - old) / dt
+        airwayPressure = settings.hfoMeanPressure + (settings.hfoAmplitude / 2) * sin(theta)
+        measured.hfoTidalVolume = 2 * hfoVolumeAmplitude * 1000
+        measured.dco2 = settings.hfoFrequency * measured.hfoTidalVolume * measured.hfoTidalVolume
+        measured.peakPressure = settings.hfoMeanPressure + settings.hfoAmplitude / 2
+        /* 肺胞の圧は MAP のまわりで小さく揺れるだけ。いちばん低いときの圧が、肺胞を開いておく圧になる。 */
+        measured.totalPEEP = max(0, (hfoMeanVolume - hfoVolumeAmplitude) / compliance)
+        measured.plateauPressure = nil
+        measured.drivingPressure = nil
+        measured.staticCompliance = nil
+        measured.airwayResistance = nil
+        measured.autoPEEP = 0
+        measured.tidalVolumeExp = 0
+        measured.minuteVolume = 0
+        measured.respiratoryRateTotal = 0
+        measured.respiratoryRateSpontaneous = 0
+        measured.respiratoryRateTriggered = 0
+        measured.rsbi = nil
+        measured.rsbiPerKg = nil
+        measured.ieRatio = "1:2"
+        phase = .expiration
+    }
+
+    /* HFNC（高流量鼻カニュラ）。機械は呼吸を送らない。流れが鼻の中に少しの圧を作り、鼻と喉の死腔を洗い流す。
+     * 呼吸の数と深さは、呼吸中枢の吸気の始まりと終わりで数える。 */
+    private func stepHFNC(dt: Double) {
+        let p = hfncPressure()
+        airwayPressure = p
+        let r = (musclePressure > 0 ? patient.resistanceInsp : patient.resistanceExp) * Self.naturalResistance
+        let equilibrium = compliance * (p + musclePressure)
+        let newVolume = equilibrium + (volume - equilibrium) * exp(-dt / (r * compliance))
+        flow = (newVolume - volume) / dt
+        volume = newVolume
+        measured.totalPEEP = p
+        measured.peakPressure = p
+        measured.leak = 0
+        if flow > 0, flow > hfncPeakFlow { hfncPeakFlow = flow }
+        if effortActive, musclePressure > 0, !hfncInspiring {
+            hfncInspiring = true
+            hfncStartVolume = volume
+            hfncMaxVolume = volume
+            previousInspStart = clock
+            inspirationStart = clock
+            sinceBreath = 0
+            lastBreathWasSpontaneous = true
+            lastBreathTrigger = .patient
+            hfncPeakFlow = 0
+        }
+        if hfncInspiring {
+            hfncMaxVolume = max(hfncMaxVolume, volume)
+            if !effortActive {
+                hfncInspiring = false
+                let tidal = max(0, hfncMaxVolume - hfncStartVolume) * 1000
+                measured.peakInspiratoryFlow = hfncPeakFlow * 60
+                lastInspiratoryTime = inspirationStart.map { clock - $0 } ?? lastInspiratoryTime
+                measured.tidalVolumeExp = tidal
+                lastSpontaneousTidal = tidal / 1000
+                breaths.append(BreathRecord(time: clock, volume: tidal, spontaneous: true, trigger: .patient))
+                if breaths.count > 200 { breaths.removeFirst() }
+                recomputeRates()
+            }
+        }
+        phase = .expiration
     }
 
     // MARK: - 手技
@@ -254,7 +449,22 @@ public final class VentilatorEngine {
         sinceMandatory += dt
         sinceBreath += dt
 
+        if settings.mode != currentMode {
+            modeChanged(from: currentMode, to: settings.mode)
+            currentMode = settings.mode
+        }
+        sinceNeural += dt
+
         updateMuscleEffort(dt: dt)
+        /* Edi：Pmus を神経と筋の効率で割ったもの。吸っていないときにも横隔膜が少し働いている（ediTonic）。 */
+        edi = ediTonic + musclePressure / (patient.neuroMechanicalEfficiency ?? 0.5)
+
+        if settings.mode == .hfo || settings.mode == .hfnc {
+            if settings.mode == .hfo { stepHFO(dt: dt) } else { stepHFNC(dt: dt) }
+            accumulateMeanPressure(dt: dt)
+            updateGasExchange(dt: dt)
+            return
+        }
 
         if hold != nil {
             stepHold(dt: dt)
@@ -275,6 +485,11 @@ public final class VentilatorEngine {
             peakExpFlowThisBreath = flow
         }
 
+        accumulateMeanPressure(dt: dt)
+        updateGasExchange(dt: dt)
+    }
+
+    private func accumulateMeanPressure(dt: Double) {
         pressureSum += airwayPressure * dt
         pressureSeconds += dt
         if pressureSeconds > 8 {
@@ -282,7 +497,6 @@ public final class VentilatorEngine {
             pressureSum = 0
             pressureSeconds = 0
         }
-        updateGasExchange(dt: dt)
     }
 
     // MARK: - 自発呼吸努力
@@ -291,7 +505,8 @@ public final class VentilatorEngine {
         neuralTime += dt
         if neuralTime >= neuralCycle {
             neuralTime = 0
-            effortActive = true
+            effortActive = clock >= apneaUntil      // 無呼吸発作のあいだは吸気を出さない
+            neuralFresh = effortActive
         }
         if effortActive, neuralTime <= neuralInspTime, muscleAmplitude > 0 {
             let x = neuralTime / neuralInspTime
@@ -358,8 +573,9 @@ public final class VentilatorEngine {
         var load = muscleLoad
         // A/C では送気の大半を機械が担うので、呼吸筋は休んでいる。SIMV はその中間。
         switch settings.mode {
-        case .volumeAssistControl, .pressureAssistControl: load *= 0.4
+        case .volumeAssistControl, .pressureAssistControl, .hfo: load *= 0.4
         case .simvVolume: load *= 0.7
+        case .hfnc: load *= settings.hfncFlow >= measured.peakInspiratoryFlow ? 0.85 : 1
         default: break
         }
         let threshold = patient.fatigueLoad ?? 0.62
@@ -426,6 +642,26 @@ public final class VentilatorEngine {
             } else if airwayPressure > settings.alarms.peakPressure + 10 {
                 endInspiration()                      // 圧リミット
             }
+        } else if settings.mode.isNava, breathType != .mandatory {
+            /* NAVA：Edi に比例した圧を、Edi が出ているあいだだけ上乗せする。
+             * 吸いはじめも吸い終わりも、子どもの呼吸中枢が決める（Edi が山の 70% まで下がったら終わる）。 */
+            ediPeakThisBreath = max(ediPeakThisBreath, edi)
+            let reference = measured.ediMin ?? ediTonic
+            let support = min(settings.navaLevel * max(0, edi - reference),
+                              max(0, settings.alarms.peakPressure - 5 - settings.peep))
+            let target = settings.peep + support
+            airwayPressure = target
+            let tau = patient.resistanceInsp * resistanceScale * compliance
+            let equilibrium = compliance * (target + musclePressure)
+            let newVolume = equilibrium + (volume - equilibrium) * exp(-dt / tau)
+            flow = (newVolume - volume) / dt
+            inspiredVolume += newVolume - volume
+            volume = newVolume
+            if phaseTime > 0.04 && (edi <= 0.7 * ediPeakThisBreath || !effortActive) {
+                endInspiration()
+            } else if phaseTime > norms.inspiratoryTimeMin * 7 {
+                endInspiration()
+            }
         } else {
             // 圧規定（PC / PS / SIMV の自発）
             let setPressure = breathType == .mandatory ? settings.inspiratoryPressure : settings.pressureSupport
@@ -433,7 +669,7 @@ public final class VentilatorEngine {
             let target = settings.peep + setPressure * rise
             airwayPressure = target
 
-            let tau = patient.resistanceInsp * compliance
+            let tau = patient.resistanceInsp * resistanceScale * compliance
             let equilibrium = compliance * (target + musclePressure)
             let newVolume = equilibrium + (volume - equilibrium) * exp(-dt / tau)
             flow = (newVolume - volume) / dt
@@ -470,7 +706,7 @@ public final class VentilatorEngine {
         /* 患者が吸おうとすると、回路の圧は PEEP より少しだけ下がる。
          * 機械が応えなかった努力（トリガを鈍くしたとき）は、この小さな切れ込みとして圧波形に残る。 */
         airwayPressure = settings.peep - 0.5 * musclePressure
-        let tau = patient.resistanceExp * compliance
+        let tau = patient.resistanceExp * resistanceScale * compliance
         let equilibrium = compliance * (settings.peep + musclePressure)
         let newVolume = equilibrium + (volume - equilibrium) * exp(-dt / tau)
         flow = (newVolume - volume) / dt
@@ -478,6 +714,25 @@ public final class VentilatorEngine {
 
         let triggerThreshold = settings.triggerFlow / 60
         let mandatoryInterval = 60 / max(1, settings.respiratoryRate)
+
+        if edi < ediMinThisCycle { ediMinThisCycle = edi }
+        if settings.mode.isNava {
+            /* NAVA は流量ではなく Edi でトリガする。吐き終わりの Edi より 0.5 µV 上がったら吸気。
+             * 鼻のマスクで漏れがあっても、トリガも吸い終わりもずれない。 */
+            let base = min(ediMinThisCycle, measured.ediMin ?? ediMinThisCycle)
+            if phaseTime > norms.triggerLockout, effortActive, neuralFresh, edi - base >= 0.5 {
+                neuralFresh = false
+                navaBackup = false
+                sinceNeural = 0
+                beginBreath(.spontaneous, trigger: .patient)
+            } else if navaBackup, sinceMandatory >= mandatoryInterval {
+                beginBreath(.mandatory, trigger: .timer)
+            } else if !navaBackup, sinceNeural > Self.navaApnea, sinceBreath > Self.navaApnea {
+                navaBackup = true
+                beginBreath(.mandatory, trigger: .backup)
+            }
+            return
+        }
 
         if phaseTime > norms.triggerLockout, flow > triggerThreshold {
             // 吸気努力が auto-PEEP を上回れば流量が正に振れてトリガがかかる。
@@ -514,6 +769,11 @@ public final class VentilatorEngine {
         }
         measured.peakExpiratoryFlow = -peakExpFlowThisBreath * 60
         peakExpFlowThisBreath = 0
+        if ediMinThisCycle < 90 {
+            measured.ediMin = measured.ediMin.map { $0 + 0.3 * (ediMinThisCycle - $0) } ?? ediMinThisCycle
+        }
+        ediMinThisCycle = 99
+        ediPeakThisBreath = edi
         volumeEndExp = volume
         /* 肺胞の圧は弾性圧（V/C）から患者の吸気努力を引いたもの。努力で引き込んだ分まで
          * auto-PEEP に数えると、自発のある子で 0.2〜1 cmH₂O の見かけの値が出続ける。 */
@@ -546,7 +806,11 @@ public final class VentilatorEngine {
         volumeEndInsp = volume
         measured.peakPressure = peakPressureThisBreath
         let tidal = (volumeEndInsp - volumeEndExp) * 1000
-        measured.tidalVolumeExp = tidal
+        measured.tidalVolumeExp = tidal       // リークなしを仮定（鼻から支えるときの漏れは表示の側で引く）
+        if lastBreathWasSpontaneous, settings.mode.isNava, ediPeakThisBreath > 0 {
+            measured.ediPeak = measured.ediPeak.map { $0 + 0.3 * (ediPeakThisBreath - $0) } ?? ediPeakThisBreath
+        }
+        if settings.mode.isNoninvasive { measured.leak = patient.leak ?? 0.3 }
         if lastBreathWasSpontaneous { lastSpontaneousTidal = tidal / 1000 }
         phase = .expiration
         phaseTime = 0
@@ -612,7 +876,10 @@ public final class VentilatorEngine {
             i -= 1
         }
         if n >= 1 {
-            let rate = Double(n) * 60 / max(0.5, records[last].time - records[first].time)
+            var end = records[last].time
+            /* 機械が呼吸を送らない HFNC では、息が止まっているあいだも呼吸数を数え直す（ガス交換から呼ぶ）。 */
+            if settings.mode == .hfnc, now - end > 2 * (end - records[first].time) / Double(n) { end = now }
+            let rate = Double(n) * 60 / max(0.5, end - records[first].time)
             measured.respiratoryRateTotal = rate
             measured.respiratoryRateSpontaneous = countAll > 0 ? rate * Double(spontaneous) / Double(countAll) : 0
             measured.respiratoryRateTriggered = countAll > 0 ? rate * Double(triggered) / Double(countAll) : 0
@@ -691,8 +958,15 @@ public final class VentilatorEngine {
         let vo2 = vco2 / Physiology.respiratoryQuotient
 
         // 死腔と肺胞換気量
-        let anatomicDeadSpace = 2.0 * patient.predictedBodyWeight / 1000     // L（2 mL/kg は小児も同じ）
-        let circuitDeadSpace = patient.circuitDeadSpace / 1000
+        let mode = settings.mode, hfo = mode == .hfo
+        var anatomicDeadSpace = 2.0 * patient.predictedBodyWeight / 1000     // L（2 mL/kg は小児も同じ）
+        var circuitDeadSpace = patient.circuitDeadSpace / 1000
+        /* 鼻から支えるときはチューブも回路の死腔も無い。HFNC の流れは鼻と喉の死腔まで洗い流す。 */
+        if mode.isNoninvasive { circuitDeadSpace = 0 }
+        if mode == .hfnc {
+            anatomicDeadSpace *= 1 - 0.4 * Physiology.smoothstep(0.5, 3,
+                settings.hfncFlow / patient.predictedBodyWeight)
+        }
         let tidalL = max(0.0002, measured.tidalVolumeExp / 1000)
         let deadSpace = anatomicDeadSpace + circuitDeadSpace
             + patient.alveolarDeadSpaceFraction * tidalL
@@ -706,14 +980,23 @@ public final class VentilatorEngine {
             && sinceBreath > max(4, 2.5 * 60 / measured.respiratoryRateTotal) {
             alveolarVentilation = 0.04 * tidalL
         }
+        /* HFO は呼吸の区切りが無い（呼吸回数 0）ので、上の無呼吸の扱いは当たらない。
+         * CO₂ 排出は f × VThf² / 死腔に比例する。回路の死腔はバイアス流で洗われる。 */
+        if hfo {
+            let vth = measured.hfoTidalVolume / 1000
+            alveolarVentilation = max(1e-6, Self.hfoK * 60 * settings.hfoFrequency * vth * vth
+                / max(1e-5, anatomicDeadSpace))
+        }
+        /* HFNC は機械が呼吸を送らないので、表示の呼吸数も息が止まっているあいだに数え直す。 */
+        if mode == .hfnc { recomputeRates() }
 
-        let plateau = measured.plateauPressure ?? (volume / compliance)
+        let plateau = hfo ? hfoMeanVolume / compliance : (measured.plateauPressure ?? (volume / compliance))
         if plateau > norms.plateauMax - 2 {     // 過膨張は死腔を増やす
             alveolarVentilation *= Physiology.clamp(1 - (plateau - 28) * 0.02, 0.6, 1)
         }
 
         /* 呼吸が測れるまで（開始直後の数秒）は換気量が 0 に見えるので、ガスを動かさない。 */
-        let ventilationMeasured = measured.respiratoryRateTotal > 0 || clock > 20
+        let ventilationMeasured = hfo || measured.respiratoryRateTotal > 0 || clock > 20
 
         /* CO2：普段は 3 分ほどの時定数で動く。ただし換気がほとんど無いときの上がり方は
          * 体の CO2 の貯え（速く平衡する分 ≈ 0.33 mL/kg/mmHg）で頭打ちになり、
@@ -738,6 +1021,10 @@ public final class VentilatorEngine {
         var currentShunt = patient.shuntMinimum
             + (patient.shuntAtLowPEEP - patient.shuntMinimum) * recruitable
         if plateau > norms.plateauMax { currentShunt += (plateau - norms.plateauMax) * 0.006 }
+        /* HFO は MAP がそのまま肺胞を押し広げ続けるので、肺が開ききったあとの MAP は
+         * 肺を膨らませすぎ、血流を押しのけてかえって酸素化を落とす。 */
+        let openedAt = patient.recruitmentP50 + 2 * patient.recruitmentK
+        if hfo { currentShunt += max(0, totalPEEP - openedAt) * 0.012 }
         if patient.prone { currentShunt *= 0.75 }
         if suctionShunt > 0.001 {           // 吸引の陰圧で潰れた肺胞は数分かけて開き直す
             currentShunt += suctionShunt
@@ -748,6 +1035,8 @@ public final class VentilatorEngine {
         // 平均気道内圧が高いほど静脈還流が落ちる
         var targetCO = patient.cardiacOutput
             * Physiology.clamp(1 - 0.014 * max(0, measured.meanAirwayPressure - 5), 0.60, 1)
+        /* HFO で肺が開ききったあとも MAP を保つと、膨らんだ肺が心臓を押して戻りがさらに減る。 */
+        if hfo { targetCO *= Physiology.clamp(1 - 0.06 * max(0, totalPEEP - openedAt), 0.7, 1) }
         if patient.volumeDepleted { targetCO *= 0.85 }
         /* 子どもは一回拍出量をあまり増やせないので、徐脈になると心拍出量はほぼ心拍に比例して落ちる。
          * 低酸素の徐脈から心停止に向かう流れはここから出る。 */
@@ -762,7 +1051,7 @@ public final class VentilatorEngine {
          * 肺に残っているガス（FRC）と、血液のヘモグロビンが手放せる分。
          * 換気が止まると FRC の O2 は 1 分もたずに使い切られ、CO2 より先に SpO2 が落ちる。
          * 釣り合った状態では肺胞気式 PAO2 = PIO2 − PaCO2 / R と同じ値になる。 */
-        let inspiredO2 = settings.fio2 * (Physiology.barometric - Physiology.waterVapor)
+        let inspiredO2 = effectiveFiO2 * (Physiology.barometric - Physiology.waterVapor)
         if ventilationMeasured {
             let steadyStateO2 = inspiredO2 - 0.863 * vo2 / alveolarVentilation
             let o2Tau = 60 * 0.863 * oxygenCapacity() / alveolarVentilation
@@ -796,6 +1085,13 @@ public final class VentilatorEngine {
             etco2 = Physiology.approach(etco2, toward: alveolarEtCO2 * reach * perfusion,
                                         dt: d, tau: 8)
         }
+        /* 経皮 CO₂：皮膚を温めて測る。PaCO₂ より少し高めに、数分遅れてついてくる。 */
+        tcpco2 = Physiology.approach(tcpco2, toward: paco2 + 3, dt: d, tau: 90)
+        /* 吐き終わりの横隔膜の緊張。肺がしぼみかけていると（支える圧が足りないと）、
+         * 横隔膜が吐ききらないようにブレーキをかけ、Edi min が上がる。 */
+        ediTonic = Physiology.approach(ediTonic,
+            toward: Physiology.clamp(1.2 + 0.45 * max(0, patient.recruitmentP50 - totalPEEP), 1, 8),
+            dt: d, tau: 20)
 
         // 循環
         let hrScale = norms.heartRate.upperBound / 100
@@ -850,16 +1146,29 @@ public final class VentilatorEngine {
     private func refreshAlarms() {
         var list: [Alarm] = []
         let limits = settings.alarms
-        if measured.peakPressure > limits.peakPressure { list.append(.init(message: "気道内圧上限", severity: 2)) }
-        if measured.tidalVolumeExp < limits.tidalVolumeLow, clock > 20 {
+        /* HFO は一回換気量・呼吸数のアラームが意味を持たない。鼻から支えるときは漏れるので量では見ない。
+         * HFNC は呼吸器ではないので、鳴るのはベッドサイドモニター（SpO₂・心拍・血圧・無呼吸）だけ。 */
+        let mode = settings.mode
+        let conventional = mode != .hfo && !mode.isNoninvasive
+        if mode != .hfo, mode != .hfnc, measured.peakPressure > limits.peakPressure {
+            list.append(.init(message: "気道内圧上限", severity: 2))
+        }
+        if conventional, measured.tidalVolumeExp < limits.tidalVolumeLow, clock > 20 {
             list.append(.init(message: "一回換気量 低下", severity: 2))
         }
-        if measured.tidalVolumeExp > limits.tidalVolumeHigh { list.append(.init(message: "一回換気量 過大", severity: 1)) }
-        if measured.minuteVolume < limits.minuteVolumeLow, clock > 30 {
+        if conventional, measured.tidalVolumeExp > limits.tidalVolumeHigh {
+            list.append(.init(message: "一回換気量 過大", severity: 1))
+        }
+        if conventional, measured.minuteVolume < limits.minuteVolumeLow, clock > 30 {
             list.append(.init(message: "分時換気量 低下", severity: 2))
         }
-        if measured.minuteVolume > limits.minuteVolumeHigh { list.append(.init(message: "分時換気量 過大", severity: 1)) }
-        if measured.respiratoryRateTotal > limits.respiratoryRateHigh { list.append(.init(message: "頻呼吸", severity: 1)) }
+        if conventional, measured.minuteVolume > limits.minuteVolumeHigh {
+            list.append(.init(message: "分時換気量 過大", severity: 1))
+        }
+        if mode != .hfo, measured.respiratoryRateTotal > limits.respiratoryRateHigh {
+            list.append(.init(message: "頻呼吸", severity: 1))
+        }
+        if mode == .hfnc, sinceBreath > norms.apneaSeconds { list.append(.init(message: "無呼吸", severity: 2)) }
         if spo2 < norms.spo2Target.lowerBound { list.append(.init(message: "SpO₂ 低下", severity: 2)) }
         if measured.autoPEEP > 5 { list.append(.init(message: "auto-PEEP", severity: 1)) }
         if meanArterialPressure < norms.meanArterialPressureMin { list.append(.init(message: "血圧低下", severity: 2)) }

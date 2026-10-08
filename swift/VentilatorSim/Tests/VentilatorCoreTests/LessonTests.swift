@@ -48,10 +48,10 @@ private func context(_ engine: VentilatorEngine, memory: LessonMemory,
 @Suite("学習コースの構造")
 struct LessonStructureTests {
 
-    @Test("11 章 33 レッスンあり、ID が重複しない")
+    @Test("13 章 40 レッスンあり、ID が重複しない")
     func inventory() {
-        #expect(LessonLibrary.chapters.count == 11)
-        #expect(LessonLibrary.all.count == 33)
+        #expect(LessonLibrary.chapters.count == 13)
+        #expect(LessonLibrary.all.count == 40)
         let ids = LessonLibrary.all.map(\.id)
         #expect(Set(ids).count == ids.count)
     }
@@ -235,11 +235,12 @@ struct LessonShapeTests {
      * ここが食い違うと、光も帯の計測値も黙って出なくなるので、テストで固定しておく。 */
     static let readoutCaptions: Set<String> = [
         "PIP", "Pplat", "PEEP tot", "ΔP", "Vte", "MV", "RR tot", "I:E",
-        "Cstat", "Raw", "auto-PEEP", "f/VT", "SpO₂", "etCO₂", "HR", "ABP mean"
+        "Cstat", "Raw", "auto-PEEP", "f/VT", "SpO₂", "etCO₂", "HR", "ABP mean",
+        "Pmean", "VThf", "DCO₂", "tcPCO₂", "Edi peak", "Edi min", "Leak"
     ]
     private static let parameterIDs: Set<String> = [
         "vt", "rr", "pinsp", "ti", "flow", "peep", "fio2", "ps", "trig",
-        "esens", "rise", "pause", "sed"
+        "esens", "rise", "pause", "sed", "map", "amp", "freq", "nava", "hflow"
     ]
     private static let hardKeyIDs: Set<String> = [
         "kInsp", "kExp", "kO2", "kSuc", "kFrz", "kSpd", "kPt", "kAbg", "kWean", "kLearn"

@@ -16,6 +16,7 @@ public enum LessonEvent: String, Sendable, Equatable {
     /// 患者情報を開いた。
     case openPatientInfo
     case modeVolumeAC, modePressureAC, modeSIMV, modePSV, modeCPAP
+    case modeHFO, modeNAVA, modeNIVNAVA, modeHFNC
 
     public static func mode(_ mode: VentilationMode) -> LessonEvent {
         switch mode {
@@ -24,6 +25,10 @@ public enum LessonEvent: String, Sendable, Equatable {
         case .simvVolume:            return .modeSIMV
         case .pressureSupport:       return .modePSV
         case .cpap:                  return .modeCPAP
+        case .hfo:                   return .modeHFO
+        case .nava:                  return .modeNAVA
+        case .nivNava:               return .modeNIVNAVA
+        case .hfnc:                  return .modeHFNC
         }
     }
 }
@@ -305,11 +310,15 @@ public struct Lesson: Identifiable {
     public var brief: [String]
     public var points: [String]
     public var tasks: [LessonTask]
+    /// 物語の日にちが進んで体重や肺が変わった子は、症例の値をここで差し替える（web の lesson.patient）。
+    public var patientChange: ((inout Patient) -> Void)?
 
     public init(id: String, title: String, minutes: Int, scenarioID: String,
+                patient patientChange: ((inout Patient) -> Void)? = nil,
                 prepare: @escaping (inout VentilatorSettings) -> Void,
                 sedation: Double? = nil,
                 brief: [String], points: [String], tasks: [LessonTask]) {
+        self.patientChange = patientChange
         self.id = id
         self.title = title
         self.minutes = minutes
@@ -322,7 +331,8 @@ public struct Lesson: Identifiable {
     }
 
     public var scenario: Scenario {
-        ScenarioLibrary.all.first { $0.id == scenarioID } ?? ScenarioLibrary.postoperative
+        (ScenarioLibrary.all.first { $0.id == scenarioID } ?? ScenarioLibrary.postoperative)
+            .adjusted(patientChange)
     }
 
     /// 物語のいまの場面。index までで最後のト書き（患者の様子を含む）。患者情報の「いまの状況」に出す。
@@ -479,10 +489,11 @@ public enum LessonLibrary {
      * 計測値タイルは見出し（Readout.caption）そのままの名前で拾う。英字の名前は前後が英数字でない
      * ときだけ（「SIMV」の中の MV や「Vt」を Vte と取り違えない）。 */
     public static let monitorVals: [String] = ["PIP", "Pplat", "PEEP tot", "ΔP", "Vte", "MV", "RR tot", "I:E", "Cstat", "Raw",
-        "auto-PEEP", "f/VT", "SpO₂", "etCO₂", "HR", "ABP mean"]
+        "auto-PEEP", "f/VT", "SpO₂", "etCO₂", "HR", "ABP mean",
+        "Pmean", "VThf", "DCO₂", "tcPCO₂", "Edi peak", "Edi min", "Leak"]
     /// 日本語で呼んだときの言い方。（言い方, タイルの名前）
     public static let monitorAlias: [(String, String)] = [("SpO2", "SpO₂"), ("心拍", "HR"), ("血圧", "ABP mean"), ("総 PEEP", "PEEP tot"),
-        ("分時換気量", "MV")]
+        ("分時換気量", "MV"), ("経皮 CO₂", "tcPCO₂"), ("リーク", "Leak")]
     /// 波形の段。（言い方, 段）。どれにも当たらず「波形」とだけ言ったら波形の画面全体。
     public static let monitorLanes: [(String, String)] = [("圧波形", "paw"), ("圧の波形", "paw"), ("気道内圧", "paw"),
         ("流量", "flow"), ("換気量波形", "vol"), ("換気量の波形", "vol")]
@@ -562,7 +573,13 @@ public enum LessonLibrary {
                       lessons: [lesson10_1, lesson10_2, lesson10_3]),
         LessonChapter(id: "ch11", title: "第11章　力を取り戻す", tag: "神経筋",
                       subtitle: "呼吸の筋肉が弱い子を、休ませながら抜管までつなぐ。",
-                      lessons: [lesson11_1, lesson11_2])
+                      lessons: [lesson11_1, lesson11_2]),
+        LessonChapter(id: "ch12", title: "第12章　ふるえる息", tag: "HFO",
+                      subtitle: "在胎 25 週の肺を、高頻度振動換気（HFO）で開く。",
+                      lessons: [lesson12_1, lesson12_2, lesson12_3]),
+        LessonChapter(id: "ch13", title: "第13章　自分のリズム", tag: "NAVA・HFNC",
+                      subtitle: "横隔膜の声を聞く NAVA から、鼻の NIV-NAVA、HFNC へ。",
+                      lessons: [lesson13_1, lesson13_2, lesson13_3, lesson13_4])
     ]
 
     public static var all: [Lesson] { chapters.flatMap(\.lessons) }
