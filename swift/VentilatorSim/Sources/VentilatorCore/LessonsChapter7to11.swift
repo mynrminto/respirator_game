@@ -201,8 +201,8 @@ extension LessonLibrary {
                     }
             }
                 .spotting(["hard:kO2", "hard:kSuc"]).watching(["PIP", "SpO₂"]),
-            .step("SpO₂ と心拍を 30 秒見てください。",
-                  hold: 30,
+            .step("SpO₂ と心拍を 1 分見てください。",
+                  hold: 60,
                   why: "吸引のあいだに SpO₂ は一度下がり、そこから戻っていきます。先に 100% で貯金したぶん、浅く済みます。乳児は吸引で徐脈にもなるので、心拍も一緒に見ます。",
                   check: { _ in true })
                 .spotting(["val:SpO₂"]).watching(["SpO₂", "HR", "PIP"]),

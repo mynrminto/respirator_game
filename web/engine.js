@@ -13,6 +13,10 @@
   var BLOOD_PER_KG = 75;         // mL/kg  循環血液量
   var CO2_STORE_PER_KG = 0.33;   // mL/kg/mmHg  速く平衡する CO2 の貯え
   var PA_O2_FLOOR = 12;          // mmHg
+  /* 気管吸引（開放式）。吸っているあいだに潰れる肺胞の割合、開き直す時定数、吸い出される肺のガスの割合。 */
+  var SUCTION_SHUNT = 0.08;
+  var SUCTION_REOPEN = 60;       // s
+  var SUCTION_GAS_LOSS = 0.4;
 
   /* ---------- NICU のモード（HFO・NAVA・NIV-NAVA・HFNC）で使う定数 ----------
    * HFO_R_FACTOR … 10 Hz を超える振動では、細い気管チューブの慣性と乱流で抵抗が見かけ上 2〜3 倍になる。
@@ -265,6 +269,7 @@
     this.events = [];
     this.extubated = false;
     this.suctionShunt = 0;
+    this.suctionUntil = -1;         // この時刻まで気管吸引中（換気が止まる）
     this.sbt = null;
     this.timeInTarget = { total: 0, ok: 0 };
     this.harm = { highPlat: 0, highVt: 0, autoPeep: 0, hypoxia: 0, hypotension: 0, highFio2: 0 };
@@ -868,6 +873,9 @@
     if (this.m.rrTotal > 0.5 && this.sinceBreath > Math.max(4, 2.5 * 60 / this.m.rrTotal)) {
       va = 0.04 * vtL;
     }
+    /* 気管吸引のあいだは回路が外れてカテーテルが入っているので、換気は無い。 */
+    var suctioning = this.clock < this.suctionUntil;
+    if (suctioning) va = 0.04 * vtL;
     /* HFO は呼吸の区切りが無い（呼吸回数 0）ので、上の無呼吸の扱いは当たらない。
      * CO₂ 排出は f × VThf² / 死腔に比例する（HFO_K の説明を参照）。回路の死腔はバイアス流で洗われる。 */
     if (hfo) {
@@ -903,10 +911,10 @@
      * 肺を膨らませすぎ、血流を押しのけてかえって酸素化を落とす（胸部X線で横隔膜が下がる）。 */
     if (hfo) shunt += Math.max(0, peepTot - ((p.recruitP || 12) + 2 * (p.recruitK || 3.0))) * 0.012;
     if (p.prone) shunt *= 0.75;
-    if (this.suctionShunt > 0.001) {              // 吸引の陰圧で潰れた肺胞は数分かけて開き直す
-      shunt += this.suctionShunt;
-      this.suctionShunt *= Math.exp(-d / 50);
-    }
+    /* 吸引の陰圧で肺胞は吸っているあいだに少しずつ潰れ、終わってから 1〜2 分かけて開き直す。 */
+    if (suctioning) this.suctionShunt = approach(this.suctionShunt, SUCTION_SHUNT, d, 4);
+    else this.suctionShunt *= Math.exp(-d / SUCTION_REOPEN);
+    if (this.suctionShunt > 0.001) shunt += this.suctionShunt;
     this.shunt = clamp(shunt, 0.02, 0.65);
 
     // 循環：平均気道内圧で静脈還流が落ちる
@@ -994,6 +1002,7 @@
     var cSpec = this.C * 1000 / p.pbw;
     var frcKg = this.nm.frcPerKg * clamp(cSpec / C_SPEC_NORMAL, 0.5, 1);
     var lungL = frcKg * p.pbw / 1000 * (1 - this.shunt) + Math.max(0, this.vEE);
+    if (this.clock < this.suctionUntil) lungL *= 1 - SUCTION_GAS_LOSS;   // 陰圧で肺のガスも吸い出される
     var gas = lungL * 1000 / (PB - PH2O);
     var pa = this.pAO2, h = 1;
     var slope = (o2Content(pa + h, p.hb) - o2Content(Math.max(0, pa - h), p.hb)) / (2 * h);  // mL/dL/mmHg
@@ -1049,14 +1058,13 @@
   };
 
   /* ---------- 気管吸引 ----------
-   * 吸引のあいだは換気が止まり、陰圧で肺胞が潰れる。SpO₂ はその場で数 % 落ち、
-   * 潰れた肺胞が開き直すまでの数分はシャントが増える。痰が取れたぶん抵抗は下がる。 */
+   * 回路を外してカテーテルを入れ、陰圧をかけるあいだ（新生児・乳児 8 秒、それ以上 10 秒）は
+   * 換気が止まり、肺のガスも吸い出され、肺胞が少しずつ潰れる。SpO₂ は押した瞬間には変わらず、
+   * 肺から指先のプローブまでの遅れのあと、吸い終わってから 20〜40 秒後に底をつけ、
+   * 潰れた肺胞が開き直す 1〜2 分で戻る。痰が取れたぶん抵抗は下がる。 */
   Engine.prototype.suction = function () {
-    this.suctionShunt = 0.15;
-    var drop = this.s.fio2 >= 0.99 ? 4 : 7;       // 先に 100% で貯金していれば落ち込みは小さい
-    this.spo2 = Math.max(40, this.spo2 - drop);
-    this.pao2 = Math.min(this.pao2, po2FromSat(this.spo2 / 100));
-    this.pAO2 = Math.min(this.pAO2, this.pao2);       // 吸い出されたぶん肺胞の O2 も減っている
+    var young = this.nm.label === '新生児' || this.nm.label === '乳児';
+    this.suctionUntil = this.clock + (young ? 8 : 10);
     this.p.Rinsp = Math.max(4, this.p.Rinsp * 0.88);
     this.p.Rexp = Math.max(5, this.p.Rexp * 0.90);
     this._raise('気管吸引を実施');

@@ -942,9 +942,10 @@
 
   function suction() {
     var e = S.eng;
+    if (S.speed > 1) setSpeed(1);                  // 吸引中の数秒と SpO₂ の遅れた落ち込みは等速で見せる
     e.suction();
     lessonEvent('suction');
-    S.banner = { t: e.clock, msg: '吸引後：一時的に酸素化が低下します' };
+    S.banner = { t: e.clock, msg: '吸引中は換気が止まります。SpO₂ は少し遅れて下がります' };
     flash($('kSuc'));
   }
 

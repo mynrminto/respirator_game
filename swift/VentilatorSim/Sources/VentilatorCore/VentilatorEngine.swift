@@ -101,8 +101,10 @@ public final class VentilatorEngine {
     /// 1 呼吸の最大吸気流量・最大呼気流量（L/s、呼気は負）。
     private var peakInspFlowThisBreath: Double = 0
     private var peakExpFlowThisBreath: Double = 0
-    /// 吸引の陰圧で潰れた肺胞の分のシャント。数分かけて開き直す。
+    /// 吸引の陰圧で潰れた肺胞の分のシャント。吸っているあいだに増え、1〜2 分かけて開き直す。
     private var suctionShunt: Double = 0
+    /// この時刻まで気管吸引中（換気が止まる）。
+    private var suctionUntil: Double = -1
     private var hold: (kind: HoldKind, elapsed: Double)?
     private var pendingHold: HoldKind?
 
@@ -213,6 +215,7 @@ public final class VentilatorEngine {
         peakInspFlowThisBreath = 0
         peakExpFlowThisBreath = 0
         suctionShunt = 0
+        suctionUntil = -1
         measured = MeasuredValues()
         measured.totalPEEP = settings.peep
         measured.meanAirwayPressure = settings.peep
@@ -396,17 +399,19 @@ public final class VentilatorEngine {
         patient.resistanceExp = max(1, expiratory)
     }
 
-    /// 気管吸引。吸引のあいだは換気が止まり、陰圧で肺胞が潰れる。SpO₂ はその場で数 % 落ち、
-    /// 潰れた肺胞が開き直すまでの数分はシャントが増える。痰が取れたぶん抵抗は下がる。
+    /// 気管吸引（開放式）。回路を外してカテーテルを入れ、陰圧をかけるあいだ（新生児・乳児 8 秒、
+    /// それ以上 10 秒）は換気が止まり、肺のガスも吸い出され、肺胞が少しずつ潰れる。SpO₂ は押した瞬間には
+    /// 変わらず、肺から指先のプローブまでの遅れのあと、吸い終わってから 20〜40 秒後に底をつけ、
+    /// 潰れた肺胞が開き直す 1〜2 分で戻る。痰が取れたぶん抵抗は下がる。
     public func suction() {
-        suctionShunt = 0.15
-        let drop = settings.fio2 >= 0.99 ? 4.0 : 7.0      // 先に 100% で貯金していれば落ち込みは小さい
-        spo2 = max(40, spo2 - drop)
-        pao2 = min(pao2, Physiology.po2(fromSaturation: spo2 / 100))
-        alveolarPO2 = min(alveolarPO2, pao2)     // 吸い出されたぶん肺胞の O2 も減っている
+        let young = norms.label == "新生児" || norms.label == "乳児"
+        suctionUntil = clock + (young ? 8 : 10)
         patient.resistanceInsp = max(4, patient.resistanceInsp * 0.88)
         patient.resistanceExp = max(5, patient.resistanceExp * 0.90)
     }
+
+    /// 気管吸引の途中か（換気が止まっている数秒）。
+    public var isSuctioning: Bool { clock < suctionUntil }
 
     /// 呼吸筋の努力の大きさ（cmH2O）。離脱の条件「自発呼吸がある」の判定に使う。
     public var inspiratoryEffortAmplitude: Double { muscleAmplitude }
@@ -928,6 +933,10 @@ public final class VentilatorEngine {
     static let bloodVolumePerKg = 75.0   // mL/kg  循環血液量
     static let co2StorePerKg = 0.33      // mL/kg/mmHg  速く平衡する CO2 の貯え
     static let alveolarO2Floor = 12.0    // mmHg
+    /* 気管吸引（開放式）。吸っているあいだに潰れる肺胞の割合、開き直す時定数、吸い出される肺のガスの割合。 */
+    static let suctionShuntTarget = 0.08
+    static let suctionReopen = 60.0      // s
+    static let suctionGasLoss = 0.4
 
     /* 肺胞 PO2 が 1 mmHg 下がるあいだに体が使える O2 の量（mL/mmHg）。
      * 肺のガス（FRC + PEEP で広げた分。潰れた肺胞＝シャントの分は O2 を持たない）と、
@@ -939,7 +948,8 @@ public final class VentilatorEngine {
         let specificCompliance = compliance * 1000 / kg
         let frcKg = norms.frcPerKg
             * Physiology.clamp(specificCompliance / Self.normalSpecificCompliance, 0.5, 1)
-        let lungL = frcKg * kg / 1000 * (1 - shunt) + max(0, volumeEndExp)
+        var lungL = frcKg * kg / 1000 * (1 - shunt) + max(0, volumeEndExp)
+        if clock < suctionUntil { lungL *= 1 - Self.suctionGasLoss }   // 陰圧で肺のガスも吸い出される
         let gas = lungL * 1000 / (Physiology.barometric - Physiology.waterVapor)
         let hb = patient.hemoglobin
         let slope = (Physiology.oxygenContent(po2: alveolarPO2 + 1, hemoglobin: hb)
@@ -980,6 +990,9 @@ public final class VentilatorEngine {
             && sinceBreath > max(4, 2.5 * 60 / measured.respiratoryRateTotal) {
             alveolarVentilation = 0.04 * tidalL
         }
+        /* 気管吸引のあいだは回路が外れてカテーテルが入っているので、換気は無い。 */
+        let suctioning = clock < suctionUntil
+        if suctioning { alveolarVentilation = 0.04 * tidalL }
         /* HFO は呼吸の区切りが無い（呼吸回数 0）ので、上の無呼吸の扱いは当たらない。
          * CO₂ 排出は f × VThf² / 死腔に比例する。回路の死腔はバイアス流で洗われる。 */
         if hfo {
@@ -1026,10 +1039,13 @@ public final class VentilatorEngine {
         let openedAt = patient.recruitmentP50 + 2 * patient.recruitmentK
         if hfo { currentShunt += max(0, totalPEEP - openedAt) * 0.012 }
         if patient.prone { currentShunt *= 0.75 }
-        if suctionShunt > 0.001 {           // 吸引の陰圧で潰れた肺胞は数分かけて開き直す
-            currentShunt += suctionShunt
-            suctionShunt *= exp(-d / 50)
+        /* 吸引の陰圧で肺胞は吸っているあいだに少しずつ潰れ、終わってから 1〜2 分かけて開き直す。 */
+        if suctioning {
+            suctionShunt = Physiology.approach(suctionShunt, toward: Self.suctionShuntTarget, dt: d, tau: 4)
+        } else {
+            suctionShunt *= exp(-d / Self.suctionReopen)
         }
+        if suctionShunt > 0.001 { currentShunt += suctionShunt }
         shunt = Physiology.clamp(currentShunt, 0.02, 0.65)
 
         // 平均気道内圧が高いほど静脈還流が落ちる

@@ -1427,5 +1427,23 @@ console.log('\n29. NICU の章（第12・13章 HFO・NAVA・NIV-NAVA・HFNC）�
     `${lo.hfncPressure().toFixed(1)} → ${hi.hfncPressure().toFixed(1)} cmH₂O`);
 }
 
+console.log('\n30. 気管吸引：押した瞬間には下がらず、遅れて底をつけ、1〜2 分で戻る');
+for (const id of ['bronchiolitis', 'postop']) {
+  const e = mk(id);
+  run(e, 180);
+  e.s.fio2 = 1.0; run(e, 60);                         // 先に 100% で貯金
+  const base = e.spo2;
+  e.suction();
+  run(e, 1);
+  const at1 = e.spo2;
+  let min = e.spo2, tmin = 0;
+  for (let t = 1; t < 120; t++) { run(e, 1); if (e.spo2 < min) { min = e.spo2; tmin = t + 1; } }
+  const at120 = e.spo2;
+  ok(id + '：押した直後はほとんど変わらない', base - at1 < 1, `${base.toFixed(1)} → ${at1.toFixed(1)}`);
+  ok(id + '：底は吸い終わってから（押して 15〜40 秒）', tmin >= 15 && tmin <= 40, `${tmin} 秒`);
+  ok(id + '：落ち込みは 10 ポイント以内', base - min <= 10, `底 ${min.toFixed(1)}`);
+  ok(id + '：2 分でほぼ戻る', base - at120 < 1.5, `${at120.toFixed(1)}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

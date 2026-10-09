@@ -551,8 +551,10 @@ final class SimulationController {
         send(kind == .inspiratory ? .inspiratoryHold : .expiratoryHold)
     }
 
-    /// 気管吸引。痰が取れて抵抗は下がるが、一時的に酸素化が落ちる。
+    /// 気管吸引。痰が取れて抵抗は下がるが、吸っているあいだ換気が止まり、少し遅れて酸素化が落ちる。
     func performSuction() {
+        // 吸引中の数秒と SpO₂ の遅れた落ち込みは等速で見せる
+        if speed == .fast || speed == .veryFast { speed = .realtime }
         engine.suction()
         append("気管吸引を実施")
         send(.suction)
