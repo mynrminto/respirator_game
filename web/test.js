@@ -1544,5 +1544,53 @@ console.log('\n33. 早送りは × 3 / × 5 / × 10 まで、長い待ちは「�
   ok('30 分ぶんの一気送りは 1 秒未満で計算できる', ms < 1000, `${ms} ms`);
 }
 
+console.log('\n34. 自由操作：鎮静は数分かけて覚め、時間がたつと病気が治って離脱できる');
+{
+  const SCN = require('./scenarios.js');
+  const e = mk('postop'); run(e, 60);
+  const s0 = e.sedation; e.sedationTarget = 0;
+  run(e, 30); const at30 = e.sedation;
+  run(e, 150); const at3m = e.sedation;
+  run(e, 420); const at10m = e.sedation;
+  ok('鎮静を切って 30 秒ではまだ眠っている（0.6 超）', at30 > 0.6, `${s0} → ${at30.toFixed(2)}`);
+  ok('3 分で「覚醒」（0.4 以下）に入る', at3m <= 0.4, at3m.toFixed(2));
+  ok('10 分でほぼ醒めきり、自分で吸い始める', at10m < 0.05 && SCN.spontOk(e),
+    `${at10m.toFixed(3)}、トリガ ${Math.round(e.m.rrTrig || 0)} 回/分`);
+  e.sedationTarget = 0.85; run(e, 120);
+  ok('深くするのは速い（2 分で 0.8 以上）', e.sedation > 0.8, e.sedation.toFixed(2));
+
+  /* 治りきる日数ぶん進め、離脱の手前の設定で 2 時間おいてから SBT → 抜管。 */
+  const PRE = { asthma: { mode: 'VC-AC', vt: 280, rr: 12, peep: 5, fio2: 0.4, flow: 40, pause: 0.3 },
+    gbs: { mode: 'PSV', ps: 8, peep: 5, fio2: 0.3 } };
+  for (const id of ['bronchiolitis', 'ards', 'asthma', 'gbs']) {
+    const sc = scen(id), r = mk(id); run(r, 60);
+    const c0 = r.C, rin0 = r.p.Rinsp;
+    SCN.recover(r, sc, sc.recovery.days * 86400);
+    if (PRE[id]) Object.assign(r.s, PRE[id]);
+    r.sedation = 0.3; r._recomputeDrive(); run(r, 7200, 0.01);
+    r.s.mode = 'PSV'; r.s.ps = r.p.pbw < 10 ? 8 : (r.p.pbw < 25 ? 6 : 5); r.s.peep = Math.min(r.s.peep, 5);
+    r.s.fio2 = Math.min(r.s.fio2, 0.4); r.sedation = 0.15; r._recomputeDrive();
+    const nm = r.nm; let fail = null;
+    for (let t = 0; t < 1800 && !fail; t += 10) {
+      run(r, 10, 0.01);
+      if (t > 60 && (r.m.rrTotal > Math.round(nm.rr[1] * 1.5) || r.spo2 < nm.spo2[0] || r.ph < 7.30)) fail = `${t} 秒`;
+    }
+    r.s.hfncFlow = SCN.postExtubationFlow(r); r.s.mode = 'HFNC';
+    let bad = null;
+    for (let t = 0; t < 3600 && !fail && !bad; t += 30) { run(r, 30, 0.01); if (t > 30) bad = SCN.extubationTrouble(r); }
+    ok(id + `：${sc.recovery.days} 日で治り、SBT を通って抜管後 1 時間もつ`, !fail && !bad,
+      `C ${(c0 * 1000).toFixed(1)}→${(r.C * 1000).toFixed(1)} mL/cmH₂O, Rinsp ${rin0}→${r.p.Rinsp.toFixed(0)}`
+      + (fail ? `、SBT ${fail}で失敗` : '') + (bad ? `、抜管後「${bad}」` : ''));
+  }
+  const half = mk('ards'), sc = scen('ards');
+  SCN.recover(half, sc, 86400);
+  ok('ARDS は 1 日では少ししか治らない（11 日かけて回復）', half.C > sc.patient.compliance && half.C < 0.0075,
+    `C ${(half.C * 1000).toFixed(1)} mL/cmH₂O`);
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  ok('回復はレッスン外でだけ進み、レッスンの鎮静は今までどおりすぐ効く',
+    /if \(!S\.lesson\) SC\.recover\(e, S\.scen, simSec\)/.test(app)
+    && /if \(S\.lesson\) setSedation\(v \/ 100\); else S\.eng\.sedationTarget = v \/ 100;/.test(app));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

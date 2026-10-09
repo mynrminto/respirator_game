@@ -961,7 +961,7 @@ final class SimulationController {
                     troubleCount &+= 1
                     extubationTrouble = ExtubationTrouble(id: troubleCount, reason: bad)
                 }
-            } else if speed == .fast || speed == .veryFast {
+            } else if speed.rawValue > 1 {
                 speed = .realtime                       // 崩れはじめたら等速に戻して見せる
             }
         } else {

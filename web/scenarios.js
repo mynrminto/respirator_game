@@ -8,7 +8,8 @@
 
   var SCENARIOS = [
     {
-      id: 'postop', tone: 'ok',
+      id: 'postop',
+      recovery: { days: 1, to: { temp: 37.0 } }, tone: 'ok',
       ward: 'PICU',  nickname: 'ハルト君',
       title: '小児外科術後の呼吸管理',
       tag: '入門',
@@ -34,7 +35,8 @@
         flow: 18, ti: 0.7, pinsp: 12, ps: 8, rise: 0.12, trigFlow: 1.0, pause: 0 }
     },
     {
-      id: 'rds', tone: 'mid', modes: 'nicu',
+      id: 'rds',
+      recovery: { days: 3, to: { C: 0.0012, shunt0: 0.12, shuntMin: 0.05, hco3Base: 24, maxPmus: 12, driveGain: 1.3 } }, tone: 'mid', modes: 'nicu',
       ward: 'NICU',  nickname: 'あおい君',
       title: '早産児の呼吸窮迫症候群（RDS）',
       tag: '新生児',
@@ -60,7 +62,8 @@
         vt: 6, flow: 2, ps: 6, rise: 0.06, trigFlow: 0.4, pause: 0 }
     },
     {
-      id: 'micro', tone: 'bad', artAs: 'rds',
+      id: 'micro',
+      recovery: { days: 7, to: { C: 0.0005, shunt0: 0.18, shuntMin: 0.06, recruitP: 7, vdAlvFrac: 0.05, hco3Base: 24, maxPmus: 9, driveGain: 1.2 } }, tone: 'bad', artAs: 'rds',
       ward: 'NICU',  nickname: 'つむぎちゃん',
       modes: 'nicu',
       title: '超早産児の重症 RDS（HFO・NAVA）',
@@ -90,7 +93,8 @@
         hfoMap: 12, hfoAmp: 18, hfoFreq: 12, navaLevel: 1.5, hfncFlow: 6 }
     },
     {
-      id: 'bronchiolitis', tone: 'mid',
+      id: 'bronchiolitis',
+      recovery: { days: 7, to: { Rinsp: 40, Rexp: 60, shunt0: 0.15, shuntMin: 0.08, driveGain: 1.0, temp: 37.0 } }, tone: 'mid',
       ward: 'PICU',  nickname: 'そうた君',
       title: 'RSV 細気管支炎',
       tag: 'auto-PEEP',
@@ -116,7 +120,8 @@
         flow: 6, ti: 0.5, pinsp: 14, ps: 8, rise: 0.08, trigFlow: 0.6, pause: 0 }
     },
     {
-      id: 'ards', tone: 'bad',
+      id: 'ards',
+      recovery: { days: 11, to: { C: 0.0105, shunt0: 0.14, shuntMin: 0.05, driveGain: 1.1, temp: 37.0 } }, tone: 'bad',
       ward: 'PICU',  nickname: 'ミオちゃん',
       title: '小児 ARDS（インフルエンザ肺炎）',
       tag: '酸素化',
@@ -143,7 +148,8 @@
         flow: 12, ti: 0.55, pinsp: 16, ps: 10, rise: 0.10, trigFlow: 0.8, pause: 0 }
     },
     {
-      id: 'asthma', tone: 'bad',
+      id: 'asthma',
+      recovery: { days: 1, to: { Rinsp: 16, Rexp: 22, hr: 100, driveGain: 1.0 } }, tone: 'bad',
       ward: 'PICU',  nickname: 'レン君',
       title: '喘息重積発作',
       tag: '上級',
@@ -170,7 +176,8 @@
         flow: 30, ti: 0.8, pinsp: 18, ps: 10, rise: 0.15, trigFlow: 1.5, pause: 0 }
     },
     {
-      id: 'gbs', tone: 'ok',
+      id: 'gbs',
+      recovery: { days: 21, to: { maxPmus: 16, fatigueLoad: 0.45 } }, tone: 'ok',
       ward: 'PICU',  nickname: 'あかりちゃん',
       title: 'ギラン・バレー症候群',
       tag: '離脱',
@@ -216,6 +223,23 @@
       { label: '覚醒している（鎮静 浅い）', ok: eng.sedation <= 0.4, val: eng.sedation <= 0.4 ? '覚醒' : '鎮静下' },
       { label: '自発呼吸がある', ok: spontOk(eng), val: spontOk(eng) ? 'あり' : '乏しい' }
     ];
+  }
+
+  /* 自由操作で時間がたつと病気は治っていく。recovery.to は各症例の「離脱を考えられる日」の値で、
+   * レッスンの台本がその日に入れる値と同じ。days 日でほぼ（95%）そこへ近づく指数の歩みにするので、
+   * 吸引で抵抗が下がったなど、ほかの変化と重ねても壊れない。C は肺のコンプライアンス、temp は体温、
+   * ほかは患者の値（p）。レッスン中は呼ばない（台本が日ごとの値を入れる）。 */
+  function recover(eng, sc, seconds) {
+    var r = sc && sc.recovery;
+    if (!r || !(seconds > 0)) return;
+    var k = 1 - Math.exp(-3 * seconds / (r.days * 86400));
+    for (var key in r.to) {
+      if (!Object.prototype.hasOwnProperty.call(r.to, key)) continue;
+      var tg = r.to[key];
+      if (key === 'C') eng.C += (tg - eng.C) * k;
+      else if (key === 'temp') eng.temp += (tg - eng.temp) * k;
+      else if (eng.p[key] != null) eng.p[key] += (tg - eng.p[key]) * k;
+    }
   }
 
   /* 自由操作で抜管したあとの支え。高流量鼻カニュラを、子どもは 2 L/kg/分、
@@ -287,7 +311,7 @@
   }
 
   var api = { SCENARIOS: SCENARIOS, weaningReadiness: weaningReadiness, spontOk: spontOk,
-    postExtubationFlow: postExtubationFlow, extubationTrouble: extubationTrouble,
+    postExtubationFlow: postExtubationFlow, recover: recover, extubationTrouble: extubationTrouble,
     patientProfile: patientProfile, targetsFor: targetsFor, sedationLabel: sedationLabel, forLesson: forLesson };
   root.VentScenarios = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

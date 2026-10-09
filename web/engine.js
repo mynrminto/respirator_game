@@ -29,6 +29,9 @@
   var HFO_R_FACTOR = 2.5;
   var HFO_K = 0.11;
   var NATURAL_R = 0.6;
+  /* 鎮静を浅くしてから覚めるまでの時定数（秒）と、深くするときの時定数。
+   * 0.85 から「覚醒（0.4 以下）」まで約 2 分、ほぼ醒めきる（0.05）まで約 8 分。 */
+  var SED_WAKE_TAU = 180, SED_DEEPEN_TAU = 30;
   var NAVA_APNEA = 5;
 
   /* ---------- 酸素解離曲線 (Severinghaus) ---------- */
@@ -256,6 +259,9 @@
     this.vtGain = 1;                // 努力の補正係数（実測 Vt を見て動く）
     this._lastSpontVte = 0;         // L
     this.sedation = p.sedation != null ? p.sedation : 0.9;
+    /* 鎮静の目標。null なら sedation をそのまま使う（レッスン）。自由操作でダイヤルを回すと目標だけが変わり、
+     * 薬が抜けるまで数分かけて覚める（SED_WAKE_TAU）。深くするのは静注なので速い（SED_DEEPEN_TAU）。 */
+    this.sedationTarget = null;
 
     // 血液ガス・循環
     this.paco2 = p.paco2 != null ? p.paco2 : 40;
@@ -440,6 +446,11 @@
     this.phaseT += dt; this.sinceMand += dt; this.sinceBreath += dt;
 
     if (s.mode !== this._mode) { this._modeChanged(this._mode, s.mode); this._mode = s.mode; }
+    if (this.sedationTarget != null && this.sedation !== this.sedationTarget) {
+      var sx = approach(this.sedation, this.sedationTarget, dt,
+        this.sedationTarget < this.sedation ? SED_WAKE_TAU : SED_DEEPEN_TAU);
+      this.sedation = Math.abs(sx - this.sedationTarget) < 0.002 ? this.sedationTarget : sx;
+    }
     this.sinceNeural += dt;
 
     /* 神経性の吸気努力。無呼吸発作のあいだ（apneaUntil まで）は呼吸中枢が吸気を出さない。 */
@@ -1146,7 +1157,8 @@
     o2Content: o2Content,
     clamp: clamp,
     isNava: isNava,
-    isNoninvasive: isNoninvasive
+    isNoninvasive: isNoninvasive,
+    SED_WAKE_TAU: SED_WAKE_TAU, SED_DEEPEN_TAU: SED_DEEPEN_TAU
   };
   root.VentEngine = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

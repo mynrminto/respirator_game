@@ -191,8 +191,9 @@
     nava:  { k: 'NAVA',   u: 'cmH₂O/µV', min: 0, max: 4,  step: 0.1, dec: 1, get: function (s) { return s.navaLevel; }, set: function (s, v) { s.navaLevel = v; } },
     hflow: { k: 'Flow',   u: 'L/min', min: 1,   max: 8,   step: 0.5, dec: 1, get: function (s) { return s.hfncFlow; }, set: function (s, v) { s.hfncFlow = v; } },
     sed:   { k: '鎮静',    u: '%',     min: 0,   max: 100, step: 5, sim: true,
-             get: function () { return Math.round(S.eng.sedation * 100); },
-             set: function (s, v) { S.eng.sedation = v / 100; } },
+             /* 自由操作では目標だけを変え、薬が抜けるまで数分かけて覚める。レッスンでは今までどおりすぐ効く。 */
+             get: function () { var e = S.eng; return Math.round((e.sedationTarget != null ? e.sedationTarget : e.sedation) * 100); },
+             set: function (s, v) { if (S.lesson) setSedation(v / 100); else S.eng.sedationTarget = v / 100; } },
     /* ---- アラーム設定画面（「アラーム」キーで切り替える）。上限と下限は入れ違いにならないよう bound で挟む。 ---- */
     aP:     { k: 'Ppeak 上限', u: 'cmH₂O', alm: true, min: 10, max: 60, step: 1, get: function (s) { return s.alarms.pMax; }, set: function (s, v) { s.alarms.pMax = v; } },
     aVtLo:  { k: 'Vte 下限', u: 'mL', alm: true, min: 1, max: 800, step: 10, get: function (s) { return s.alarms.vtLow; }, set: function (s, v) { s.alarms.vtLow = v; },
@@ -671,7 +672,7 @@
     S.eng = new E.Engine(sc.patient, st);
     applyLimits(S.eng);
     settleEngine(S.eng);
-    S.abgs = []; S.abgPending = null; S.trend = []; S.sbt = null; S.sbtSaved = null; S.extubated = null;
+    S.abgs = []; S.abgPending = null; S.trend = []; S.sbt = null; S.sbtSaved = null; S.extubated = null; S.day = 1;
     S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1; S.skip = null; S.o2 = null; S.almView = false;
     S.provisional = false;
     S.loopCur = []; S.loopLast = null; S.banner = null; trendAcc = 4;
@@ -993,6 +994,9 @@
     }
   }
 
+  /* 鎮静をすぐ効かせる（SBT・再挿管・レッスン）。ゆっくり覚める途中の目標は捨てる。 */
+  function setSedation(v) { S.eng.sedation = v; S.eng.sedationTarget = null; }
+
   function suction() {
     var e = S.eng;
     if (S.speed > 1) setSpeed(1);                  // 吸引中の数秒と SpO₂ の遅れた落ち込みは等速で見せる
@@ -1026,7 +1030,7 @@
     e.s.mode = 'PSV'; e.s.ps = e.p.pbw < 10 ? 8 : (e.p.pbw < 25 ? 6 : 5);
     e.s.peep = Math.min(e.s.peep, 5);
     e.s.fio2 = Math.min(e.s.fio2, 0.4);
-    e.sedation = Math.min(e.sedation, 0.15);
+    setSedation(Math.min(e.sedation, 0.15));
     e._recomputeDrive();
     S.sbt = { t0: e.clock, dur: 1800, badSince: -1, failMsg: null, done: null, tEnd: null };
     S.sel = null; S.pend = null;
@@ -1039,7 +1043,7 @@
     var e = S.eng, sv = S.sbtSaved;
     /* アラームの枠は SBT の途中で直したものをそのまま残す。 */
     for (var k in sv) if (Object.prototype.hasOwnProperty.call(sv, k) && k !== 'alarms') e.s[k] = sv[k];
-    e.sedation = Math.min(0.5, e.sedation + 0.25);
+    setSedation(Math.min(0.5, e.sedation + 0.25));
     S.sel = null; S.pend = null;
     buildKeys(); syncTabs(); paintDial();
   }
@@ -1111,6 +1115,7 @@
       var chunk = Math.min(0.5, left);
       left -= chunk;
       for (var i = 0, n = Math.round(chunk / 0.01); i < n; i++) e.step(0.01, false);
+      if (!S.lesson) SC.recover(e, S.scen, chunk);
       trendTick(chunk);
       abgTick(); sbtTick(); extubTick(); o2Tick(); lessonTick(chunk);
       if (S.skip !== k) break;
@@ -1182,6 +1187,7 @@
         S.lastPhase = e.phase;
       }
       trendTick(simSec);
+      if (!S.lesson) SC.recover(e, S.scen, simSec);   // 自由操作では時間とともに病気が治っていく
       abgTick(); sbtTick(); extubTick(); o2Tick(); lessonTick(simSec);
     } else {
       lessonTick(0);          // 抜管後も「結果を確認」の課題は判定を続ける（止めると 6-3 が終わらない）
@@ -1776,6 +1782,7 @@
       }
       var state = [
         ['換気モード', e.s.mode],
+        ['経過', S.day + ' 日目'],
         ['鎮静', SC.sedationLabel(e.sedation)],
         ['自発呼吸', SC.spontOk(e) ? 'あり' : '乏しい'],
         ['心拍', Math.round(e.hr) + ' /分'],
@@ -1910,11 +1917,33 @@
         ex.onclick = function () { close(); doExtubate(); };
         r2.appendChild(ex);
       }
+      if (!S.lesson && (!S.sbt || S.sbt.done)) {
+        var dy = el('button', 'mbtn', '1 日待つ（' + (S.day + 1) + ' 日目へ）');
+        dy.onclick = function () { close(); advanceDay(); };
+        r2.appendChild(dy);
+      }
       var dbg = el('button', 'mbtn', '振り返りを見る');
       dbg.onclick = function () { close(); openDebrief(); };
       r2.appendChild(dbg);
       b.appendChild(r2);
+      if (!S.lesson && S.scen.recovery) b.appendChild(el('p', 'note', '自由操作では、時間がたつと病気は少しずつ治っていきます（この子はおよそ '
+        + S.scen.recovery.days + ' 日で離脱を考えられるところまで）。「1 日待つ」で翌日まで進めます。'));
     });
+  }
+
+  /* 自由操作の「1 日待つ」。病気を 1 日ぶん治し、そのあと 30 分ぶん計算して血液ガスを落ち着かせる。
+   * 時間の早送り（「⏭ 先へ」）は分の単位、これは日の単位。夜のあいだに呼吸筋も休まる。 */
+  function advanceDay() {
+    var e = S.eng;
+    if (S.lesson || (S.sbt && !S.sbt.done)) return;
+    S.day += 1;
+    SC.recover(e, S.scen, 86400);
+    if (!(S.extubated && S.extubated.live)) e.fatigue = 0;
+    for (var i = 0; i < 180000; i++) e.step(0.01, false);
+    S.trend = [];
+    setSpeed(1);
+    S.banner = { t: e.clock, msg: S.day + ' 日目の朝になりました' };
+    if (e._note) e._note(S.day + ' 日目');
   }
 
   function openSBTResult() {
@@ -2001,7 +2030,7 @@
     var e = S.eng, x = S.extubated, pre = x.pre;
     /* チューブを入れ直したら、抜管前の換気設定に戻し、鎮静もかけ直す。アラームの枠はそのまま。 */
     for (var k in pre) if (Object.prototype.hasOwnProperty.call(pre, k) && k !== 'alarms' && k !== 'mode') e.s[k] = pre[k];
-    e.sedation = Math.max(e.sedation, 0.6);
+    setSedation(Math.max(e.sedation, 0.6));
     e._recomputeDrive();
     x.live = false; x.ok = false; x.reint = true;
     S.sbt = null; S.sbtSaved = null;
@@ -2081,7 +2110,8 @@
       var ri = el('button', 'mbtn warn', '再挿管する'); ri.onclick = function () { close(); reintubate(); };
       var dbg = el('button', 'mbtn', '振り返りを見る'); dbg.onclick = function () { close(); openDebrief(); };
       var bk = el('button', 'mbtn go', '様子を見る'); bk.onclick = close;
-      r2.appendChild(ri); r2.appendChild(dbg); r2.appendChild(bk); b.appendChild(r2);
+      var dy = el('button', 'mbtn', '1 日待つ（' + (S.day + 1) + ' 日目へ）'); dy.onclick = function () { close(); advanceDay(); };
+      r2.appendChild(ri); r2.appendChild(dy); r2.appendChild(dbg); r2.appendChild(bk); b.appendChild(r2);
     });
   }
   function extubLabel(x) {
@@ -2367,7 +2397,7 @@
     loadScenario(sc, false, true);
     var st = lesson.settings || {};
     for (var k in st) if (Object.prototype.hasOwnProperty.call(st, k)) S.eng.s[k] = st[k];
-    if (lesson.sedation != null) S.eng.sedation = lesson.sedation;
+    if (lesson.sedation != null) setSedation(lesson.sedation);
     S.eng._recomputeDrive();
     settleEngine(S.eng, 2);              // レッスンの設定で 2 呼吸ぶん進め、実測をそろえてから始める
     setScreen('wave');
