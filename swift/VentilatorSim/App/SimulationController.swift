@@ -151,6 +151,20 @@ final class SimulationController {
 
     func isSpotted(_ spec: String) -> Bool { lessonSpots.contains(spec) }
 
+    /// アラーム設定画面（「アラーム」キー）。設定キーの段をアラームの上限・下限に入れ替える（Web 版 S.almView）。
+    private(set) var showsAlarmSettings = false
+    /// 実際に入れ替えて見せているか。レッスンが設定キーを光らせているあいだは設定キーの段に戻す。
+    var isAlarmViewShown: Bool {
+        guard showsAlarmSettings else { return false }
+        let alarmIDs = Set(VentilatorParameter.alarms.map { "key:" + $0.id })
+        return !lessonSpots.contains { $0.hasPrefix("key:") && !alarmIDs.contains($0) }
+    }
+    func toggleAlarmSettings() {
+        showsAlarmSettings = !isAlarmViewShown
+        selectedParameterID = nil
+        pendingValue = nil
+    }
+
     /* 会話・クイズ・解説で光らせるモニターの場所。Web 版 app.js の paintLook と同じ規則で、
      * 文の中に出てきた計測値や波形（LessonLibrary.monitorSpots）を光らせる。
      * 場面が変わったときだけ作り直す（View の描画のたびに文を調べない）。 */
@@ -257,7 +271,7 @@ final class SimulationController {
     /// 設定キーの定義を、症例の可動域に合わせて返す。鎮静（"sed"）もここから引ける。
     func parameter(id: String) -> VentilatorParameter? {
         if id == VentilatorParameter.sedation.id { return .sedation }
-        return VentilatorParameter.fitted(to: engine.limits).first { $0.id == id }
+        return (VentilatorParameter.all + VentilatorParameter.alarms).first { $0.id == id }?.fitted(to: engine.limits)
     }
     /// いま反映されている値。鎮静だけは設定ではなく engine が持っている。
     func currentValue(_ parameter: VentilatorParameter) -> Double {
@@ -350,6 +364,7 @@ final class SimulationController {
         extubation = nil
         selectedParameterID = nil
         pendingValue = nil
+        showsAlarmSettings = false
         speed = .realtime
         screen = .waveforms
         waveformsFrozen = false
@@ -500,8 +515,11 @@ final class SimulationController {
     func nudge(_ steps: Double) {
         guard let parameter = selectedParameter else { return }
         let current = pendingValue ?? currentValue(parameter)
-        let stepped = ((current + steps * parameter.step) / parameter.step).rounded() * parameter.step
-        pendingValue = min(max(stepped, parameter.range.lowerBound), parameter.range.upperBound)
+        var stepped = ((current + steps * parameter.step) / parameter.step).rounded() * parameter.step
+        let scale = pow(10, Double(parameter.digits))
+        stepped = (stepped * scale).rounded() / scale
+        let range = parameter.dialRange(settings)
+        pendingValue = min(max(stepped, range.lowerBound), range.upperBound)
         if pendingValue != current { SoundBoard.shared.play(.tick) }
     }
 
@@ -517,7 +535,8 @@ final class SimulationController {
             settings = updated
         }
         SoundBoard.shared.play(.confirm)
-        append("\(parameter.label) を \(pending.formatted(.number.precision(.fractionLength(parameter.digits)))) \(parameter.unit) に変更")
+        append((parameter.isAlarm ? "アラーム設定: " : "")
+               + "\(parameter.label) を \(pending.formatted(.number.precision(.fractionLength(parameter.digits)))) \(parameter.unit) に変更")
         settingsAreProvisional = false
         selectedParameterID = nil
         pendingValue = nil
@@ -849,7 +868,8 @@ final class SimulationController {
 
     /// 失敗・中止のあと、控えておいた設定に戻して呼吸筋を休ませる（Web 版 restoreSettings）。
     private func restoreAfterSBT() {
-        guard let saved = sbtSaved else { return }
+        guard var saved = sbtSaved else { return }
+        saved.alarms = engine.settings.alarms     // アラームの枠は SBT の途中で直したものを残す
         settings = saved
         engine.sedation = min(0.5, engine.sedation + 0.25)
         sbtSaved = nil

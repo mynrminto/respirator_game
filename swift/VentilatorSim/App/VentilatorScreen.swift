@@ -552,12 +552,20 @@ struct VentilatorScreen: View {
     private var parameterKeys: some View {
         FlowLayout(spacing: Chrome.isPop ? 6 : 4, lineSpacing: Chrome.isPop ? 6 : 4,
                    alignment: .top) {
-            ForEach(VentilatorParameter.applicable(to: controller.settings.mode,
-                                                   limits: controller.engine.limits)) { parameter in
-                parameterKey(parameter)
+            if controller.isAlarmViewShown {
+                // アラーム設定画面。操作は設定キーと同じ「キー → ダイヤル → 確定」。
+                ForEach(VentilatorParameter.alarmKeys(for: controller.settings.mode,
+                                                      limits: controller.engine.limits)) { parameter in
+                    parameterKey(parameter)
+                }
+            } else {
+                ForEach(VentilatorParameter.applicable(to: controller.settings.mode,
+                                                       limits: controller.engine.limits)) { parameter in
+                    parameterKey(parameter)
+                }
+                // 鎮静はシミュレーター側の操作。ほかのキーと同じくダイヤルで決めるが、枠を点線にして区別する。
+                parameterKey(.sedation)
             }
-            // 鎮静はシミュレーター側の操作。ほかのキーと同じくダイヤルで決めるが、枠を点線にして区別する。
-            parameterKey(.sedation)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 6).padding(.vertical, 4)
@@ -577,7 +585,7 @@ struct VentilatorScreen: View {
             controller.select(parameterID: parameter.id)
         } label: {
             VStack(alignment: .leading, spacing: 1) {
-                Text(parameter.label)
+                Text(parameter.isAlarm ? "\u{1F514}\u{FE0E} " + parameter.label : parameter.label)
                     .font(Chrome.label(keyCaption, weight: Chrome.isPop ? .bold : .regular))
                     .foregroundStyle(sim ? Chrome.sim : (selected && Chrome.isPop ? Chrome.accent : Chrome.dim))
                     .lineLimit(1)
@@ -610,6 +618,12 @@ struct VentilatorScreen: View {
                     )
             }
         )
+        .overlay(alignment: .top) {
+            // アラーム設定画面の項目。上辺を黄色の帯にして、ふだんの設定キーと見分ける（Web 版 .pkey.alm）。
+            if parameter.isAlarm {
+                Capsule().fill(Chrome.pressure).frame(height: 3).padding(.horizontal, 6).allowsHitTesting(false)
+            }
+        }
         .spotlight(controller.isSpotted("key:" + parameter.id), corner: Chrome.corner)
         .id("key:" + parameter.id)
         .accessibilityLabel("\(parameter.label) \(shown.formatted()) \(parameter.unit)"
@@ -641,6 +655,11 @@ struct VentilatorScreen: View {
             }
             .spotlight(controller.isSpotted("hard:kFrz"), corner: hardCorner)
             .id("hard:kFrz")
+            DeviceKey(title: "アラーム", isOn: controller.isAlarmViewShown) {
+                controller.toggleAlarmSettings()
+            }
+            .spotlight(controller.isSpotted("hard:kAlm"), corner: hardCorner)
+            .id("hard:kAlm")
             DeviceKey(title: speedLabel, tint: Chrome.sim,
                       isOn: controller.speed.rawValue > 1) { cycleSpeed() }
                 .spotlight(controller.isSpotted("hard:kSpd"), corner: hardCorner)

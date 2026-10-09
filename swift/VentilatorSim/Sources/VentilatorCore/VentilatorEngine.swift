@@ -1190,11 +1190,12 @@ public final class VentilatorEngine {
         if mode != .hfo, measured.respiratoryRateTotal > limits.respiratoryRateHigh {
             list.append(.init(message: "頻呼吸", severity: 1))
         }
-        if mode == .hfnc, sinceBreath > norms.apneaSeconds { list.append(.init(message: "無呼吸", severity: 2)) }
-        if spo2 < norms.spo2Target.lowerBound { list.append(.init(message: "SpO₂ 低下", severity: 2)) }
+        if mode == .hfnc, sinceBreath > limits.apneaSeconds { list.append(.init(message: "無呼吸", severity: 2)) }
+        if spo2 < limits.spo2Low { list.append(.init(message: "SpO₂ 低下", severity: 2)) }
+        if spo2 > limits.spo2High { list.append(.init(message: "SpO₂ 上限", severity: 1)) }
         if measured.autoPEEP > 5 { list.append(.init(message: "auto-PEEP", severity: 1)) }
         if meanArterialPressure < norms.meanArterialPressureMin { list.append(.init(message: "血圧低下", severity: 2)) }
-        if heartRate < norms.heartRate.lowerBound * 0.8 { list.append(.init(message: "徐脈", severity: 2)) }
+        if heartRate < limits.heartRateLow { list.append(.init(message: "徐脈", severity: 2)) }
         alarms = list
     }
 

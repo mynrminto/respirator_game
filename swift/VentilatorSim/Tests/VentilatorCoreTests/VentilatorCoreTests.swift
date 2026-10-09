@@ -531,4 +531,31 @@ struct NICUModeTests {
         let hi = makeEngine("rds") { s in s.mode = .hfnc; s.hfncFlow = 8 }
         #expect(hi.hfncPressure() > lo.hfncPressure())
     }
+
+    /* アラーム設定画面。モニターの枠の初期値は年齢の目安と同じ（レッスンの鳴り方を変えない）。
+     * 変えた枠でそのまま鳴る（web/test.js と同じ項目）。 */
+    @Test("アラームの初期値はダイヤルの範囲内で、変えた枠で鳴る")
+    func alarmSettings() {
+        for sc in ScenarioLibrary.all {
+            let e = VentilatorEngine(patient: sc.patient, settings: sc.initialSettings())
+            let a = e.settings.alarms, n = e.norms, L = e.limits
+            #expect(a.spo2Low == n.spo2Target.lowerBound, "\(sc.id)")
+            #expect(a.spo2High == 100)
+            #expect(a.heartRateLow == (n.heartRate.lowerBound * 0.8).rounded())
+            func inside(_ v: Double, _ r: DialRange) -> Bool { v >= r.min && v <= r.max }
+            #expect(inside(a.peakPressure, L.alarmPressure) && inside(a.tidalVolumeHigh, L.alarmTidalVolume)
+                    && inside(a.minuteVolumeHigh, L.alarmMinuteVolume) && inside(a.respiratoryRateHigh, L.alarmRespiratoryRate)
+                    && inside(a.apneaSeconds, L.alarmApnea) && inside(a.spo2Low, L.alarmSpO2)
+                    && inside(a.heartRateLow, L.alarmHeartRate), "\(sc.id)")
+        }
+        let e = makeEngine("postop")
+        run(e, seconds: 20)
+        e.settings.alarms.spo2Low = 100; e.settings.alarms.heartRateLow = 250; e.settings.alarms.peakPressure = 10
+        run(e, seconds: 4)
+        let names = e.alarms.map(\.message)
+        #expect(names.contains("SpO₂ 低下") && names.contains("徐脈") && names.contains("気道内圧上限"))
+        e.settings.alarms.spo2Low = 50; e.settings.alarms.spo2High = 90
+        run(e, seconds: 2)
+        #expect(e.alarms.contains { $0.message == "SpO₂ 上限" })
+    }
 }

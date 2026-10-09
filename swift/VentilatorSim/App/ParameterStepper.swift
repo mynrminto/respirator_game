@@ -16,6 +16,17 @@ struct VentilatorParameter: Identifiable {
     let write: (inout VentilatorSettings, Double) -> Void
     /// 呼吸器の設定ではなく、シミュレーター側の操作（鎮静）。値は engine が持つ。
     var isSimulatorControl = false
+    /// アラーム設定画面の項目。
+    var isAlarm = false
+    /// 上限と下限が入れ違いにならないよう、ダイヤルで動ける幅をいまの設定から狭める（Web 版 P[].bound）。
+    var bound: ((VentilatorSettings, VentilatorParameter) -> ClosedRange<Double>)? = nil
+
+    /// いまの設定で、ダイヤルが動ける幅。
+    func dialRange(_ s: VentilatorSettings) -> ClosedRange<Double> {
+        guard let bound else { return range }
+        let r = bound(s, self)
+        return r.lowerBound <= r.upperBound ? r : range.lowerBound...range.lowerBound
+    }
 
     static let all: [VentilatorParameter] = [
         .init(id: "vt", label: "Vt", unit: "mL", range: 100...900, step: 10, digits: 0,
@@ -70,6 +81,54 @@ struct VentilatorParameter: Identifiable {
               modes: [.hfnc], read: { $0.hfncFlow }, write: { $0.hfncFlow = $1 })
     ]
 
+    /// アラーム設定画面（「アラーム」キーで設定キーの段と入れ替える）。見出しと単位は Web 版 app.js の P.a* と同じ。
+    static let alarms: [VentilatorParameter] = [
+        .init(id: "aP", label: "Ppeak 上限", unit: "cmH₂O", range: 10...60, step: 1, digits: 0, modes: nil,
+              read: { $0.alarms.peakPressure }, write: { $0.alarms.peakPressure = $1 }, isAlarm: true),
+        .init(id: "aVtLo", label: "Vte 下限", unit: "mL", range: 1...800, step: 10, digits: 0, modes: nil,
+              read: { $0.alarms.tidalVolumeLow }, write: { $0.alarms.tidalVolumeLow = $1 }, isAlarm: true,
+              bound: { s, p in p.range.lowerBound...(s.alarms.tidalVolumeHigh - p.step) }),
+        .init(id: "aVtHi", label: "Vte 上限", unit: "mL", range: 1...800, step: 10, digits: 0, modes: nil,
+              read: { $0.alarms.tidalVolumeHigh }, write: { $0.alarms.tidalVolumeHigh = $1 }, isAlarm: true,
+              bound: { s, p in (s.alarms.tidalVolumeLow + p.step)...p.range.upperBound }),
+        .init(id: "aMvLo", label: "MV 下限", unit: "L/min", range: 0.1...20, step: 0.1, digits: 1, modes: nil,
+              read: { $0.alarms.minuteVolumeLow }, write: { $0.alarms.minuteVolumeLow = $1 }, isAlarm: true,
+              bound: { s, p in p.range.lowerBound...(s.alarms.minuteVolumeHigh - p.step) }),
+        .init(id: "aMvHi", label: "MV 上限", unit: "L/min", range: 0.1...20, step: 0.1, digits: 1, modes: nil,
+              read: { $0.alarms.minuteVolumeHigh }, write: { $0.alarms.minuteVolumeHigh = $1 }, isAlarm: true,
+              bound: { s, p in (s.alarms.minuteVolumeLow + p.step)...p.range.upperBound }),
+        .init(id: "aRr", label: "RR 上限", unit: "/min", range: 10...120, step: 1, digits: 0, modes: nil,
+              read: { $0.alarms.respiratoryRateHigh }, write: { $0.alarms.respiratoryRateHigh = $1 }, isAlarm: true),
+        .init(id: "aApn", label: "無呼吸時間", unit: "s", range: 5...60, step: 1, digits: 0, modes: nil,
+              read: { $0.alarms.apneaSeconds }, write: { $0.alarms.apneaSeconds = $1 }, isAlarm: true),
+        .init(id: "aSpo2", label: "SpO₂ 下限", unit: "%", range: 70...100, step: 1, digits: 0, modes: nil,
+              read: { $0.alarms.spo2Low }, write: { $0.alarms.spo2Low = $1 }, isAlarm: true,
+              bound: { s, p in p.range.lowerBound...(s.alarms.spo2High - 1) }),
+        .init(id: "aSpo2H", label: "SpO₂ 上限", unit: "%", range: 70...100, step: 1, digits: 0, modes: nil,
+              read: { $0.alarms.spo2High }, write: { $0.alarms.spo2High = $1 }, isAlarm: true,
+              bound: { s, p in (s.alarms.spo2Low + 1)...p.range.upperBound }),
+        .init(id: "aHr", label: "HR 下限", unit: "/min", range: 30...200, step: 1, digits: 0, modes: nil,
+              read: { $0.alarms.heartRateLow }, write: { $0.alarms.heartRateLow = $1 }, isAlarm: true)
+    ]
+
+    /// モードごとのアラーム項目。Web 版 app.js の alarmKeysFor と同じ分け方（engine の refreshAlarms に合わせる）。
+    static func alarmOrder(for mode: VentilationMode) -> [String] {
+        let monitor = ["aSpo2", "aSpo2H", "aHr"]
+        switch mode {
+        case .hfo:     return monitor
+        case .hfnc:    return ["aRr", "aApn"] + monitor
+        case .nivNava: return ["aP", "aRr"] + monitor
+        case .pressureSupport, .cpap:
+            return ["aP", "aVtLo", "aVtHi", "aMvLo", "aMvHi", "aRr", "aApn"] + monitor
+        default:
+            return ["aP", "aVtLo", "aVtHi", "aMvLo", "aMvHi", "aRr"] + monitor
+        }
+    }
+
+    static func alarmKeys(for mode: VentilationMode, limits: DialLimits) -> [VentilatorParameter] {
+        alarmOrder(for: mode).compactMap { id in alarms.first { $0.id == id }?.fitted(to: limits) }
+    }
+
     /// 鎮静。Web 版の P.sed と同じく、ほかのキーと同じようにダイヤルで決める（0〜100 %）。
     /// 呼吸器の設定ではないので read / write は使わず、SimulationController が engine.sedation を読み書きする。
     static let sedation = VentilatorParameter(
@@ -103,7 +162,7 @@ struct VentilatorParameter: Identifiable {
     /// 全項目を症例の可動域に合わせたもの。`all` の定義値は成人向けの仮の数字なので、
     /// 実際にダイヤルを回すところは必ずこちらを通す（Web 版 app.js の applyLimits と同じ）。
     static func fitted(to limits: DialLimits) -> [VentilatorParameter] {
-        all.map { $0.fitted(to: limits) }
+        (all + alarms).map { $0.fitted(to: limits) }
     }
 
     func fitted(to limits: DialLimits) -> VentilatorParameter {
@@ -123,6 +182,13 @@ struct VentilatorParameter: Identifiable {
         case "freq":    r = limits.hfoFrequency
         case "nava":    r = limits.navaLevel
         case "hflow":   r = limits.hfncFlow
+        case "aP":      r = limits.alarmPressure
+        case "aVtLo", "aVtHi": r = limits.alarmTidalVolume
+        case "aMvLo", "aMvHi": r = limits.alarmMinuteVolume
+        case "aRr":     r = limits.alarmRespiratoryRate
+        case "aApn":    r = limits.alarmApnea
+        case "aSpo2", "aSpo2H": r = limits.alarmSpO2
+        case "aHr":     r = limits.alarmHeartRate
         default:        r = nil
         }
         if let r {
