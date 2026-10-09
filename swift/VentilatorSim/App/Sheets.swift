@@ -264,12 +264,14 @@ struct WeaningSheet: View {
                             Button("SBT を中止して元の設定に戻す", role: .destructive) {
                                 controller.endSBT(); dismiss()
                             }
+                            .disabled(!controller.canUse("sbt"))
                         }
                     } else {
                         Section {
                             Button("SBT を開始（30分）") {
                                 controller.beginSBT(); dismiss()
                             }
+                            .disabled(!controller.canUse("sbt"))
                         } footer: {
                             Text("PSV・PS \(sbtPressureSupport(controller.engine.patient.predictedBodyWeight)) cmH₂O・PEEP 5 以下・FiO₂ 40% 以下に切り替え、鎮静を浅くします。中止基準に 1 分当てはまり続けたら失敗とし、設定を元に戻します。")
                         }
@@ -283,6 +285,7 @@ struct WeaningSheet: View {
                                 .font(.callout)
                             if controller.sbtPassed {
                                 Button("抜管する") { controller.extubate() }
+                                    .disabled(!controller.canUse("extubate"))
                             }
                         }
                     }
@@ -475,5 +478,36 @@ struct PatientInfoSheet: View {
             rows.append(("離脱", controller.sbtFinished ? (controller.sbtPassed ? "SBT 合格" : "SBT 中止") : "SBT 中"))
         }
         return rows
+    }
+}
+
+/// 心停止（Web 版 arrestTick）。閉じられない。レッスンか症例を最初からやり直す。
+struct CardiacArrestSheet: View {
+    let controller: SimulationController
+    let arrest: SimulationController.CardiacArrest
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("SpO₂ \(Int(arrest.spo2.rounded()))%、心拍 \(Int(arrest.heartRate.rounded()))/分 から、心臓が止まりました。")
+                        .foregroundStyle(.red)
+                    Text("酸素が足りない状態が続くと、子どもの心臓ははじめ速く打ち、やがて遅くなって止まります。"
+                         + "SpO₂ 60% 未満で心拍が \(Int(arrest.threshold))/分 を切ったまま \(Int(VentilatorEngine.arrestSeconds)) 秒たつと、ここで止まります。")
+                        .font(.callout)
+                    Text("SpO₂ が下がりはじめたら、まず酸素（100% O₂）、次にチューブと換気を確かめます。")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                Section {
+                    Button(arrest.inLesson ? "レッスンをやり直す" : "この症例を最初から") {
+                        controller.restartAfterArrest()
+                    }
+                }
+            }
+            .navigationTitle("心停止")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .interactiveDismissDisabled()
+        .presentationDetents([.medium])
     }
 }

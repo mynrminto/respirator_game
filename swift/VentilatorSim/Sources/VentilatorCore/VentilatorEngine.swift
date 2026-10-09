@@ -53,6 +53,19 @@ public final class VentilatorEngine {
     public private(set) var spo2: Double = 98
     public private(set) var etco2: Double = 38
     public private(set) var heartRate: Double = 80
+    /// 心停止で止まったか。SpO₂ 60% 未満のまま、心拍が arrestHeartRate を arrestSeconds 秒切り続けたら true（Web 版 arrested）。
+    public private(set) var isArrested = false
+    /// 心停止のあと、モニターに止まった心臓を映す（脈拍音も止まる）。
+    public func flatline() {
+        heartRate = 0
+        meanArterialPressure = 0
+    }
+    private var arrestTimer: Double = 0
+    public static let arrestSeconds: Double = 30
+    /// 心停止とみなす心拍。年齢の下限の 7 割、ただし 60/分 より低くはしない（Web 版 arrestHr）。
+    public static func arrestHeartRate(_ norms: AgeNorms) -> Double {
+        max(60, (norms.heartRate.lowerBound * 0.7).rounded())
+    }
     public private(set) var meanArterialPressure: Double = 80
     public private(set) var cardiacOutput: Double = 5
     public private(set) var shunt: Double = 0.05
@@ -1133,6 +1146,11 @@ public final class VentilatorEngine {
             toward: Physiology.clamp(hrTarget, norms.heartRate.lowerBound * 0.2,
                                      norms.heartRate.upperBound * 1.45),
                                         dt: d, tau: 12)
+        /* 心停止。画面はここで止めて「心停止」を知らせる（蘇生の操作はこのシミュレーターには無い）。 */
+        if !isArrested {
+            arrestTimer = (spo2 < 60 && heartRate < Self.arrestHeartRate(norms)) ? arrestTimer + d : 0
+            if arrestTimer >= Self.arrestSeconds { isArrested = true }
+        }
         let mapTarget = Physiology.clamp(
             patient.meanArterialPressure * (cardiacOutput / patient.cardiacOutput)
                 * (pH < 7.2 ? 0.88 : 1),

@@ -719,6 +719,7 @@ extension LessonLibrary {
                   why: "SBT に通りました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
                 .spotting(["hard:kWean"]).watching(["f/VT", "RR tot", "SpO₂"]),
+                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"])
             .quiz("SBT に通りましたが、呼びかけに反応せず、吸引しても咳をしません。抜管しますか。",
                   ["する（SBT に通ったから）",
                    "しない（気道が守れない）",

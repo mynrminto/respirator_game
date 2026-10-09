@@ -1592,5 +1592,47 @@ console.log('\n34. 自由操作：鎮静は数分かけて覚め、時間がた�
     && /if \(S\.lesson\) setSedation\(v \/ 100\); else S\.eng\.sedationTarget = v \/ 100;/.test(app));
 }
 
+console.log('\n35. レッスン中は今の課題に要るキーだけ触れる／心停止で止まる');
+{
+  const LSx = require('./lessons.js');
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const all = [];
+  LSx.CHAPTERS.forEach(ch => ch.lessons.forEach(l => l.tasks.forEach((t, i) => all.push({ id: l.id + '#' + i, t }))));
+  ok('会話・クイズの場面では機器のキーはどれも触れない', all.filter(x => x.t.talk || x.t.quiz).every(x => LSx.controlsFor(x.t).length === 0));
+  const EV = { 'hold:insp': 'hard:kInsp', 'hold:exp': 'hard:kExp', 'abg:order': 'hard:kAbg', suction: 'hard:kSuc', o2100: 'hard:kO2',
+    patient: 'hard:kPt', 'weaning:open': 'hard:kWean', 'sbt:start': 'sbt', extubate: 'extubate' };
+  const badEv = all.filter(x => x.t.event).filter(x => LSx.controlsFor(x.t).indexOf(/^mode:/.test(x.t.event) ? x.t.event : EV[x.t.event]) < 0);
+  ok('キーを押す課題では、そのキーが触れる', badEv.length === 0, badEv.map(x => x.id).join(' '));
+  const badSpot = all.filter(x => !x.t.talk && !x.t.quiz).filter(x => [].concat(x.t.spot || []).filter(s => /^(key|hard|mode):/.test(s))
+    .some(s => LSx.controlsFor(x.t).indexOf(s) < 0));
+  ok('光らせたキーはすべて触れる', badSpot.length === 0, badSpot.map(x => x.id).join(' '));
+  const sbtPass = all.filter(x => x.t.check && /done === 'pass'/.test(x.t.check.toString()));
+  ok('SBT を最後まで通す課題では、中止のあと設定を直して開き直せる', sbtPass.length === 6
+    && sbtPass.every(x => ['sbt', 'hard:kWean', 'key:fio2', 'key:peep', 'key:sed'].every(k => LSx.controlsFor(x.t).indexOf(k) >= 0)));
+  const missOk = all.filter(x => x.t.missEvents).every(x => Object.keys(x.t.missEvents).every(k => LSx.controlsFor(x.t).indexOf(/^mode:/.test(k) ? k : EV[k]) >= 0));
+  ok('違うキーに一言がある課題では、そのキーも押せる（答えを教えない）', missOk);
+  ok('Web：キーを止める仕組みと、修了後の「自由操作モードへ」', /function canUse\(tok\)/.test(app) && /function paintLocks\(\)/.test(app)
+    && /lockEl\(go, !canUse\('sbt'\)\)/.test(app) && /lockEl\(ex, !canUse\('extubate'\)\)/.test(app) && /'自由操作モードへ'/.test(app));
+  const swDir = path.join(__dirname, '..', 'swift', 'VentilatorSim');
+  const swL = fs.readdirSync(path.join(swDir, 'Sources', 'VentilatorCore')).filter(f => /^Lessons/.test(f))
+    .map(f => fs.readFileSync(path.join(swDir, 'Sources', 'VentilatorCore', f), 'utf8')).join('\n');
+  ok('iPhone 版も同じ規則（controls / allowing が 6 か所）', /public var controls: \[String\]/.test(swL)
+    && (swL.match(/\.allowing\(\["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"\]\)/g) || []).length === 6);
+
+  // 心停止：換気をほぼ止めると、どの子も数分で心停止になる。いつもの設定のままなら 30 分たっても止まらない。
+  const ids = ['postop', 'rds', 'micro', 'bronchiolitis', 'ards', 'asthma', 'gbs'];
+  const tStop = ids.map(id => {
+    const e = mk(id); run(e, 300, 0.01);
+    e.sedation = 1; e._recomputeDrive(); e.s.rr = 1; e.s.fio2 = 0.21;
+    let t = 0; while (!e.arrested && t < 900) { run(e, 5, 0.01); t += 5; }
+    return { id, t, hr: e.hr, spo2: e.spo2 };
+  });
+  ok('換気がほぼ止まると、どの子も 5 分以内に心停止になる', tStop.every(x => x.t <= 300), tStop.map(x => `${x.id} ${x.t}s`).join(' / '));
+  const steady = ids.filter(id => { const e = mk(id); run(e, 1800, 0.01); return e.arrested; });
+  ok('推奨設定のままなら 30 分たっても心停止しない', steady.length === 0, steady.join(','));
+  ok('心停止の心拍は年齢の下限の 7 割、最低 60', VE.arrestHr(VE.normsFor(scen('postop').patient)) === 60 && VE.arrestHr(VE.normsFor(scen('rds').patient)) === 84);
+  ok('Web は心停止で計算を止め、やり直しを出す', /if \(e\.arrested\) \{\s*arrestTick\(\);/.test(app) && /'レッスンをやり直す'/.test(app));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

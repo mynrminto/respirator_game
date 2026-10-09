@@ -358,7 +358,7 @@ struct LessonCoachView: View {
                     primaryButton("次のレッスンへ") { controller.beginLesson(next) }
                 }
                 smallButton("コース一覧") { showingCourse = true }
-                smallButton("自由に操作する") { controller.endLesson() }
+                smallButton("自由操作モードへ") { controller.endLesson() }
             }
         }
     }

@@ -32,6 +32,10 @@
   /* 鎮静を浅くしてから覚めるまでの時定数（秒）と、深くするときの時定数。
    * 0.85 から「覚醒（0.4 以下）」まで約 2 分、ほぼ醒めきる（0.05）まで約 8 分。 */
   var SED_WAKE_TAU = 180, SED_DEEPEN_TAU = 30;
+  /* 心停止とみなす心拍。年齢の下限の 7 割、ただし 60/分 より低くはしない
+   * （学童 60・未就学児 63・乳児 77・新生児 84）。この心拍を SpO₂ 60% 未満で ARREST_SEC 秒切り続けたら止まる。 */
+  var ARREST_SEC = 30;
+  function arrestHr(nm) { return Math.max(60, Math.round(nm.hr[0] * 0.7)); }
   var NAVA_APNEA = 5;
 
   /* ---------- 酸素解離曲線 (Severinghaus) ---------- */
@@ -288,6 +292,8 @@
     this.waveform = { paw: [], flow: [], vol: [], n: 0 };
     this.wfCap = 1500;
     this.alarms = [];
+    this.arrested = false;     // 心停止で止まったか
+    this.arrestT = 0;          // 心停止の条件が続いている秒数
     this.lastTrigger = null;        // 'patient' | 'timer' | 'backup'
     this.apneaT = 0;
     this.events = [];
@@ -1016,6 +1022,12 @@
     var bradySlope = nm.label === '新生児' ? 3.2 : 3.6 * hrScale;
     if (this.spo2 < bradySpo2) hrTarget -= (bradySpo2 - this.spo2) * bradySlope;
     this.hr = approach(this.hr, clamp(hrTarget, nm.hr[0] * 0.2, nm.hr[1] * 1.45), d, 12);
+    /* 心停止。SpO₂ 60% 未満のまま、心拍が年齢の下限の 7 割（最低でも 60/分）を 30 秒切り続けたら止まる。
+     * 画面はここで止めて「心停止」を知らせる（蘇生の操作はこのシミュレーターには無い）。 */
+    if (!this.arrested) {
+      this.arrestT = (this.spo2 < 60 && this.hr < arrestHr(nm)) ? this.arrestT + d : 0;
+      if (this.arrestT >= ARREST_SEC) { this.arrested = true; this._raise('心停止'); }
+    }
     var mapTarget = clamp((p.map || 80) * (this.co / (p.co || 5)) * (this.ph < 7.2 ? 0.88 : 1),
       nm.mapMin * 0.25, nm.mapMin * 2.2);
     this.map = approach(this.map, mapTarget, d, 15);
@@ -1158,7 +1170,8 @@
     clamp: clamp,
     isNava: isNava,
     isNoninvasive: isNoninvasive,
-    SED_WAKE_TAU: SED_WAKE_TAU, SED_DEEPEN_TAU: SED_DEEPEN_TAU
+    SED_WAKE_TAU: SED_WAKE_TAU, SED_DEEPEN_TAU: SED_DEEPEN_TAU,
+    arrestHr: arrestHr, ARREST_SEC: ARREST_SEC
   };
   root.VentEngine = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

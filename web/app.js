@@ -512,7 +512,7 @@
   var pulseDot = null;
   function pulseSound() {
     var e = S.eng;
-    if (!$('title').hidden) { SND.pulseReset(); return; }
+    if (!$('title').hidden || e.arrested) { SND.pulseReset(); return; }
     if (!SND.pulse(e.spo2, e.hr, performance.now() / 1000) || !pulseDot) return;
     pulseDot.classList.remove('on');
     void pulseDot.offsetWidth;                  // 同じアニメーションをもう一度走らせる
@@ -714,6 +714,7 @@
       }
       if (b.dataset.scr) b.setAttribute('aria-pressed', b.dataset.scr === S.screen ? 'true' : 'false');
     });
+    paintLocks();
   }
   function setMode(id) {
     if (S.eng.s.mode === id) return;
@@ -785,6 +786,7 @@
     });
     paintKeys();
     if (S.lesson) applySpot(S.lesson.spot);
+    paintLocks();
   }
   function fmtP(p, v) { return p.dec ? v.toFixed(p.dec) : String(Math.round(v)); }
   function paintKeys() {
@@ -1122,7 +1124,7 @@
       var L = S.lesson;
       var moved = L !== k.lesson || (L && (L.rt.index !== k.idx || L.mode !== 'task'));
       var alarm = sev2Alarms().some(function (a) { return k.alarms.indexOf(a) < 0; });
-      if (moved || alarm || e.extubated || e.clock >= k.until) { setSpeed(1); break; }
+      if (moved || alarm || e.extubated || e.arrested || e.clock >= k.until) { setSpeed(1); break; }
     }
   }
   function paintSkip() {
@@ -1134,6 +1136,32 @@
     b.classList.toggle('off', !can);
     $('ff').hidden = S.speed <= 1 && !S.skip;
     $('ff').textContent = S.skip ? '⏭ ' + S.skip.why + ' 進めています' : '早送り中 × ' + S.speed;
+  }
+
+  /* ===================== 心停止 =====================
+   * SpO₂ が下がり続けて心拍が落ちきると、モデルが心停止にする（engine の arrested）。
+   * そこで計算を止め、何が起きたかを見せて、レッスンか症例を最初からやり直してもらう。 */
+  function arrestTick() {
+    if (S.arrestShown === S.eng) return;
+    S.arrestShown = S.eng;
+    setSpeed(1);
+    S.sel = null; S.pend = null; paintKeys(); paintDial();
+    var e = S.eng, L = S.lesson, thr = E.arrestHr(e.nm);
+    var spo2 = Math.round(e.spo2), hr = Math.round(e.hr);
+    e.hr = 0; e.map = 0;                  // モニターも止まった心臓を映す（脈拍音も止まる）
+    modal('心停止', function (b, close) {
+      var t = el('div', 'tip bad');
+      t.textContent = 'SpO₂ ' + spo2 + '%、心拍 ' + hr + '/分 から、心臓が止まりました。';
+      b.appendChild(t);
+      b.appendChild(el('p', '', '酸素が足りない状態が続くと、子どもの心臓ははじめ速く打ち、やがて遅くなって止まります。'
+        + 'SpO₂ 60% 未満で心拍が ' + thr + '/分 を切ったまま ' + E.ARREST_SEC + ' 秒たつと、ここで止まります。'));
+      b.appendChild(el('p', 'note', 'SpO₂ が下がりはじめたら、まず酸素（100% O₂）、次にチューブと換気を確かめます。'));
+      var r = el('div', 'mrow');
+      var again = el('button', 'mbtn go', L ? 'レッスンをやり直す' : 'この症例を最初から');
+      again.onclick = function () { close(); if (L) beginLesson(L.id); else loadScenario(S.scen, false); };
+      r.appendChild(again);
+      b.appendChild(r);
+    }, { noClose: true });
   }
 
   /* ===================== トレンド ===================== */
@@ -1154,10 +1182,12 @@
   function frame(now) {
     requestAnimationFrame(frame);
     if (!lastT) { lastT = now; return; }
-    if (now - railT > 400) { railT = now; paintRails(false); paintSkip(); }
+    if (now - railT > 400) { railT = now; paintRails(false); paintSkip(); paintLocks(); }
     var real = Math.min(0.25, (now - lastT) / 1000); lastT = now;
     var e = S.eng;
-    if (S.skip && !e.extubated) {
+    if (e.arrested) {
+      arrestTick();
+    } else if (S.skip && !e.extubated) {
       skipTick();
       sampAcc = 0;
     } else if (!e.extubated) {
@@ -1906,15 +1936,18 @@
       if (!S.sbt || S.sbt.done) {
         var go = el('button', 'mbtn go', 'SBT を開始（30分）');
         go.onclick = function () { close(); startSBT(); };
+        lockEl(go, !canUse('sbt'));
         r2.appendChild(go);
       } else {
         var st = el('button', 'mbtn warn', 'SBT を中止');
         st.onclick = function () { close(); S.sbt = null; restoreSettings(); };
+        lockEl(st, !canUse('sbt'));
         r2.appendChild(st);
       }
       if (S.sbt && S.sbt.done === 'pass' && lessonAllowsExtubate()) {
         var ex = el('button', 'mbtn go', '抜管する');
         ex.onclick = function () { close(); doExtubate(); };
+        lockEl(ex, !canUse('extubate'));
         r2.appendChild(ex);
       }
       if (!S.lesson && (!S.sbt || S.sbt.done)) {
@@ -2287,6 +2320,31 @@
     return out;
   }
 
+  /* ===================== レッスン中のキーの制限 =====================
+   * レッスン中は、今の課題に要るキー（LS.controlsFor）しか触れない。会話・クイズ・解説・修了の画面では、
+   * 機器の操作キーはどれも触れない。自由に触れるのは「自由操作モードへ」でレッスンを離れてから。
+   * 早送り・⏭・患者情報・波形停止・画面の切り替え・消音・学習コース・メニューは、見るだけなのでいつでも触れる。 */
+  var LOCK_HARD = ['kInsp', 'kExp', 'kO2', 'kSuc', 'kAlm', 'kAbg', 'kWean'];
+  function canUse(tok) {
+    var L = S.lesson;
+    if (!L) return true;
+    if (L.mode !== 'task') return false;
+    return LS.controlsFor(L.rt.task()).indexOf(tok) >= 0;
+  }
+  function lockEl(b, on) {
+    if (!b) return;
+    b.disabled = !!on;
+    b.classList.toggle('locked', !!on);
+  }
+  function paintLocks() {
+    for (var id in keyNodes) lockEl(keyNodes[id].b, !canUse('key:' + id));
+    Array.prototype.forEach.call($('tabs').children, function (b) {
+      if (b.dataset.mode) lockEl(b, !canUse('mode:' + b.dataset.mode));
+    });
+    LOCK_HARD.forEach(function (id) { lockEl($(id), !canUse('hard:' + id)); });
+    if (S.sel && !canUse('key:' + S.sel)) { S.sel = null; S.pend = null; paintKeys(); paintDial(); }
+  }
+
   function applySpot(spec) {
     /* レッスンが設定キーを光らせたのにアラーム設定画面を開いていたら、設定キーの段に戻す。 */
     if (S.almView && spec && [].concat(spec).some(function (x) { return /^key:/.test(x) && P[x.slice(4)] && !P[x.slice(4)].alm; })) {
@@ -2421,6 +2479,7 @@
     $('coach').hidden = true;
     $('cWatch').hidden = true; $('cWatch')._h = '';
     $('kLearn').classList.remove('on');
+    paintLocks();
     if (!silent) fitAll();
   }
 
@@ -2640,6 +2699,7 @@
     if (spec && Array.isArray(spec) && !spec.length) spec = null;
     L.spot = spec || null;
     applySpot(L.spot);
+    paintLocks();
     spotFollow();
     if (L.spot) setTimeout(scrollToSpot, 60);
   }
@@ -2689,9 +2749,12 @@
       cb.style.flex = '0 0 auto';
       cb.onclick = openCourse;
       box.appendChild(cb);
-      var fb = el('button', 'cbtn', 'この症例を自由に操作する');
+      var fb = el('button', 'cbtn', '自由操作モードへ');
       fb.style.flex = '0 0 auto';
-      fb.onclick = function () { endLesson(false); };
+      fb.onclick = function () {
+        endLesson(false);
+        S.banner = { t: S.eng.clock, msg: '自由操作モードです。すべてのキーを自由に使えます' };
+      };
       box.appendChild(fb);
     }
   }

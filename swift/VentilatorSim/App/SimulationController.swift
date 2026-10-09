@@ -211,6 +211,56 @@ final class SimulationController {
             }
         }
         if look != lessonLook { lessonLook = look }
+        // 課題が変わって触れなくなったキーを選んだままにしない。
+        if let id = selectedParameterID, !canUse("key:" + id) {
+            selectedParameterID = nil
+            pendingValue = nil
+        }
+    }
+
+    /* レッスン中のキーの制限（Web 版 canUse）。レッスン中は今の課題に要るキー（LessonTask.controls）しか触れない。
+     * 会話・クイズ・解説・修了の画面では、機器の操作キーはどれも触れない。
+     * 自由に触れるのは「自由操作モードへ」でレッスンを離れてから。
+     * 早送り・⏭・患者情報・波形停止・画面の切り替え・消音・学習コースは、見るだけなのでいつでも触れる。 */
+    func canUse(_ token: String) -> Bool {
+        guard let runtime = lessonRuntime else { return true }
+        guard lessonPhase == .task, let task = runtime.task else { return false }
+        return task.controls.contains(token)
+    }
+
+    // MARK: - 心停止
+
+    struct CardiacArrest: Identifiable {
+        let id: Int
+        let spo2: Double
+        let heartRate: Double
+        let threshold: Double
+        let inLesson: Bool
+    }
+    /// 心停止の画面。閉じてもやり直すまで計算は止まったまま。
+    var cardiacArrest: CardiacArrest?
+    @ObservationIgnored private var arrestShown = false
+    @ObservationIgnored private var arrestCount = 0
+
+    private func presentArrestIfNeeded() {
+        guard !arrestShown else { return }
+        arrestShown = true
+        speed = .realtime
+        selectedParameterID = nil
+        pendingValue = nil
+        arrestCount &+= 1
+        cardiacArrest = CardiacArrest(id: arrestCount, spo2: engine.spo2, heartRate: engine.heartRate,
+                                      threshold: VentilatorEngine.arrestHeartRate(engine.norms),
+                                      inLesson: lessonRuntime != nil)
+        engine.flatline()
+        append("心停止")
+    }
+
+    /// 心停止のあと、レッスンか症例を最初からやり直す。
+    func restartAfterArrest() {
+        cardiacArrest = nil
+        if let lesson { startLesson(lesson) }
+        else { load(scenario: scenario, settings: scenario.initialSettings()) }
     }
 
     /* 帯にも出す計測値。課題に入った時点の値を控えておき、操作が終わったら「前 → 後」で見せる。
@@ -362,6 +412,8 @@ final class SimulationController {
     private func resetRun(scenario: Scenario, settings: VentilatorSettings, sedation: Double?) {
         self.scenario = scenario
         engine = VentilatorEngine(patient: scenario.patient, settings: settings)
+        arrestShown = false
+        cardiacArrest = nil
         if let sedation { engine.sedation = sedation }
         engine.settle()                  // その設定で数呼吸ぶん進め、実測をそろえてから始める
         settingsVersion &+= 1
@@ -431,6 +483,11 @@ final class SimulationController {
     /// テストやプレビューからも呼べるよう、実時間の差分を受け取る形にしてある。
     func advance(realSeconds: Double) {
         guard speed != .paused else { return }
+        if engine.isArrested {
+            presentArrestIfNeeded()
+            syncDisplay(realSeconds)
+            return
+        }
         if skip != nil, extubation == nil {
             advanceSkip()
             refreshLessonWatch()
@@ -535,7 +592,7 @@ final class SimulationController {
                 || (lessonRuntime?.index ?? -1) != goal.index
                 || (lessonRuntime != nil && lessonPhase != .task)
             let alarm = !dangerAlarms.subtracting(goal.alarms).isEmpty
-            if moved || alarm || extubation != nil || engine.clock >= goal.until {
+            if moved || alarm || extubation != nil || engine.isArrested || engine.clock >= goal.until {
                 speed = .realtime
                 break
             }
@@ -595,7 +652,7 @@ final class SimulationController {
     /// 設定キーを押す。選択中のキーをもう一度押しても外さない
     /// （外すと、確定前に押し直した人が「押したのに選ばれていない」状態にはまる）。
     func select(parameterID: String) {
-        guard selectedParameterID != parameterID, let key = self.parameter(id: parameterID) else { return }
+        guard canUse("key:" + parameterID), selectedParameterID != parameterID, let key = self.parameter(id: parameterID) else { return }
         selectedParameterID = parameterID
         pendingValue = currentValue(key)
     }

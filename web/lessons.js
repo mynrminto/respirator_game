@@ -2099,6 +2099,7 @@
             say: '「離脱」キーから SBT を開始し、最後まで完走させてください。',
             hint: '「⏭ 先へ」で SBT の終わりまで進められます。',
             spot: 'hard:kWean', watch: ['f/VT', 'RR tot', 'SpO₂'],
+            allow: ['hard:kWean', 'sbt', 'key:fio2', 'key:peep', 'key:sed', 'key:ps'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: 'SBT に通りました。'
           },
@@ -2526,6 +2527,7 @@
             say: '30 分の SBT を、最後まで通してください。',
             hint: '「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。',
             spot: 'val:f/VT', watch: ['f/VT', 'RR tot', 'SpO₂', 'HR'],
+            allow: ['hard:kWean', 'sbt', 'key:fio2', 'key:peep', 'key:sed', 'key:ps'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '30 分、呼吸回数も酸素化も循環も保てました。'
           },
@@ -2916,6 +2918,7 @@
             say: '30 分の SBT を、最後まで通してください。',
             hint: '「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。',
             spot: 'val:f/VT', watch: ['f/VT', 'RR tot', 'SpO₂', 'HR'],
+            allow: ['hard:kWean', 'sbt', 'key:fio2', 'key:peep', 'key:sed', 'key:ps'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '30 分、崩れずに呼吸できました。'
           },
@@ -3242,6 +3245,7 @@
             say: '「離脱」キーから SBT を開始し、最後まで通してください。',
             hint: '「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。',
             spot: 'hard:kWean', watch: ['f/VT', 'RR tot', 'SpO₂', 'HR'],
+            allow: ['hard:kWean', 'sbt', 'key:fio2', 'key:peep', 'key:sed', 'key:ps'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '自分の力で 30 分、呼吸を保てました。'
           },
@@ -3573,6 +3577,7 @@
             say: '「離脱」キーから SBT を開始し、最後まで通してください。',
             hint: '「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。',
             spot: 'hard:kWean', watch: ['f/VT', 'RR tot', 'SpO₂', 'HR'],
+            allow: ['hard:kWean', 'sbt', 'key:fio2', 'key:peep', 'key:sed', 'key:ps'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '30 分、吐けなくなることもなく呼吸できました。'
           },
@@ -3753,6 +3758,7 @@
             say: '30 分の SBT を、最後まで見届けてください。',
             hint: '「⏭ 先へ」で SBT の終わりまで進められます。後半の RR と f/VT は「トレンド」で見返せます。',
             spot: 'val:f/VT', watch: ['f/VT', 'RR tot', 'Vte', 'SpO₂'],
+            allow: ['hard:kWean', 'sbt', 'key:fio2', 'key:peep', 'key:sed', 'key:ps'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '30 分、後半まで崩れずに呼吸できました。前回、18 分で崩れた子です。'
           },
@@ -4498,6 +4504,30 @@
     return { done: done, total: total };
   };
 
+  /* レッスン中に触れるキー。今の課題に要るもの（spot・event・allow）と、違うキーを押したときの一言がある
+   * キー（missEvents。どれを押すか考えさせる課題で答えを教えないため）だけ。会話・クイズでは何も触れない。
+   * 'key:<設定>' / 'hard:<ハードキー>' / 'mode:<モード>' / 'sbt'（SBT 開始）/ 'extubate'（抜管）の印で返す。
+   * 早送り・⏭・患者情報・波形停止・画面の切り替え・消音・学習コース・メニューはいつでも触れる（app.js 側）。 */
+  var EVENT_CONTROL = {
+    'hold:insp': ['hard:kInsp'], 'hold:exp': ['hard:kExp'], 'abg:order': ['hard:kAbg'],
+    'suction': ['hard:kSuc'], 'o2100': ['hard:kO2'], 'patient': ['hard:kPt'],
+    'weaning:open': ['hard:kWean'], 'sbt:start': ['hard:kWean', 'sbt'], 'extubate': ['hard:kWean', 'extubate']
+  };
+  function eventControls(name) {
+    if (/^mode:/.test(name)) return [name];
+    if (/^alarm:/.test(name)) return ['hard:kAlm', 'key:' + name.slice(6)];
+    return EVENT_CONTROL[name] || [];
+  }
+  function controlsFor(t) {
+    if (!t || t.talk || t.quiz) return [];
+    var out = [];
+    function add(x) { if (/^(key|hard|mode):|^(sbt|extubate)$/.test(x) && out.indexOf(x) < 0) out.push(x); }
+    [].concat(t.spot || [], t.allow || []).forEach(add);
+    if (t.event) eventControls(t.event).forEach(add);
+    if (t.missEvents) Object.keys(t.missEvents).forEach(function (k) { eventControls(k).forEach(add); });
+    return out;
+  }
+
   /** いま向かっている「やること」の番号。会話の場面は飛ばす。無ければ -1。 */
   Runtime.prototype.actionIndex = function () {
     var t = this.lesson.tasks;
@@ -4664,6 +4694,7 @@
     lessonById: lessonById,
     chapterOf: chapterOf,
     nextLessonId: nextLessonId,
+    controlsFor: controlsFor,
     Runtime: Runtime
   };
   root.VentLessons = api;
