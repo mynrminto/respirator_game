@@ -250,7 +250,7 @@ final class SimulationController {
         pendingValue = nil
         arrestCount &+= 1
         cardiacArrest = CardiacArrest(id: arrestCount, spo2: engine.spo2, heartRate: engine.heartRate,
-                                      threshold: VentilatorEngine.arrestHeartRate(engine.norms),
+                                      threshold: VentilatorEngine.arrestHeartRate,
                                       inLesson: lessonRuntime != nil)
         engine.flatline()
         append("心停止")

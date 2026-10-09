@@ -12,7 +12,7 @@
   var C_SPEC_NORMAL = 1.0;       // mL/cmH2O/kg  健康な小児の比コンプライアンスの目安
   var BLOOD_PER_KG = 75;         // mL/kg  循環血液量
   var CO2_STORE_PER_KG = 0.33;   // mL/kg/mmHg  速く平衡する CO2 の貯え
-  var PA_O2_FLOOR = 12;          // mmHg
+  var PA_O2_FLOOR = 4;           // mmHg（心停止の手前、SpO₂ 10% を切るところまで下がれるように）
   /* 気管吸引（開放式）。吸っているあいだに潰れる肺胞の割合、開き直す時定数、吸い出される肺のガスの割合。 */
   var SUCTION_SHUNT = 0.08;
   var SUCTION_REOPEN = 60;       // s
@@ -32,10 +32,9 @@
   /* 鎮静を浅くしてから覚めるまでの時定数（秒）と、深くするときの時定数。
    * 0.85 から「覚醒（0.4 以下）」まで約 2 分、ほぼ醒めきる（0.05）まで約 8 分。 */
   var SED_WAKE_TAU = 180, SED_DEEPEN_TAU = 30;
-  /* 心停止とみなす心拍。年齢の下限の 7 割、ただし 60/分 より低くはしない
-   * （学童 60・未就学児 63・乳児 77・新生児 84）。この心拍を SpO₂ 60% 未満で ARREST_SEC 秒切り続けたら止まる。 */
-  var ARREST_SEC = 30;
-  function arrestHr(nm) { return Math.max(60, Math.round(nm.hr[0] * 0.7)); }
+  /* 心停止。SpO₂ が ARREST_SPO2 % 未満、心拍が ARREST_HR /分 未満のまま ARREST_SEC 秒たったら止まる（年齢によらない）。 */
+  var ARREST_SEC = 60, ARREST_SPO2 = 10, ARREST_HR = 20;
+  function arrestHr() { return ARREST_HR; }
   var NAVA_APNEA = 5;
 
   /* ---------- 酸素解離曲線 (Severinghaus) ---------- */
@@ -979,7 +978,7 @@
     var ccO2 = o2Content(this.pAO2, p.hb);
     var coFloor = 0.25 * (p.co || 5.0);
     var caO2 = ccO2 - this.shunt * vo2 / ((1 - this.shunt) * 10 * Math.max(coFloor, this.co));
-    caO2 = Math.max(2, caO2);
+    caO2 = Math.max(0.5, caO2);
     var pao2Target = po2FromContent(caO2, p.hb);
     this.pao2 = approach(this.pao2, pao2Target, d, nm.paLag);      // 肺から動脈までの数秒
     var sat = satFromPO2(this.pao2) * 100;
@@ -1021,11 +1020,14 @@
     var bradySpo2 = nm.label === '新生児' ? 78 : (nm.label === '乳児' ? 72 : 65);
     var bradySlope = nm.label === '新生児' ? 3.2 : 3.6 * hrScale;
     if (this.spo2 < bradySpo2) hrTarget -= (bradySpo2 - this.spo2) * bradySlope;
-    this.hr = approach(this.hr, clamp(hrTarget, nm.hr[0] * 0.2, nm.hr[1] * 1.45), d, 12);
-    /* 心停止。SpO₂ 60% 未満のまま、心拍が年齢の下限の 7 割（最低でも 60/分）を 30 秒切り続けたら止まる。
+    /* SpO₂ が 30% を切ると、心筋そのものが酸素不足で持たなくなり、心拍は 0 に向かって落ちていく。 */
+    var terminal = this.spo2 < 30;
+    if (terminal) hrTarget -= (30 - this.spo2) * 8 * hrScale;
+    this.hr = approach(this.hr, clamp(hrTarget, terminal ? 0 : nm.hr[0] * 0.2, nm.hr[1] * 1.45), d, 12);
+    /* 心停止。SpO₂ 10% 未満・心拍 20/分 未満のまま 1 分たったら止まる。
      * 画面はここで止めて「心停止」を知らせる（蘇生の操作はこのシミュレーターには無い）。 */
     if (!this.arrested) {
-      this.arrestT = (this.spo2 < 60 && this.hr < arrestHr(nm)) ? this.arrestT + d : 0;
+      this.arrestT = (this.spo2 < ARREST_SPO2 && this.hr < ARREST_HR) ? this.arrestT + d : 0;
       if (this.arrestT >= ARREST_SEC) { this.arrested = true; this._raise('心停止'); }
     }
     var mapTarget = clamp((p.map || 80) * (this.co / (p.co || 5)) * (this.ph < 7.2 ? 0.88 : 1),
@@ -1171,7 +1173,7 @@
     isNava: isNava,
     isNoninvasive: isNoninvasive,
     SED_WAKE_TAU: SED_WAKE_TAU, SED_DEEPEN_TAU: SED_DEEPEN_TAU,
-    arrestHr: arrestHr, ARREST_SEC: ARREST_SEC
+    arrestHr: arrestHr, ARREST_SEC: ARREST_SEC, ARREST_SPO2: ARREST_SPO2, ARREST_HR: ARREST_HR
   };
   root.VentEngine = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -1146,7 +1146,7 @@
     S.arrestShown = S.eng;
     setSpeed(1);
     S.sel = null; S.pend = null; paintKeys(); paintDial();
-    var e = S.eng, L = S.lesson, thr = E.arrestHr(e.nm);
+    var e = S.eng, L = S.lesson;
     var spo2 = Math.round(e.spo2), hr = Math.round(e.hr);
     e.hr = 0; e.map = 0;                  // モニターも止まった心臓を映す（脈拍音も止まる）
     modal('心停止', function (b, close) {
@@ -1154,7 +1154,7 @@
       t.textContent = 'SpO₂ ' + spo2 + '%、心拍 ' + hr + '/分 から、心臓が止まりました。';
       b.appendChild(t);
       b.appendChild(el('p', '', '酸素が足りない状態が続くと、子どもの心臓ははじめ速く打ち、やがて遅くなって止まります。'
-        + 'SpO₂ 60% 未満で心拍が ' + thr + '/分 を切ったまま ' + E.ARREST_SEC + ' 秒たつと、ここで止まります。'));
+        + 'SpO₂ ' + E.ARREST_SPO2 + '% 未満・心拍 ' + E.ARREST_HR + '/分 未満のまま ' + Math.round(E.ARREST_SEC / 60) + ' 分たつと、ここで止まります。'));
       b.appendChild(el('p', 'note', 'SpO₂ が下がりはじめたら、まず酸素（100% O₂）、次にチューブと換気を確かめます。'));
       var r = el('div', 'mrow');
       var again = el('button', 'mbtn go', L ? 'レッスンをやり直す' : 'この症例を最初から');

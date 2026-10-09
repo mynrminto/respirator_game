@@ -1627,10 +1627,21 @@ console.log('\n35. レッスン中は今の課題に要るキーだけ触れる�
     let t = 0; while (!e.arrested && t < 900) { run(e, 5, 0.01); t += 5; }
     return { id, t, hr: e.hr, spo2: e.spo2 };
   });
-  ok('換気がほぼ止まると、どの子も 5 分以内に心停止になる', tStop.every(x => x.t <= 300), tStop.map(x => `${x.id} ${x.t}s`).join(' / '));
+  ok('換気がほぼ止まると、どの子も 2〜5 分で心停止になる', tStop.every(x => x.t >= 120 && x.t <= 300), tStop.map(x => `${x.id} ${x.t}s`).join(' / '));
   const steady = ids.filter(id => { const e = mk(id); run(e, 1800, 0.01); return e.arrested; });
   ok('推奨設定のままなら 30 分たっても心停止しない', steady.length === 0, steady.join(','));
-  ok('心停止の心拍は年齢の下限の 7 割、最低 60', VE.arrestHr(VE.normsFor(scen('postop').patient)) === 60 && VE.arrestHr(VE.normsFor(scen('rds').patient)) === 84);
+  ok('心停止は SpO₂ 10% 未満・心拍 20/分 未満が 1 分続いたとき（年齢によらない）', VE.ARREST_SPO2 === 10 && VE.ARREST_HR === 20 && VE.ARREST_SEC === 60);
+  {
+    // 心停止の手前（SpO₂ 20% 台で心拍が落ちはじめたところ）で換気を戻せば、止まらずに戻る。
+    const e = mk('bronchiolitis'); run(e, 300, 0.01);
+    const s0 = JSON.parse(JSON.stringify(e.s));
+    e.sedation = 1; e._recomputeDrive(); e.s.rr = 1; e.s.fio2 = 0.21;
+    while (e.spo2 > 25) run(e, 1, 0.01);
+    const low = { spo2: e.spo2, hr: e.hr };
+    Object.assign(e.s, s0); e.s.fio2 = 1; run(e, 300, 0.01);
+    ok('SpO₂ 25% で換気と酸素を戻せば、心停止せずに戻る', !e.arrested && e.spo2 > 90 && e.hr > 100,
+      `底 SpO₂ ${low.spo2.toFixed(0)} / HR ${low.hr.toFixed(0)} → ${e.spo2.toFixed(0)} / ${e.hr.toFixed(0)}`);
+  }
   ok('Web は心停止で計算を止め、やり直しを出す', /if \(e\.arrested\) \{\s*arrestTick\(\);/.test(app) && /'レッスンをやり直す'/.test(app));
 }
 

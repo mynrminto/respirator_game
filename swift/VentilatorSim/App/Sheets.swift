@@ -493,7 +493,7 @@ struct CardiacArrestSheet: View {
                     Text("SpO₂ \(Int(arrest.spo2.rounded()))%、心拍 \(Int(arrest.heartRate.rounded()))/分 から、心臓が止まりました。")
                         .foregroundStyle(.red)
                     Text("酸素が足りない状態が続くと、子どもの心臓ははじめ速く打ち、やがて遅くなって止まります。"
-                         + "SpO₂ 60% 未満で心拍が \(Int(arrest.threshold))/分 を切ったまま \(Int(VentilatorEngine.arrestSeconds)) 秒たつと、ここで止まります。")
+                         + "SpO₂ \(Int(VentilatorEngine.arrestSpO2))% 未満・心拍 \(Int(arrest.threshold))/分 未満のまま \(Int(VentilatorEngine.arrestSeconds / 60)) 分たつと、ここで止まります。")
                         .font(.callout)
                     Text("SpO₂ が下がりはじめたら、まず酸素（100% O₂）、次にチューブと換気を確かめます。")
                         .font(.footnote).foregroundStyle(.secondary)
