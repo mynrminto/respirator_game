@@ -1972,7 +1972,7 @@
     S.day += 1;
     SC.recover(e, S.scen, 86400);
     if (!(S.extubated && S.extubated.live)) e.fatigue = 0;
-    for (var i = 0; i < 180000; i++) e.step(0.01, false);
+    for (var i = 0; i < 180000 && !e.arrested; i++) e.step(0.01, false);   // 夜のうちに心停止したら、そこで止める
     S.trend = [];
     setSpeed(1);
     S.banner = { t: e.clock, msg: S.day + ' 日目の朝になりました' };
