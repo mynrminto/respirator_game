@@ -276,8 +276,8 @@ extension LessonLibrary {
                   hint: "「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。",
                   why: "30 分、呼吸回数も酸素化も循環も保てました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
-                .spotting(["val:f/VT"]).watching(["f/VT", "RR tot", "SpO₂", "HR"]),
-                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"])
+                .spotting(["val:f/VT"]).watching(["f/VT", "RR tot", "SpO₂", "HR"])
+                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"]),
             .talk(.doctor, "抜いたら、すぐ高流量鼻カニュラ（HFNC）。温めて加湿した酸素を、鼻から大きな流量で流す方法です。乳児なら 1 kg あたり 2 L/分が目安。"),
             .talk(.puku, "入院した日に、つけてたやつだ！"),
             .talk(.doctor, "そうです。吸う仕事を少し肩代わりし、鼻の奥の死腔を洗い流してくれます。抜管後の 1〜2 日を支えます。"),
@@ -554,8 +554,8 @@ extension LessonLibrary {
                   hint: "「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。",
                   why: "30 分、崩れずに呼吸できました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
-                .spotting(["val:f/VT"]).watching(["f/VT", "RR tot", "SpO₂", "HR"]),
-                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"])
+                .spotting(["val:f/VT"]).watching(["f/VT", "RR tot", "SpO₂", "HR"])
+                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"]),
             .talk(.doctor, "カフリークテストは、カフの空気を抜いて、チューブのまわりから空気が漏れるかを見る検査。漏れなければ、声門の下が腫れています。"),
             .quiz("挿管 12 日目の 3 歳。カフリークがありません。どうしますか。",
                   ["ステロイドを使い、半日〜1 日おいて再評価する",
@@ -787,8 +787,8 @@ extension LessonLibrary {
                   hint: "「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。",
                   why: "自分の力で 30 分、呼吸を保てました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
-                .spotting(["hard:kWean"]).watching(["f/VT", "RR tot", "SpO₂", "HR"]),
-                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"])
+                .spotting(["hard:kWean"]).watching(["f/VT", "RR tot", "SpO₂", "HR"])
+                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"]),
             .talk(.doctor, "抜いたら、すぐ鼻から CPAP（nCPAP）。鼻に当てた管から一定の圧をかけ続け、PEEP の代わりに肺胞を支えます。"),
             .quiz("抜管後の nCPAP。30 秒ほど息が止まり、心拍が 80 に落ちました。まずすることは？",
                   ["体をさすって刺激し、戻らなければバッグで換気する",
@@ -1030,8 +1030,8 @@ extension LessonLibrary {
                   hint: "「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。",
                   why: "30 分、吐けなくなることもなく呼吸できました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
-                .spotting(["hard:kWean"]).watching(["f/VT", "RR tot", "SpO₂", "HR"]),
-                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"])
+                .spotting(["hard:kWean"]).watching(["f/VT", "RR tot", "SpO₂", "HR"])
+                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"]),
             .quiz("抜管後、喘息の再発を防ぐのにいちばん大事なことは？",
                   ["吸入ステロイドを毎日続ける",
                    "発作のときだけ吸入する",
@@ -1159,8 +1159,8 @@ extension LessonLibrary {
                   hint: "「⏭ 先へ」で SBT の終わりまで進められます。後半の RR と f/VT は「トレンド」で見返せます。",
                   why: "30 分、後半まで崩れずに呼吸できました。前回、18 分で崩れた子です。",
                   check: { $0.sbt.finished && $0.sbt.passed })
-                .spotting(["val:f/VT"]).watching(["f/VT", "RR tot", "Vte", "SpO₂"]),
-                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"])
+                .spotting(["val:f/VT"]).watching(["f/VT", "RR tot", "Vte", "SpO₂"])
+                .allowing(["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"]),
             .talk(.doctor, "ギラン・バレーの子は、呼吸の筋肉だけでなく、咳や飲み込みの力も弱っています。肺がきれいでも、痰を出せなければ戻ってきます。"),
             .quiz("SBT に通ったあかりちゃん。抜管の前に、ほかに確かめることは？",
                   ["咳の強さ・飲み込み・カフリーク",
