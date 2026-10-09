@@ -75,6 +75,15 @@ public final class VentilatorEngine {
     public var sedation: Double {
         didSet { recomputeDrive() }
     }
+    /// 鎮静の目標（Web 版 sedationTarget）。nil なら sedation をそのまま使う（レッスン）。
+    /// 自由操作でダイヤルを回すと目標だけが変わり、薬が抜けるまで数分かけて覚める。
+    public var sedationTarget: Double? {
+        didSet { easedSedation = nil }
+    }
+    /// 浅くしてから覚めるまでの時定数（秒）と、深くするときの時定数。0.85 から覚醒（0.4 以下）まで約 2 分。
+    public static let sedationWakeTau = 180.0
+    public static let sedationDeepenTau = 30.0
+    private var easedSedation: Double?
 
     public private(set) var phase: Phase = .expiration
     public private(set) var lastTrigger: TriggerSource = .timer
@@ -465,6 +474,15 @@ public final class VentilatorEngine {
     /// `dt` 秒だけ進める。指数積分を使っているので 5 ms でも 12 ms でも結果はほぼ変わらない。
     public func step(dt: Double) {
         clock += dt
+        if let target = sedationTarget, sedation != target {
+            // 毎刻み sedation に書くと呼吸ドライブを計算し直してしまうので、0.005 動くごとに反映する。
+            let cur = easedSedation ?? sedation
+            let tau = target < cur ? Self.sedationWakeTau : Self.sedationDeepenTau
+            var next = Physiology.approach(cur, toward: target, dt: dt, tau: tau)
+            if abs(next - target) < 0.002 { next = target }
+            easedSedation = next
+            if next == target || abs(next - sedation) >= 0.005 { sedation = next }
+        }
         phaseTime += dt
         sinceMandatory += dt
         sinceBreath += dt
@@ -1243,6 +1261,9 @@ public final class VentilatorEngine {
         change(&patient)
         recomputeDrive()
     }
+
+    /// 一晩休んだあと、呼吸筋の疲れを取る（自由操作の「1 日待つ」）。
+    public func restMuscles() { fatigue = 0 }
 
     /// 場面の始まりで、HCO₃⁻ をその値に置く（代償が済んだあとから始めるとき）。
     public func setBicarbonate(_ value: Double) {

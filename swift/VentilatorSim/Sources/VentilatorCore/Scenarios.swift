@@ -281,6 +281,73 @@ public struct WeaningCriterion: Identifiable {
     public let value: String
 }
 
+/// 自由操作で時間がたつと病気は治っていく（Web 版 scenarios.js の recovery と recover）。
+/// 値は各症例の「離脱を考えられる日」にレッスンの台本が入れる値と同じ。days 日でほぼ（95%）そこへ近づく
+/// 指数の歩みなので、吸引で抵抗が下がったなど、ほかの変化と重ねても壊れない。レッスン中は呼ばない。
+public struct Recovery: Equatable, Sendable {
+    public var days: Double
+    public var compliance: Double? = nil
+    public var resistanceInsp: Double? = nil
+    public var resistanceExp: Double? = nil
+    public var shuntAtLowPEEP: Double? = nil
+    public var shuntMinimum: Double? = nil
+    public var recruitmentP50: Double? = nil
+    public var alveolarDeadSpaceFraction: Double? = nil
+    public var hco3Base: Double? = nil
+    public var maxInspiratoryPressure: Double? = nil
+    public var driveGain: Double? = nil
+    public var temperature: Double? = nil
+    public var heartRate: Double? = nil
+    public var fatigueLoad: Double? = nil
+
+    public static let library: [String: Recovery] = [
+        "postop": Recovery(days: 1, temperature: 37.0),
+        "rds": Recovery(days: 3, compliance: 0.0012, shuntAtLowPEEP: 0.12, shuntMinimum: 0.05,
+                        hco3Base: 24, maxInspiratoryPressure: 12, driveGain: 1.3),
+        "micro": Recovery(days: 7, compliance: 0.0005, shuntAtLowPEEP: 0.18, shuntMinimum: 0.06,
+                          recruitmentP50: 7, alveolarDeadSpaceFraction: 0.05, hco3Base: 24,
+                          maxInspiratoryPressure: 9, driveGain: 1.2),
+        "bronchiolitis": Recovery(days: 7, resistanceInsp: 40, resistanceExp: 60, shuntAtLowPEEP: 0.15,
+                                  shuntMinimum: 0.08, driveGain: 1.0, temperature: 37.0),
+        "ards": Recovery(days: 11, compliance: 0.0105, shuntAtLowPEEP: 0.14, shuntMinimum: 0.05,
+                         driveGain: 1.1, temperature: 37.0),
+        "asthma": Recovery(days: 1, resistanceInsp: 16, resistanceExp: 22, driveGain: 1.0, heartRate: 100),
+        "gbs": Recovery(days: 21, maxInspiratoryPressure: 16, fatigueLoad: 0.45),
+    ]
+
+    /// その秒数ぶん治す。
+    public static func advance(engine: VentilatorEngine, scenario: Scenario, seconds: Double) {
+        guard let r = scenario.recovery, seconds > 0 else { return }
+        let k = 1 - exp(-3 * seconds / (r.days * 86400))
+        engine.adjustPatient { p in
+            func move(_ path: WritableKeyPath<Patient, Double>, _ target: Double?) {
+                if let target { p[keyPath: path] += (target - p[keyPath: path]) * k }
+            }
+            move(\.compliance, r.compliance)
+            move(\.resistanceInsp, r.resistanceInsp)
+            move(\.resistanceExp, r.resistanceExp)
+            move(\.shuntAtLowPEEP, r.shuntAtLowPEEP)
+            move(\.shuntMinimum, r.shuntMinimum)
+            move(\.recruitmentP50, r.recruitmentP50)
+            move(\.alveolarDeadSpaceFraction, r.alveolarDeadSpaceFraction)
+            move(\.hco3Base, r.hco3Base)
+            move(\.maxInspiratoryPressure, r.maxInspiratoryPressure)
+            move(\.driveGain, r.driveGain)
+            move(\.temperature, r.temperature)
+            move(\.heartRate, r.heartRate)
+            if let t = r.fatigueLoad {
+                let cur = p.fatigueLoad ?? 0.62
+                p.fatigueLoad = cur + (t - cur) * k
+            }
+        }
+    }
+}
+
+extension Scenario {
+    /// 自由操作での回復のしかた。nil なら時間がたっても変わらない。
+    public var recovery: Recovery? { Recovery.library[id] }
+}
+
 public enum Weaning {
     /// A/C では患者が吸った呼吸も強制換気として送られるので、自発はトリガの回数でも数える。
     public static func hasSpontaneousBreathing(_ engine: VentilatorEngine) -> Bool {

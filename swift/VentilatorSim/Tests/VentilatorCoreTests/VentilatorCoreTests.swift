@@ -576,3 +576,72 @@ struct FreePlayExtubationTests {
         #expect(bad)
     }
 }
+
+@Suite("自由操作の鎮静と回復（web/test.js の 34 番と同じ）")
+struct FreePlaySedationRecoveryTests {
+
+    @Test("鎮静は数分かけて覚め、深くするのは速い")
+    func gradualSedation() {
+        let e = makeEngine("postop")
+        run(e, seconds: 60, dt: 0.01)
+        e.sedationTarget = 0
+        run(e, seconds: 30, dt: 0.01)
+        #expect(e.sedation > 0.6)
+        run(e, seconds: 150, dt: 0.01)
+        #expect(e.sedation <= 0.4)
+        run(e, seconds: 420, dt: 0.01)
+        #expect(e.sedation < 0.05)
+        #expect(Weaning.hasSpontaneousBreathing(e))
+        e.sedationTarget = 0.85
+        run(e, seconds: 120, dt: 0.01)
+        #expect(e.sedation > 0.8)
+    }
+
+    @Test("治りきる日数ぶん進めると、SBT を通って抜管後 1 時間もつ", arguments: ["bronchiolitis", "ards", "asthma", "gbs"])
+    func recoversToExtubation(_ id: String) {
+        let sc = scen(id)
+        let e = makeEngine(id)
+        run(e, seconds: 60, dt: 0.01)
+        Recovery.advance(engine: e, scenario: sc, seconds: sc.recovery!.days * 86400)
+        var s = e.settings
+        if id == "asthma" {
+            s.mode = .volumeAssistControl; s.tidalVolume = 280; s.respiratoryRate = 12; s.peep = 5
+            s.fio2 = 0.4; s.inspiratoryFlow = 40; s.inspiratoryPause = 0.3
+        } else if id == "gbs" {
+            s.mode = .pressureSupport; s.pressureSupport = 8; s.peep = 5; s.fio2 = 0.3
+        }
+        e.settings = s
+        e.sedation = 0.3
+        run(e, seconds: 7200, dt: 0.01)
+        let pbw = e.patient.predictedBodyWeight
+        s = e.settings
+        s.mode = .pressureSupport; s.pressureSupport = pbw < 10 ? 8 : (pbw < 25 ? 6 : 5)
+        s.peep = min(s.peep, 5); s.fio2 = min(s.fio2, 0.4)
+        e.settings = s
+        e.sedation = 0.15
+        let n = e.norms
+        var failed = false
+        for t in stride(from: 0, to: 1800, by: 10) where !failed {
+            run(e, seconds: 10, dt: 0.01)
+            if t > 60 && (e.measured.respiratoryRateTotal > (n.respiratoryRate.upperBound * 1.5).rounded()
+                          || e.spo2 < n.spo2Target.lowerBound || e.pH < 7.30) { failed = true }
+        }
+        #expect(!failed)
+        s = e.settings
+        s.hfncFlow = Weaning.postExtubationFlow(for: e); s.mode = .hfnc
+        e.settings = s
+        var bad: String?
+        for t in stride(from: 0, to: 3600, by: 30) where bad == nil && !failed {
+            run(e, seconds: 30, dt: 0.01)
+            if t > 30 { bad = Weaning.extubationTrouble(for: e) }
+        }
+        #expect(bad == nil)
+    }
+
+    @Test("ARDS は 1 日では少ししか治らない")
+    func ardsSlow() {
+        let sc = scen("ards"), e = makeEngine("ards")
+        Recovery.advance(engine: e, scenario: sc, seconds: 86400)
+        #expect(e.patient.compliance > sc.patient.compliance && e.patient.compliance < 0.0075)
+    }
+}

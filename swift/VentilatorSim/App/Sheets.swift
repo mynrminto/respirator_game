@@ -160,6 +160,22 @@ struct PostExtubationSection: View {
     }
 }
 
+/// 自由操作の「1 日待つ」。時間の早送り（「⏭ 先へ」）は分の単位、これは日の単位。
+struct DayAdvanceSection: View {
+    let controller: SimulationController
+    let dismiss: () -> Void
+
+    var body: some View {
+        if controller.canAdvanceDay, let r = controller.scenario.recovery {
+            Section {
+                Button("1 日待つ（\(controller.day + 1) 日目へ）") { controller.advanceDay(); dismiss() }
+            } footer: {
+                Text("自由操作では、時間がたつと病気は少しずつ治っていきます（この子はおよそ \(Int(r.days)) 日で離脱を考えられるところまで）。いまは \(controller.day) 日目です。")
+            }
+        }
+    }
+}
+
 /// 抜管後に呼吸が崩れてきたときの知らせ（Web 版 openExtubationTrouble）。
 struct ExtubationTroubleSheet: View {
     let controller: SimulationController
@@ -228,6 +244,7 @@ struct WeaningSheet: View {
                     } footer: {
                         Text("抜管前の換気設定に戻し、鎮静をかけ直します。")
                     }
+                    DayAdvanceSection(controller: controller, dismiss: { dismiss() })
                 } else {
                     Section {
                         ForEach(criteria) { criterion in
@@ -289,6 +306,7 @@ struct WeaningSheet: View {
                             }
                         }
                     }
+                    DayAdvanceSection(controller: controller, dismiss: { dismiss() })
                 }
             }
             .navigationTitle("離脱")
@@ -470,6 +488,7 @@ struct PatientInfoSheet: View {
         } else {
             rows.append(("血液ガス", "まだ採っていない"))
         }
+        if controller.lesson == nil { rows.append(("経過", "\(controller.day) 日目")) }
         if let x = controller.postExtubation {
             rows.append(("離脱", x.reintubated ? "抜管後に再挿管" : (x.stable ? "抜管後・安定" : "抜管後・崩れている")))
         } else if let x = controller.extubation {

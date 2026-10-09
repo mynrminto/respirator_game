@@ -350,7 +350,7 @@ final class SimulationController {
     func currentValue(_ parameter: VentilatorParameter) -> Double {
         if parameter.isSimulatorControl {
             _ = settingsVersion
-            return (engine.sedation * 100).rounded()
+            return ((engine.sedationTarget ?? engine.sedation) * 100).rounded()
         }
         return parameter.read(settings)
     }
@@ -414,7 +414,7 @@ final class SimulationController {
         engine = VentilatorEngine(patient: scenario.patient, settings: settings)
         arrestShown = false
         cardiacArrest = nil
-        if let sedation { engine.sedation = sedation }
+        if let sedation { setSedationNow(sedation) }
         engine.settle()                  // その設定で数呼吸ぶん進め、実測をそろえてから始める
         settingsVersion &+= 1
         bloodGases = []
@@ -439,6 +439,7 @@ final class SimulationController {
         extubation = nil
         postExtubation = nil
         extubationTrouble = nil
+        day = 1
         selectedParameterID = nil
         pendingValue = nil
         speed = .realtime
@@ -535,6 +536,7 @@ final class SimulationController {
         }
         currentLoop = loopBuffer
 
+        if lesson == nil { Recovery.advance(engine: engine, scenario: scenario, seconds: simulated) }
         recordTrend(simulated: simulated)
         updateTimers(simulated: simulated)
         watchAfterExtubation()
@@ -584,8 +586,10 @@ final class SimulationController {
             let chunk = min(0.5, left)
             left -= chunk
             for _ in 0..<Int((chunk / 0.01).rounded()) { engine.step(dt: 0.01) }
+            if lesson == nil { Recovery.advance(engine: engine, scenario: scenario, seconds: chunk) }
             recordTrend(simulated: chunk)
             updateTimers(simulated: chunk)
+            watchAfterExtubation()
             advanceLesson(simulated: chunk)
             guard skip != nil else { break }
             let moved = lessonRuntime.map(ObjectIdentifier.init) != goal.runtime
@@ -670,7 +674,8 @@ final class SimulationController {
     func commitPending() {
         guard let parameter = selectedParameter, let pending = pendingValue, hasPendingChange else { return }
         if parameter.isSimulatorControl {
-            engine.sedation = pending / 100
+            // 自由操作では目標だけを変え、薬が抜けるまで数分かけて覚める。レッスンでは今までどおりすぐ効く。
+            if lesson == nil { engine.sedationTarget = pending / 100 } else { setSedationNow(pending / 100) }
             settingsVersion &+= 1
         } else {
             var updated = engine.settings
@@ -975,6 +980,30 @@ final class SimulationController {
         speed = .realtime
     }
 
+    /// 鎮静をすぐ効かせる（SBT・再挿管・レッスン）。ゆっくり覚める途中の目標は捨てる。
+    private func setSedationNow(_ value: Double) {
+        engine.sedationTarget = nil
+        engine.sedation = value
+    }
+
+    /// 自由操作の経過日数（1 日目から）。
+    private(set) var day = 1
+
+    /// 自由操作の「1 日待つ」（Web 版 advanceDay）。病気を 1 日ぶん治し、そのあと 30 分ぶん計算して
+    /// 血液ガスを落ち着かせる。夜のあいだに呼吸筋も休まる（抜管後は休まらない）。
+    var canAdvanceDay: Bool { lesson == nil && !isSBTRunning }
+    func advanceDay() {
+        guard canAdvanceDay else { return }
+        day += 1
+        Recovery.advance(engine: engine, scenario: scenario, seconds: 86400)
+        if postExtubation?.live != true { engine.restMuscles() }
+        // 夜のうちに心停止したら、そこで止めて心停止の画面に任せる。
+        for _ in 0..<180_000 where !engine.isArrested { engine.step(dt: 0.01) }
+        trend = []
+        speed = .realtime
+        append("\(day) 日目の朝")
+    }
+
     /// 再挿管。抜管前の換気設定に戻し、鎮静をかけ直す。
     func reintubate() {
         guard let x = postExtubation, x.live else { return }
@@ -985,7 +1014,7 @@ final class SimulationController {
         var restored = x.before
         restored.alarms = engine.settings.alarms         // アラームの枠はそのまま
         settings = restored
-        engine.sedation = max(engine.sedation, 0.6)
+        setSedationNow(max(engine.sedation, 0.6))
         var done = x
         done.reintubated = true
         done.stable = false
@@ -1064,7 +1093,7 @@ final class SimulationController {
         s.peep = min(s.peep, 5)
         s.fio2 = min(s.fio2, 0.4)
         settings = s
-        engine.sedation = min(engine.sedation, 0.15)
+        setSedationNow(min(engine.sedation, 0.15))
         sbtElapsed = 0
         sbtFinished = false
         sbtPassed = false
@@ -1092,7 +1121,7 @@ final class SimulationController {
     private func restoreAfterSBT() {
         guard let saved = sbtSaved else { return }
         settings = saved
-        engine.sedation = min(0.5, engine.sedation + 0.25)
+        setSedationNow(min(0.5, engine.sedation + 0.25))
         sbtSaved = nil
         selectedParameterID = nil
         pendingValue = nil
