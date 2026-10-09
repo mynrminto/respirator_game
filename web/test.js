@@ -1484,5 +1484,34 @@ console.log('\n31. 急性の過換気・低換気で HCO₃⁻ がその場で�
     `PaCO₂ ${d0.toFixed(0)}→${lo.paco2.toFixed(0)}, HCO₃⁻ ${g0.toFixed(1)}→${lo.hco3.toFixed(1)}, pH ${lo.ph.toFixed(2)}`);
 }
 
+console.log('\n32. 自由操作の抜管：止めずに HFNC で呼吸を続け、崩れるかどうかは計算に任せる');
+{
+  const SCN = require('./scenarios.js');
+  /* SBT 後と同じく鎮静を浅くし、HFNC（子ども 2 L/kg/分、3 kg 未満 6 L/分）につなぐ。 */
+  function extubate(id) {
+    const e = mk(id); run(e, 60);
+    e.sedation = 0.15; e._recomputeDrive(); run(e, 300);
+    e.s.hfncFlow = SCN.postExtubationFlow(e); e.s.mode = 'HFNC';
+    return e;
+  }
+  ok('HFNC の流量：25 kg は 50、6 kg は 12、1.1 kg は 6 L/分',
+    SCN.postExtubationFlow(mk('postop')) === 50 && SCN.postExtubationFlow(mk('bronchiolitis')) === 12
+    && SCN.postExtubationFlow(mk('rds')) === 6);
+  const h = extubate('postop');
+  let worst = null;
+  for (let t = 0; t < 3600; t += 30) { run(h, 30); if (t > 30) worst = worst || SCN.extubationTrouble(h); }
+  ok('ハルト君（肺はほぼ正常）は抜管後 1 時間崩れない', !worst,
+    `RR ${h.m.rrTotal.toFixed(0)}, SpO₂ ${h.spo2.toFixed(0)}, PaCO₂ ${h.paco2.toFixed(0)}`);
+  const s = extubate('bronchiolitis');
+  let tBad = -1;
+  for (let t = 0; t < 900 && tBad < 0; t += 10) { run(s, 10); if (SCN.extubationTrouble(s)) tBad = t + 10; }
+  ok('急性期のそうた君は抜管すると 15 分以内に崩れる（再挿管の判断になる）', tBad > 0,
+    `${tBad} 秒で「${SCN.extubationTrouble(s)}」`);
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  ok('レッスン中の抜管は今までどおり結果の画面で止まり、自由操作だけが続く',
+    /function doExtubate\(\) \{\s*if \(!S\.lesson\) \{ extubateFreePlay\(\); return; \}/.test(app)
+    && /e\.extubated = true;/.test(app));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

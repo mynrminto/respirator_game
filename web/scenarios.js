@@ -218,6 +218,28 @@
     ];
   }
 
+  /* 自由操作で抜管したあとの支え。高流量鼻カニュラを、子どもは 2 L/kg/分、
+   * 3 kg 未満の新生児は 6 L/分で始める（つまみの可動域に収める）。FiO₂ は抜管前のまま。 */
+  function postExtubationFlow(eng) {
+    var L = eng.limits.hfncFlow, kg = eng.p.pbw;
+    var f = kg < 3 ? 6 : kg * 2;
+    f = Math.round(f / L.step) * L.step;
+    return Math.max(L.min, Math.min(L.max, f));
+  }
+
+  /* 抜管後に呼吸が崩れてきたしるし。SBT の中止基準と同じ物差しで、pH だけは少し待つ
+   * （抜管直後の軽い高炭酸ガスはよくある）。崩れていなければ null。 */
+  function extubationTrouble(eng) {
+    var m = eng.m, nm = eng.nm;
+    var rrCap = Math.round(nm.rr[1] * 1.5), hrCap = Math.round(nm.hr[1] * 1.25);
+    if (eng.sinceBreath > 20) return '無呼吸';
+    if (m.rrTotal > rrCap) return '呼吸回数が ' + rrCap + '/分を超えました';
+    if (eng.spo2 < nm.spo2[0]) return 'SpO₂ が ' + nm.spo2[0] + '% を下回りました';
+    if (eng.hr > hrCap) return '頻脈（' + hrCap + '/分超）';
+    if (eng.ph < 7.25) return '呼吸性アシドーシスが進みました（pH ' + eng.ph.toFixed(2) + '）';
+    return null;
+  }
+
   /* ===================== 患者情報 ===================== */
 
   /* 患者情報パネルの見出し。物語の呼び名があればそれを主に、無ければ「8歳 男児」を出す。 */
@@ -265,6 +287,7 @@
   }
 
   var api = { SCENARIOS: SCENARIOS, weaningReadiness: weaningReadiness, spontOk: spontOk,
+    postExtubationFlow: postExtubationFlow, extubationTrouble: extubationTrouble,
     patientProfile: patientProfile, targetsFor: targetsFor, sedationLabel: sedationLabel, forLesson: forLesson };
   root.VentScenarios = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

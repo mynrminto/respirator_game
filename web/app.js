@@ -716,6 +716,9 @@
   function setMode(id) {
     if (S.eng.s.mode === id) return;
     var was = S.eng.s.mode;
+    /* 自由操作では、チューブを抜いた・入れ直したことを覚えておき、抜管後の経過を見張る。 */
+    if (!S.lesson && E.isNoninvasive(id) && !E.isNoninvasive(was)) markExtubated(JSON.parse(JSON.stringify(S.eng.s)));
+    else if (!S.lesson && !E.isNoninvasive(id) && E.isNoninvasive(was) && S.extubated && S.extubated.live) markReintubated();
     S.eng.s.mode = id;
     /* 鼻から支えるモードとチューブのモードを行き来するのは、抜管・再挿管にあたる。 */
     if (E.isNoninvasive(id) && !E.isNoninvasive(was)) S.banner = { t: S.eng.clock, msg: '抜管して、鼻のインターフェースにつなぎました' };
@@ -1112,7 +1115,7 @@
         S.lastPhase = e.phase;
       }
       trendTick(simSec);
-      abgTick(); sbtTick(); o2Tick(); lessonTick(simSec);
+      abgTick(); sbtTick(); extubTick(); o2Tick(); lessonTick(simSec);
     } else {
       lessonTick(0);          // 抜管後も「結果を確認」の課題は判定を続ける（止めると 6-3 が終わらない）
     }
@@ -1717,7 +1720,7 @@
       state.push(['血液ガス', S.abgPending ? '採血中' : (g0
         ? 'pH ' + g0.ph.toFixed(2) + '／PaCO₂ ' + Math.round(g0.paco2) + '（' + fmtAgo(e.clock - g0.t) + '）'
         : 'まだ採っていない')]);
-      if (S.extubated) state.push(['離脱', S.extubated.ok ? '抜管した' : '抜管後に再挿管']);
+      if (S.extubated) state.push(['離脱', extubLabel(S.extubated)]);
       else if (S.sbt) state.push(['離脱', S.sbt.done ? (S.sbt.done === 'pass' ? 'SBT 合格' : 'SBT 中止') : 'SBT 中']);
       var sg = el('div', 'ptgrid');
       state.forEach(function (r) {
@@ -1808,6 +1811,7 @@
     var e = S.eng;
     lessonEvent('weaning:open');
     if (e.extubated) { openDebrief(); return; }
+    if (S.extubated && S.extubated.live) { openPostExtubation(); return; }
     modal('離脱（weaning）', function (b, close) {
       var list = SC.weaningReadiness(e);
       b.appendChild(el('p', '', 'SBT（自発呼吸トライアル）を始める前に、離脱の条件が揃っているかを確認します。'));
@@ -1884,6 +1888,7 @@
   }
 
   function doExtubate() {
+    if (!S.lesson) { extubateFreePlay(); return; }
     var e = S.eng;
     var list = SC.weaningReadiness(e);
     var nOk = list.filter(function (c) { return c.ok; }).length;
@@ -1911,6 +1916,113 @@
     });
   }
 
+  /* ===================== 自由操作の抜管 ===================== */
+  /* レッスンの抜管は結果の画面で止まるが、自由操作では止めない。高流量鼻カニュラにつないで
+   * 子ども自身の呼吸を続けて計算し、うまくいくかどうかは肺と呼吸筋に任せる。
+   * 崩れてきたら知らせ、「離脱」キーかチューブのモードのタブから再挿管できる。 */
+  function markExtubated(pre) {
+    var e = S.eng, list = SC.weaningReadiness(e);
+    S.extubated = {
+      live: true, ok: true, reint: false, t0: e.clock, pre: pre,
+      sbtPass: !!(S.sbt && S.sbt.done === 'pass'),
+      nOk: list.filter(function (c) { return c.ok; }).length, total: list.length,
+      badSince: -1, warned: false, goodSince: e.clock, failMsg: null
+    };
+    if (e._note) e._note('抜管');
+  }
+  function markReintubated() {
+    var e = S.eng, x = S.extubated, pre = x.pre;
+    /* チューブを入れ直したら、抜管前の換気設定に戻し、鎮静もかけ直す。アラームの枠はそのまま。 */
+    for (var k in pre) if (Object.prototype.hasOwnProperty.call(pre, k) && k !== 'alarms' && k !== 'mode') e.s[k] = pre[k];
+    e.sedation = Math.max(e.sedation, 0.6);
+    e._recomputeDrive();
+    x.live = false; x.ok = false; x.reint = true;
+    S.sbt = null; S.sbtSaved = null;
+    if (e._note) e._note('再挿管');
+  }
+  function reintubate() {
+    var x = S.extubated;
+    if (!x || !x.live) return;
+    setMode(E.isNoninvasive(x.pre.mode) ? 'PC-AC' : x.pre.mode);
+  }
+  function extubateFreePlay() {
+    var e = S.eng;
+    var pre = JSON.parse(JSON.stringify(S.sbtSaved || e.s));
+    e.s.hfncFlow = SC.postExtubationFlow(e);
+    setMode('HFNC');
+    S.extubated.pre = pre;
+    setSpeed(1);
+    modal('抜管しました', function (b, close) {
+      b.appendChild(el('p', '', '高流量鼻カニュラ（' + fmtP(P.hflow, e.s.hfncFlow) + ' L/分、FiO₂ ' + Math.round(e.s.fio2 * 100)
+        + '%）で支えています。ここからは子ども自身の呼吸です。'));
+      var t = el('div', 'tip');
+      t.textContent = '呼吸の数と深さ、SpO₂、心拍を見てください。崩れてきたら知らせます。流量や FiO₂ を上げても戻らなければ、「離脱」キーから再挿管します。';
+      b.appendChild(t);
+      var r = el('div', 'mrow');
+      var ok = el('button', 'mbtn go', '様子を見る'); ok.onclick = close;
+      r.appendChild(ok); b.appendChild(r);
+    });
+  }
+  function extubTick() {
+    var x = S.extubated, e = S.eng;
+    if (!x || !x.live) return;
+    var bad = e.clock - x.t0 < 30 ? null : SC.extubationTrouble(e);   // つないだ直後の 30 秒は落ち着くのを待つ
+    if (bad) {
+      if (x.badSince < 0) x.badSince = e.clock;
+      x.goodSince = -1;
+      if (e.clock - x.badSince > 60) {
+        x.ok = false; x.failMsg = bad;
+        if (!x.warned) { x.warned = true; setSpeed(1); if (e._note) e._note('抜管後の呼吸が崩れた'); openExtubationTrouble(); }
+      } else if (S.speed > 1) setSpeed(1);          // 崩れはじめたら等速に戻して見せる
+    } else {
+      x.badSince = -1;
+      if (x.goodSince < 0) x.goodSince = e.clock;
+      if (e.clock - x.goodSince > 300) { x.ok = true; x.warned = false; x.failMsg = null; }   // 5 分もちなおせば立て直せたとみる
+    }
+  }
+  function openExtubationTrouble() {
+    var x = S.extubated;
+    modal('抜管後の呼吸が崩れています', function (b, close) {
+      var t = el('div', 'tip bad'); t.textContent = x.failMsg;
+      b.appendChild(t);
+      b.appendChild(el('p', '', '呼吸筋が疲れてきたか、肺がまだ支えなしでは保てない状態です。流量や FiO₂ を上げても戻らなければ、再挿管します。'));
+      var r = el('div', 'mrow');
+      var ri = el('button', 'mbtn warn', '再挿管する'); ri.onclick = function () { close(); reintubate(); };
+      var wk = el('button', 'mbtn', '様子を見る'); wk.onclick = close;
+      r.appendChild(ri); r.appendChild(wk); b.appendChild(r);
+    });
+  }
+  function openPostExtubation() {
+    var e = S.eng, x = S.extubated;
+    lessonEvent('weaning:open');
+    modal('抜管後', function (b, close) {
+      var mn = Math.round((e.clock - x.t0) / 60);
+      b.appendChild(el('p', '', (mn < 1 ? '抜管したばかりです。' : '抜管して ' + (mn < 60 ? mn + ' 分' : Math.floor(mn / 60) + ' 時間 ' + (mn % 60) + ' 分') + 'たちました。')
+        + (e.s.mode === 'HFNC' ? '高流量鼻カニュラ ' + fmtP(P.hflow, e.s.hfncFlow) + ' L/分' : e.s.mode)
+        + '、FiO₂ ' + Math.round(e.s.fio2 * 100) + '% で支えています。'));
+      [['呼吸回数', Math.round(e.m.rrTotal) + ' /分'], ['SpO₂', Math.round(e.spo2) + ' %'],
+       ['心拍', Math.round(e.hr) + ' /分'], ['PaCO₂', Math.round(e.paco2) + ' mmHg']].forEach(function (c) {
+        var r = el('div', 'row');
+        r.appendChild(el('span', '', c[0])); r.appendChild(el('span', 'rv', c[1]));
+        b.appendChild(r);
+      });
+      var bad = SC.extubationTrouble(e);
+      var t = el('div', 'tip' + (bad ? ' bad' : ''));
+      t.textContent = bad ? '崩れてきています：' + bad : '今のところ自分の呼吸で保てています。';
+      b.appendChild(t);
+      var r2 = el('div', 'mrow');
+      var ri = el('button', 'mbtn warn', '再挿管する'); ri.onclick = function () { close(); reintubate(); };
+      var dbg = el('button', 'mbtn', '振り返りを見る'); dbg.onclick = function () { close(); openDebrief(); };
+      var bk = el('button', 'mbtn go', '様子を見る'); bk.onclick = close;
+      r2.appendChild(ri); r2.appendChild(dbg); r2.appendChild(bk); b.appendChild(r2);
+    });
+  }
+  function extubLabel(x) {
+    if (x.reint) return '抜管後に再挿管';
+    if (x.live) return x.ok ? '抜管後・安定' : '抜管後・崩れている';
+    return x.ok ? '抜管した' : '抜管後に再挿管';
+  }
+
   function openDebrief() {
     var e = S.eng;
     var tgt = e.timeInTarget.total > 0 ? e.timeInTarget.ok / e.timeInTarget.total : 0;
@@ -1931,7 +2043,7 @@
       [['目標域にいた時間', Math.round(tgt * 100) + '%', Math.round(tgt * 40) + ' / 40'],
        ['肺保護（Pplat・Vt・auto-PEEP）', Math.round(harmS) + ' 分の逸脱', Math.round(25 - harmPen) + ' / 25'],
        ['有害事象（低酸素・低血圧・高 FiO₂）', Math.round(advS) + ' 分', Math.round(20 - advPen) + ' / 20'],
-       ['離脱・抜管', S.extubated ? (S.extubated.ok ? '抜管成功' : '再挿管') : (S.sbt && S.sbt.done === 'pass' ? 'SBT 成功' : '未実施'), weanPts + ' / 15']
+       ['離脱・抜管', S.extubated ? (S.extubated.live || S.extubated.reint ? extubLabel(S.extubated) : (S.extubated.ok ? '抜管成功' : '再挿管')) : (S.sbt && S.sbt.done === 'pass' ? 'SBT 成功' : '未実施'), weanPts + ' / 15']
       ].forEach(function (r) {
         var n = el('div', 'row');
         n.appendChild(el('span', '', r[0]));
