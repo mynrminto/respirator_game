@@ -51,6 +51,12 @@ public enum Physiology {
         6.1 + log10(max(2, hco3) / (0.03 * max(8, paco2)))
     }
 
+    /// PaCO₂ 40 を基準にした、急性の（緩衝だけの）HCO₃⁻ の動き (mEq/L)。
+    public static func acuteBicarbonateShift(paco2: Double) -> Double {
+        let delta = paco2 - 40
+        return delta > 0 ? 0.1 * delta : 0.2 * delta
+    }
+
     /// ARDSNet の予測体重 (kg)。
     public static func predictedBodyWeight(sex: Patient.Sex, heightCm: Double) -> Double {
         let base = sex == .female ? 45.5 : 50.0

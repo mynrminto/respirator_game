@@ -128,6 +128,8 @@
     var k = 1 - Math.exp(-dt / tau);
     return cur + (target - cur) * k;
   }
+  /* PaCO2 40 を基準にした、急性の（緩衝だけの）HCO3 の動き。 */
+  function acuteHco3(paco2) { var dp = paco2 - 40; return dp > 0 ? 0.1 * dp : 0.2 * dp; }
 
   /* ---------- 既定の人工呼吸器設定 ---------- */
   /* つまみの可動域。小児は体重で 2 桁変わるので、症例ごとに作る。 */
@@ -898,6 +900,7 @@
     var paco2ss = clamp(0.863 * vco2 / va, 8, 160);
     var tau = paco2ss > this.paco2 ? 190 : 130;
     var tauStore = 60 * 0.863 * (CO2_STORE_PER_KG * p.pbw) / va;   // s
+    var paco2Prev = this.paco2;
     if (!measured) { /* そのまま */ }
     else if (tauStore > tau) this.paco2 = clamp(approach(this.paco2, 0.863 * vco2 / va, d, tauStore), 8, 160);
     else this.paco2 = approach(this.paco2, paco2ss, d, tau);
@@ -949,7 +952,11 @@
     var sat = satFromPO2(this.pao2) * 100;
     this.spo2 = approach(this.spo2, sat, d, nm.spo2Lag);       // プローブまでの循環と表示の平均化
 
-    // 酸塩基：HCO3 は数時間かけて代償する
+    // 酸塩基
+    /* 急性：CO2 が動くと、Hb や蛋白の緩衝で HCO3 はその場で少し動く
+     * （PaCO2 10 上昇で +1、10 低下で −2 mEq/L）。これが無いと過換気で pH が上がりすぎる。
+     * 慢性：腎性代償は数時間かけて、10 あたり 3.8 mEq/L まで動く。 */
+    this.hco3 += acuteHco3(this.paco2) - acuteHco3(paco2Prev);
     var chronic = 24 + 0.38 * (this.paco2 - 40);
     var hco3Target = clamp((p.hco3Base || 24) + (chronic - 24), 6, 45);
     this.hco3 = approach(this.hco3, hco3Target, d, 5400);

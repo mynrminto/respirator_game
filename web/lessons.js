@@ -3189,7 +3189,8 @@
             onStart: function (c) {
               c.e.C = 0.0012;
               c.e.p.shunt0 = 0.12; c.e.p.shuntMin = 0.05;
-              c.e.hco3 = 24; c.e.p.hco3Base = 24;
+              /* 3 日間 PaCO₂ 50 前後が続いたので、腎臓が HCO₃⁻ を少し貯めている。 */
+              c.e.hco3 = 26; c.e.p.hco3Base = 24;
               c.e._recomputeDrive();
             }
           },

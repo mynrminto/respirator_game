@@ -1445,5 +1445,24 @@ for (const id of ['bronchiolitis', 'postop']) {
   ok(id + '：2 分でほぼ戻る', base - at120 < 1.5, `${at120.toFixed(1)}`);
 }
 
+console.log('\n31. 急性の過換気・低換気で HCO₃⁻ がその場で動く（緩衝）');
+{
+  /* 腎臓が追いつく前の 15 分で、PaCO₂ 10 低下あたり HCO₃⁻ は約 2、10 上昇あたり約 1 動く。 */
+  const hv = mk('postop'); hv.sedation = 1; hv._recomputeDrive(); run(hv, 600);
+  const c0 = hv.paco2, h0 = hv.hco3;
+  hv.s.rr = Math.round(hv.s.rr * 1.9); run(hv, 900);
+  const dropPer10 = (h0 - hv.hco3) / (c0 - hv.paco2) * 10;
+  ok('過換気で PaCO₂ 20 台なら pH は 7.60 未満、HCO₃⁻ は 10 あたり 1.6〜2.6 下がる',
+    hv.paco2 < 30 && hv.ph < 7.60 && hv.ph > 7.48 && dropPer10 > 1.6 && dropPer10 < 2.6,
+    `PaCO₂ ${c0.toFixed(0)}→${hv.paco2.toFixed(0)}, HCO₃⁻ ${h0.toFixed(1)}→${hv.hco3.toFixed(1)}, pH ${hv.ph.toFixed(2)}`);
+  const lo = mk('postop'); lo.sedation = 1; lo._recomputeDrive(); run(lo, 600);
+  const d0 = lo.paco2, g0 = lo.hco3;
+  lo.s.rr = Math.round(lo.s.rr * 0.6); run(lo, 900);
+  const risePer10 = (lo.hco3 - g0) / (lo.paco2 - d0) * 10;
+  ok('低換気では HCO₃⁻ は 10 あたり 0.7〜1.5 上がる',
+    lo.paco2 > d0 + 8 && risePer10 > 0.7 && risePer10 < 1.5,
+    `PaCO₂ ${d0.toFixed(0)}→${lo.paco2.toFixed(0)}, HCO₃⁻ ${g0.toFixed(1)}→${lo.hco3.toFixed(1)}, pH ${lo.ph.toFixed(2)}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

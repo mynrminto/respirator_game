@@ -1018,6 +1018,7 @@ public final class VentilatorEngine {
         let co2Tau = steadyStateCO2 > paco2 ? 190.0 : 130.0
         let co2StoreTau = 60 * 0.863 * (Self.co2StorePerKg * patient.predictedBodyWeight)
             / alveolarVentilation
+        let previousPaCO2 = paco2
         if !ventilationMeasured {
             // そのまま
         } else if co2StoreTau > co2Tau {
@@ -1084,7 +1085,12 @@ public final class VentilatorEngine {
         spo2 = Physiology.approach(spo2, toward: Physiology.saturation(po2: pao2) * 100,
                                    dt: d, tau: norms.spo2Lag)   // プローブまでの循環と表示の平均化
 
-        // 酸塩基：腎性代償は数時間かけて動く
+        // 酸塩基
+        /* 急性：CO2 が動くと、Hb や蛋白の緩衝で HCO3 はその場で少し動く
+         * （PaCO2 10 上昇で +1、10 低下で −2 mEq/L）。これが無いと過換気で pH が上がりすぎる。
+         * 慢性：腎性代償は数時間かけて、10 あたり 3.8 mEq/L まで動く。 */
+        hco3 += Physiology.acuteBicarbonateShift(paco2: paco2)
+            - Physiology.acuteBicarbonateShift(paco2: previousPaCO2)
         let chronic = 24 + 0.38 * (paco2 - 40)
         let target = Physiology.clamp(patient.hco3Base + (chronic - 24), 6, 45)
         hco3 = Physiology.approach(hco3, toward: target, dt: d, tau: 5400)

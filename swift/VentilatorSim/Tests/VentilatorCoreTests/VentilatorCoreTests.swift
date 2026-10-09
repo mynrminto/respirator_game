@@ -260,6 +260,21 @@ struct GasExchangeTests {
         #expect(g.pfRatio > 0)
     }
 
+    /* 腎臓が追いつく前の 15 分で、PaCO₂ 10 低下あたり HCO₃⁻ は約 2 下がる（緩衝）。
+     * これが無いと PaCO₂ 20 台で pH 7.64 まで上がっていた。 */
+    @Test("急性の過換気では HCO₃⁻ がその場で下がり、pH は上がりすぎない")
+    func acuteRespiratoryAlkalosis() {
+        let e = makeEngine("postop", sedation: 1.0)
+        run(e, seconds: 600, dt: 0.01)
+        let co2Before = e.paco2, hco3Before = e.hco3
+        e.settings.respiratoryRate = (e.settings.respiratoryRate * 1.9).rounded()
+        run(e, seconds: 900, dt: 0.01)
+        let dropPer10 = (hco3Before - e.hco3) / (co2Before - e.paco2) * 10
+        #expect(e.paco2 < 30)
+        #expect(e.pH > 7.48 && e.pH < 7.60)
+        #expect(dropPer10 > 1.6 && dropPer10 < 2.6)
+    }
+
     @Test("細気管支炎の許容的高炭酸ガス血症")
     func permissiveHypercapnia() {
         let e = makeEngine("bronchiolitis", sedation: 1.0) {

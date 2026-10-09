@@ -753,7 +753,8 @@ extension LessonLibrary {
                         p.shuntAtLowPEEP = 0.12; p.shuntMinimum = 0.05
                         p.hco3Base = 24
                     }
-                    c.engine.setBicarbonate(24)
+                    /* 3 日間 PaCO₂ 50 前後が続いたので、腎臓が HCO₃⁻ を少し貯めている。 */
+                    c.engine.setBicarbonate(26)
             },
             .talk(.doctor, "早産の子は、チューブが入っている時間が長いほど、肺も脳も傷みます。外せるなら、早く外します。"),
             .talk(.doctor, "先にカフェインを入れます。未熟な呼吸中枢を目覚めさせて、息が止まる発作（無呼吸）を減らす薬です。")
