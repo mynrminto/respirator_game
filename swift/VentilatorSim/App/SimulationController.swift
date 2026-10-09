@@ -111,6 +111,30 @@ final class SimulationController {
         var passedSBT: Bool
     }
 
+    /// 自由操作で抜管したあとの経過（Web 版 S.extubated の live）。レッスンの抜管は extubation で止まるが、
+    /// 自由操作では止めずに高流量鼻カニュラで子ども自身の呼吸を続け、崩れたら知らせて再挿管できる。
+    struct PostExtubation {
+        var since: Double
+        var before: VentilatorSettings          // 再挿管したら戻す、抜管前（SBT 前）の換気設定
+        var passedSBT: Bool
+        var reintubated = false
+        var stable = true
+        var warned = false
+        var badSince: Double?
+        var goodSince: Double?
+        var reason: String?
+        var live: Bool { !reintubated }
+    }
+    private(set) var postExtubation: PostExtubation?
+
+    /// 抜管後に呼吸が崩れたときの知らせ。
+    struct ExtubationTrouble: Identifiable {
+        let id: Int
+        let reason: String
+    }
+    var extubationTrouble: ExtubationTrouble?
+    @ObservationIgnored private var troubleCount = 0
+
     // MARK: - 学習コース
 
     enum LessonPhase { case task, feedback, done }
@@ -361,6 +385,8 @@ final class SimulationController {
         sbtBadSince = nil
         sbtOutcome = nil
         extubation = nil
+        postExtubation = nil
+        extubationTrouble = nil
         selectedParameterID = nil
         pendingValue = nil
         speed = .realtime
@@ -454,6 +480,7 @@ final class SimulationController {
 
         recordTrend(simulated: simulated)
         updateTimers(simulated: simulated)
+        watchAfterExtubation()
         advanceLesson(simulated: simulated)
         refreshLessonWatch()
         syncDisplay(realSeconds)
@@ -603,6 +630,13 @@ final class SimulationController {
     func change(mode: VentilationMode) {
         guard engine.settings.mode != mode else { return }
         let from = engine.settings.mode
+        // 自由操作では、チューブを抜いた・入れ直したことを覚えておき、抜管後の経過を見張る。
+        if lesson == nil && mode.isNoninvasive && !from.isNoninvasive {
+            postExtubation = PostExtubation(since: engine.clock, before: engine.settings,
+                                            passedSBT: sbtFinished && sbtPassed)
+        } else if lesson == nil && !mode.isNoninvasive && from.isNoninvasive, let x = postExtubation, x.live {
+            markReintubated(x)
+        }
         var updated = engine.settings
         updated.mode = mode
         settings = updated
@@ -868,8 +902,79 @@ final class SimulationController {
     func openedPatientInfo() { send(.openPatientInfo) }
 
     /// 抜管。SBT に通っていて離脱条件もほぼ揃っていれば成功、そうでなければ再挿管。
+    func extubate() {
+        if lesson == nil { extubateFreePlay() } else { extubateInLesson() }
+    }
+
+    /// 自由操作の抜管。画面を止めず、高流量鼻カニュラにつないで計算を続け、成否は肺と呼吸筋に任せる。
+    private func extubateFreePlay() {
+        guard postExtubation?.live != true else { return }
+        let before = sbtSaved ?? engine.settings
+        var s = engine.settings
+        s.hfncFlow = Weaning.postExtubationFlow(for: engine)
+        settings = s
+        change(mode: .hfnc)
+        postExtubation?.before = before
+        speed = .realtime
+    }
+
+    /// 再挿管。抜管前の換気設定に戻し、鎮静をかけ直す。
+    func reintubate() {
+        guard let x = postExtubation, x.live else { return }
+        change(mode: x.before.mode.isNoninvasive ? .pressureAssistControl : x.before.mode)
+    }
+
+    private func markReintubated(_ x: PostExtubation) {
+        var restored = x.before
+        restored.alarms = engine.settings.alarms         // アラームの枠はそのまま
+        settings = restored
+        engine.sedation = max(engine.sedation, 0.6)
+        var done = x
+        done.reintubated = true
+        done.stable = false
+        postExtubation = done
+        sbtElapsed = nil
+        sbtFinished = false
+        sbtPassed = false
+        sbtSaved = nil
+        sbtFailureReason = nil
+        sbtBadSince = nil
+        extubationTrouble = nil
+    }
+
+    /// 抜管後の見張り（Web 版 extubTick）。つないだ直後の 30 秒は待ち、崩れが 1 分続いたら一度知らせる。
+    /// 5 分もちなおせば立て直せたとみる。
+    private func watchAfterExtubation() {
+        guard var x = postExtubation, x.live else { return }
+        let bad = engine.clock - x.since < 30 ? nil : Weaning.extubationTrouble(for: engine)
+        if let bad {
+            let since = x.badSince ?? engine.clock
+            x.badSince = since
+            x.goodSince = nil
+            if engine.clock - since > 60 {
+                x.stable = false
+                x.reason = bad
+                if !x.warned {
+                    x.warned = true
+                    speed = .realtime
+                    append("抜管後の呼吸が崩れた：\(bad)")
+                    troubleCount &+= 1
+                    extubationTrouble = ExtubationTrouble(id: troubleCount, reason: bad)
+                }
+            } else if speed == .fast || speed == .veryFast {
+                speed = .realtime                       // 崩れはじめたら等速に戻して見せる
+            }
+        } else {
+            x.badSince = nil
+            let good = x.goodSince ?? engine.clock
+            x.goodSince = good
+            if engine.clock - good > 300 { x.stable = true; x.warned = false; x.reason = nil }
+        }
+        postExtubation = x
+    }
+
     @discardableResult
-    func extubate() -> ExtubationResult {
+    private func extubateInLesson() -> ExtubationResult {
         if let done = extubation { return done }
         let criteria = Weaning.readiness(for: engine)
         let met = criteria.filter(\.met).count
@@ -893,7 +998,7 @@ final class SimulationController {
     /// SBT の開始。Web 版 startSBT と同じく、元の設定を控えてから
     /// PSV・体重相応の PS（10 kg 未満 8、25 kg 未満 6、それ以上 5）・PEEP 5 以下・FiO₂ 40% 以下にし、鎮静を浅くする。
     func beginSBT() {
-        guard extubation == nil, !isSBTRunning else { return }
+        guard extubation == nil, postExtubation?.live != true, !isSBTRunning else { return }
         sbtSaved = engine.settings
         var s = engine.settings
         let pbw = engine.patient.predictedBodyWeight

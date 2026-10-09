@@ -84,6 +84,8 @@ public final class VentilatorEngine {
     private var phaseTime: Double = 0
     private var sinceMandatory: Double = 0
     private var sinceBreath: Double = 0
+    /// 最後の呼吸からの秒数。抜管後の無呼吸の判定に使う（Web 版 sinceBreath）。
+    public var secondsSinceBreath: Double { sinceBreath }
     private var breathType: BreathType = .mandatory
     private var inspiredVolume: Double = 0
     private var peakFlowThisBreath: Double = 0

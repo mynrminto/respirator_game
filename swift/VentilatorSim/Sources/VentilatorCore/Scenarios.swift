@@ -310,6 +310,28 @@ public enum Weaning {
         ]
     }
 
+    /// 自由操作で抜管したあとの高流量鼻カニュラの流量（Web 版 postExtubationFlow）。
+    /// 子どもは 2 L/kg/分、3 kg 未満の新生児は 6 L/分で始め、つまみの可動域に収める。
+    public static func postExtubationFlow(for engine: VentilatorEngine) -> Double {
+        let r = engine.limits.hfncFlow, kg = engine.patient.predictedBodyWeight
+        let f = ((kg < 3 ? 6 : kg * 2) / r.step).rounded() * r.step
+        return Swift.max(r.min, Swift.min(r.max, f))
+    }
+
+    /// 抜管後に呼吸が崩れてきたしるし（Web 版 extubationTrouble）。SBT の中止基準と同じ物差しで、
+    /// pH だけは少し待つ（抜管直後の軽い高炭酸ガスはよくある）。崩れていなければ nil。
+    public static func extubationTrouble(for engine: VentilatorEngine) -> String? {
+        let m = engine.measured, n = engine.norms
+        let rrCap = (n.respiratoryRate.upperBound * 1.5).rounded()
+        let hrCap = (n.heartRate.upperBound * 1.25).rounded()
+        if engine.secondsSinceBreath > 20 { return "無呼吸" }
+        if m.respiratoryRateTotal > rrCap { return "呼吸回数が \(Int(rrCap))/分を超えました" }
+        if engine.spo2 < n.spo2Target.lowerBound { return "SpO₂ が \(Int(n.spo2Target.lowerBound))% を下回りました" }
+        if engine.heartRate > hrCap { return "頻脈（\(Int(hrCap))/分超）" }
+        if engine.pH < 7.25 { return String(format: "呼吸性アシドーシスが進みました（pH %.2f）", engine.pH) }
+        return nil
+    }
+
     /// SBT 中止基準。満たすものがあれば文字列を返す。
     /// 成人の RR 35 / HR 140 / RSBI 105 は小児に使えないので、すべて年齢相応の値で置く。
     public static func failureReason(for engine: VentilatorEngine, elapsed: Double) -> String? {

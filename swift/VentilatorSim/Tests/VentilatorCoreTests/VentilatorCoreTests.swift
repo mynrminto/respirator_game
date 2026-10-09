@@ -532,3 +532,47 @@ struct NICUModeTests {
         #expect(hi.hfncPressure() > lo.hfncPressure())
     }
 }
+
+@Suite("自由操作の抜管（web/test.js の 32 番と同じ）")
+struct FreePlayExtubationTests {
+
+    /// SBT 後と同じく鎮静を浅くし、HFNC（子ども 2 L/kg/分、3 kg 未満 6 L/分）につなぐ。
+    private func extubate(_ id: String) -> VentilatorEngine {
+        let e = makeEngine(id)
+        run(e, seconds: 60, dt: 0.01)
+        e.sedation = 0.15
+        run(e, seconds: 300, dt: 0.01)
+        e.settings.hfncFlow = Weaning.postExtubationFlow(for: e)
+        e.settings.mode = .hfnc
+        return e
+    }
+
+    @Test("HFNC の流量：25 kg は 50、6 kg は 12、1.1 kg は 6 L/分")
+    func flow() {
+        #expect(Weaning.postExtubationFlow(for: makeEngine("postop")) == 50)
+        #expect(Weaning.postExtubationFlow(for: makeEngine("bronchiolitis")) == 12)
+        #expect(Weaning.postExtubationFlow(for: makeEngine("rds")) == 6)
+    }
+
+    @Test("ハルト君（肺はほぼ正常）は抜管後 1 時間崩れない")
+    func postopStays() {
+        let e = extubate("postop")
+        var worst: String?
+        for t in stride(from: 0, to: 3600, by: 30) {
+            run(e, seconds: 30, dt: 0.01)
+            if t > 30, worst == nil { worst = Weaning.extubationTrouble(for: e) }
+        }
+        #expect(worst == nil)
+    }
+
+    @Test("急性期のそうた君は抜管すると 15 分以内に崩れる")
+    func bronchiolitisFails() {
+        let e = extubate("bronchiolitis")
+        var bad = false
+        for _ in 0..<90 where !bad {
+            run(e, seconds: 10, dt: 0.01)
+            bad = Weaning.extubationTrouble(for: e) != nil
+        }
+        #expect(bad)
+    }
+}

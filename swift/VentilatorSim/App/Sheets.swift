@@ -129,6 +129,63 @@ struct BloodGasSheet: View {
 /// SBT のときの PS。Web 版 startSBT と同じく、細いチューブほど抵抗ぶんを多めに足す。
 private func sbtPressureSupport(_ pbw: Double) -> Int { pbw < 10 ? 8 : (pbw < 25 ? 6 : 5) }
 
+/// 自由操作で抜管したあとの様子（Web 版 openPostExtubation）。止めずに子ども自身の呼吸を計算し続ける。
+struct PostExtubationSection: View {
+    let controller: SimulationController
+    let state: SimulationController.PostExtubation
+
+    var body: some View {
+        let _ = controller.tickCount
+        let e = controller.engine, s = controller.settings
+        let minutes = Int(((e.clock - state.since) / 60).rounded())
+        let trouble = Weaning.extubationTrouble(for: e)
+        Section {
+            Text((minutes < 1 ? "抜管したばかりです。" : "抜管して " + (minutes < 60 ? "\(minutes) 分" : "\(minutes / 60) 時間 \(minutes % 60) 分") + "たちました。")
+                 + (s.mode == .hfnc
+                    ? "高流量鼻カニュラ \(s.hfncFlow.formatted(.number.precision(.fractionLength(e.limits.hfncFlow.decimals)))) L/分"
+                    : s.mode.uiLabel)
+                 + "、FiO₂ \(Int((s.fio2 * 100).rounded()))% で支えています。ここからは子ども自身の呼吸です。")
+                .font(.callout)
+            LabeledContent("呼吸回数", value: "\(Int(e.measured.respiratoryRateTotal.rounded())) /分")
+            LabeledContent("SpO₂", value: "\(Int(e.spo2.rounded())) %")
+            LabeledContent("心拍", value: "\(Int(e.heartRate.rounded())) /分")
+            LabeledContent("PaCO₂", value: "\(Int(e.paco2.rounded())) mmHg")
+        } header: {
+            Text("抜管後")
+        } footer: {
+            Text(trouble.map { "崩れてきています：\($0)。流量や FiO₂ を上げても戻らなければ、再挿管します。" }
+                 ?? "今のところ自分の呼吸で保てています。呼吸の数と深さ、SpO₂、心拍を見てください。崩れてきたら知らせます。")
+                .foregroundStyle(trouble == nil ? Color.secondary : Color.red)
+        }
+    }
+}
+
+/// 抜管後に呼吸が崩れてきたときの知らせ（Web 版 openExtubationTrouble）。
+struct ExtubationTroubleSheet: View {
+    let controller: SimulationController
+    let trouble: SimulationController.ExtubationTrouble
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text(trouble.reason).foregroundStyle(.red)
+                    Text("呼吸筋が疲れてきたか、肺がまだ支えなしでは保てない状態です。流量や FiO₂ を上げても戻らなければ、再挿管します。")
+                        .font(.callout)
+                }
+                Section {
+                    Button("再挿管する", role: .destructive) { controller.reintubate(); dismiss() }
+                    Button("様子を見る") { dismiss() }
+                }
+            }
+            .navigationTitle("抜管後の呼吸が崩れています")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium])
+    }
+}
+
 /// 抜管の結果。離脱の画面と SBT の結果画面の両方から出す。
 struct ExtubationResultSection: View {
     let result: SimulationController.ExtubationResult
@@ -164,6 +221,13 @@ struct WeaningSheet: View {
             List {
                 if let result = controller.extubation {
                     ExtubationResultSection(result: result)
+                } else if let x = controller.postExtubation, x.live {
+                    PostExtubationSection(controller: controller, state: x)
+                    Section {
+                        Button("再挿管する", role: .destructive) { controller.reintubate(); dismiss() }
+                    } footer: {
+                        Text("抜管前の換気設定に戻し、鎮静をかけ直します。")
+                    }
                 } else {
                     Section {
                         ForEach(criteria) { criterion in
@@ -245,6 +309,9 @@ struct SBTResultSheet: View {
                 if let result = controller.extubation {
                     ExtubationResultSection(result: result)
                     Section { Button("閉じる") { dismiss() } }
+                } else if let x = controller.postExtubation, x.live {
+                    PostExtubationSection(controller: controller, state: x)
+                    Section { Button("様子を見る") { dismiss() } }
                 } else if outcome.passed {
                     Section {
                         Text("30 分の自発呼吸トライアルを、呼吸回数・酸素化・循環を保ったまま完遂しました。抜管を検討できます。")
@@ -276,7 +343,7 @@ struct SBTResultSheet: View {
                     Section { Button("換気に戻る") { dismiss() } }
                 }
             }
-            .navigationTitle(controller.extubation != nil ? "抜管" : (outcome.passed ? "SBT 成功" : "SBT 失敗"))
+            .navigationTitle(controller.extubation != nil || controller.postExtubation?.live == true ? "抜管" : (outcome.passed ? "SBT 成功" : "SBT 失敗"))
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
@@ -400,7 +467,9 @@ struct PatientInfoSheet: View {
         } else {
             rows.append(("血液ガス", "まだ採っていない"))
         }
-        if let x = controller.extubation {
+        if let x = controller.postExtubation {
+            rows.append(("離脱", x.reintubated ? "抜管後に再挿管" : (x.stable ? "抜管後・安定" : "抜管後・崩れている")))
+        } else if let x = controller.extubation {
             rows.append(("離脱", x.succeeded ? "抜管した" : "抜管後に再挿管"))
         } else if controller.sbtElapsed != nil {
             rows.append(("離脱", controller.sbtFinished ? (controller.sbtPassed ? "SBT 合格" : "SBT 中止") : "SBT 中"))

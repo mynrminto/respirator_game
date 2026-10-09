@@ -117,6 +117,9 @@ struct VentilatorScreen: View {
         .sheet(item: $controller.sbtOutcome) { outcome in
             SBTResultSheet(controller: controller, outcome: outcome).padTextSize()
         }
+        .sheet(item: $controller.extubationTrouble) { trouble in
+            ExtubationTroubleSheet(controller: controller, trouble: trouble).padTextSize()
+        }
         .sheet(isPresented: $showingWeaning) {
             WeaningSheet(controller: controller).padTextSize()
         }
