@@ -296,6 +296,26 @@ console.log('\n14. 体重と年齢別の基準値');
     if (!(a.pMax > 20 && a.pMax < 45)) badAlarm.push(sc.id + ':pMax');
   }
   ok('アラーム初期値が設定値を挟んでいる', badAlarm.length === 0, badAlarm.join(' '));
+
+  // アラーム設定画面：モニターの枠の初期値は年齢の目安と同じ（レッスンの鳴り方を変えない）
+  let badMon = [];
+  for (const sc of SCENARIOS) {
+    const nm = VE.normsFor(sc.patient), pbw = VE.predictedBodyWeight(sc.patient);
+    const a = VE.alarmsFor(pbw, nm, sc.suggested.vt, sc.suggested.rr), L = VE.limitsFor(pbw, nm);
+    if (a.spo2Low !== nm.spo2[0] || a.spo2High !== 100 || a.hrLow !== Math.round(nm.hr[0] * 0.8)) badMon.push(sc.id + ':monitor');
+    const inR = (v, r) => v >= r.min && v <= r.max;
+    if (!inR(a.pMax, L.almP) || !inR(a.vtHigh, L.almVt) || !inR(a.mvHigh, L.almMv) || !inR(a.rrHigh, L.almRr)
+        || !inR(a.apnea, L.almApnea) || !inR(a.spo2Low, L.almSpo2) || !inR(a.hrLow, L.almHr)) badMon.push(sc.id + ':range');
+  }
+  ok('アラームの初期値がアラーム設定のダイヤルの範囲内で、モニターの枠は年齢の目安と同じ', badMon.length === 0, badMon.join(' '));
+  {
+    const e = mk('postop'); run(e, 20);
+    e.s.alarms.spo2Low = 100; e.s.alarms.hrLow = 250; e.s.alarms.pMax = 10; run(e, 4);
+    const k = e.alarms.map(a => a.k);
+    ok('アラーム設定で変えた枠で鳴る（SpO₂ 下限・HR 下限・気道内圧上限）', k.includes('spo2') && k.includes('hr') && k.includes('pip'), k.join(','));
+    e.s.alarms.spo2Low = 50; e.s.alarms.spo2High = 90; run(e, 2);
+    ok('SpO₂ 上限を下げると高すぎる SpO₂ で鳴る', e.alarms.some(a => a.k === 'spo2h'));
+  }
 }
 
 console.log('\n15. 症例が意図した状態で始まる');

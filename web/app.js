@@ -191,7 +191,24 @@
     hflow: { k: 'Flow',   u: 'L/min', min: 1,   max: 8,   step: 0.5, dec: 1, get: function (s) { return s.hfncFlow; }, set: function (s, v) { s.hfncFlow = v; } },
     sed:   { k: '鎮静',    u: '%',     min: 0,   max: 100, step: 5, sim: true,
              get: function () { return Math.round(S.eng.sedation * 100); },
-             set: function (s, v) { S.eng.sedation = v / 100; } }
+             set: function (s, v) { S.eng.sedation = v / 100; } },
+    /* ---- アラーム設定画面（「アラーム」キーで切り替える）。上限と下限は入れ違いにならないよう bound で挟む。 ---- */
+    aP:     { k: 'Ppeak 上限', u: 'cmH₂O', alm: true, min: 10, max: 60, step: 1, get: function (s) { return s.alarms.pMax; }, set: function (s, v) { s.alarms.pMax = v; } },
+    aVtLo:  { k: 'Vte 下限', u: 'mL', alm: true, min: 1, max: 800, step: 10, get: function (s) { return s.alarms.vtLow; }, set: function (s, v) { s.alarms.vtLow = v; },
+              bound: function (s, p) { return [p.min, s.alarms.vtHigh - p.step]; } },
+    aVtHi:  { k: 'Vte 上限', u: 'mL', alm: true, min: 1, max: 800, step: 10, get: function (s) { return s.alarms.vtHigh; }, set: function (s, v) { s.alarms.vtHigh = v; },
+              bound: function (s, p) { return [s.alarms.vtLow + p.step, p.max]; } },
+    aMvLo:  { k: 'MV 下限', u: 'L/min', alm: true, min: 0.1, max: 20, step: 0.1, dec: 1, get: function (s) { return s.alarms.mvLow; }, set: function (s, v) { s.alarms.mvLow = v; },
+              bound: function (s, p) { return [p.min, s.alarms.mvHigh - p.step]; } },
+    aMvHi:  { k: 'MV 上限', u: 'L/min', alm: true, min: 0.1, max: 20, step: 0.1, dec: 1, get: function (s) { return s.alarms.mvHigh; }, set: function (s, v) { s.alarms.mvHigh = v; },
+              bound: function (s, p) { return [s.alarms.mvLow + p.step, p.max]; } },
+    aRr:    { k: 'RR 上限', u: '/min', alm: true, min: 10, max: 120, step: 1, get: function (s) { return s.alarms.rrHigh; }, set: function (s, v) { s.alarms.rrHigh = v; } },
+    aApn:   { k: '無呼吸時間', u: 's', alm: true, min: 5, max: 60, step: 1, get: function (s) { return s.alarms.apnea; }, set: function (s, v) { s.alarms.apnea = v; } },
+    aSpo2:  { k: 'SpO₂ 下限', u: '%', alm: true, min: 70, max: 100, step: 1, get: function (s) { return s.alarms.spo2Low; }, set: function (s, v) { s.alarms.spo2Low = v; },
+              bound: function (s, p) { return [p.min, s.alarms.spo2High - 1]; } },
+    aSpo2H: { k: 'SpO₂ 上限', u: '%', alm: true, min: 70, max: 100, step: 1, get: function (s) { return s.alarms.spo2High; }, set: function (s, v) { s.alarms.spo2High = v; },
+              bound: function (s, p) { return [s.alarms.spo2Low + 1, p.max]; } },
+    aHr:    { k: 'HR 下限', u: '/min', alm: true, min: 30, max: 200, step: 1, get: function (s) { return s.alarms.hrLow; }, set: function (s, v) { s.alarms.hrLow = v; } }
   };
 
   /* つまみの可動域は体重で 2 桁変わる（早産児の Vt は 5 mL、学童は 250 mL）。
@@ -208,6 +225,9 @@
     put('map', L.hfoMap); put('amp', L.hfoAmp); put('freq', L.hfoFreq); put('nava', L.navaLevel);
     put('hflow', L.hfncFlow);
     if (L.hfncFlow && L.hfncFlow.dec == null) P.hflow.dec = 0;
+    put('aP', L.almP); put('aVtLo', L.almVt); put('aVtHi', L.almVt); put('aMvLo', L.almMv); put('aMvHi', L.almMv);
+    put('aRr', L.almRr); put('aApn', L.almApnea); put('aSpo2', L.almSpo2); put('aSpo2H', L.almSpo2); put('aHr', L.almHr);
+    ['aVtLo', 'aVtHi'].forEach(function (id) { P[id].dec = L.almVt.dec || 0; });
   }
 
   var KEYS_BY_MODE = {
@@ -223,6 +243,19 @@
     'NIV-NAVA': ['nava', 'peep', 'fio2', 'pinsp', 'rr', 'ti', 'sed'],
     'HFNC':    ['hflow', 'fio2', 'sed']
   };
+
+  /* アラーム設定画面に並べる項目。モードで意味を持たないものは出さない（engine._alarmCheck と同じ分け方）。
+   * HFO は量と回数を見ない。鼻から支えるモードは漏れるので量を見ない。HFNC は呼吸器ではないので圧も見ない。
+   * 無呼吸時間は、バックアップ換気（PSV・CPAP）か無呼吸アラーム（HFNC）に効くモードだけ。 */
+  function alarmKeysFor(md) {
+    var monitor = ['aSpo2', 'aSpo2H', 'aHr'];
+    if (md === 'HFO') return monitor;
+    if (md === 'HFNC') return ['aRr', 'aApn'].concat(monitor);
+    if (md === 'NIV-NAVA') return ['aP', 'aRr'].concat(monitor);
+    var k = ['aP', 'aVtLo', 'aVtHi', 'aMvLo', 'aMvHi', 'aRr'];
+    if (md === 'PSV' || md === 'CPAP') k.push('aApn');
+    return k.concat(monitor);
+  }
 
   function esc(t) {
     return String(t).replace(/[&<>"]/g, function (c) {
@@ -250,9 +283,9 @@
     { k: 'auto-PEEP', u: 'cmH₂O', get: function (e) { return r1(e.m.autoPeep); }, tone: function (e) { return e.m.autoPeep > 5 ? 'hi' : (e.m.autoPeep > 2 ? 'mid' : ''); } },
     /* 小児では f/VT を体重あたりで見る。成人の RSBI（<105）は体重が軽いほど大きく出て使えない。 */
     { k: 'f/VT', u: '/分/(mL/kg)', get: function (e) { return e.m.rsbiKg == null ? '––' : r1(e.m.rsbiKg); }, lim: function () { return '<8'; }, tone: function (e) { return e.m.rsbiKg > 8 ? 'mid' : ''; } },
-    { k: 'SpO₂', u: '%', get: function (e) { return r0(e.spo2); }, lim: function (e) { return e.nm.spo2[0] + '–' + e.nm.spo2[1] + '%'; }, tone: function (e) { return e.spo2 < e.nm.spo2[0] ? 'hi' : (e.spo2 > e.nm.spo2[1] + 2 ? 'mid' : 'ok'); } },
+    { k: 'SpO₂', u: '%', get: function (e) { return r0(e.spo2); }, lim: function (e) { return e.nm.spo2[0] + '–' + e.nm.spo2[1] + '%'; }, tone: function (e) { var a = e.s.alarms; return e.spo2 < a.spo2Low || e.spo2 > a.spo2High ? 'hi' : (e.spo2 < e.nm.spo2[0] || e.spo2 > e.nm.spo2[1] + 2 ? 'mid' : 'ok'); } },
     { k: 'etCO₂', u: 'mmHg', get: function (e) { return r0(e.etco2); } },
-    { k: 'HR', u: '/min', get: function (e) { return r0(e.hr); }, lim: function (e) { return e.nm.hr[0] + '–' + e.nm.hr[1]; }, tone: function (e) { return e.hr < e.nm.hr[0] * 0.8 ? 'hi' : (e.hr > e.nm.hr[1] * 1.15 || e.hr < e.nm.hr[0] ? 'mid' : ''); } },
+    { k: 'HR', u: '/min', get: function (e) { return r0(e.hr); }, lim: function (e) { return e.nm.hr[0] + '–' + e.nm.hr[1]; }, tone: function (e) { return e.hr < e.s.alarms.hrLow ? 'hi' : (e.hr > e.nm.hr[1] * 1.15 || e.hr < e.nm.hr[0] ? 'mid' : ''); } },
     { k: 'ABP mean', u: 'mmHg', get: function (e) { return r0(e.map); }, lim: function (e) { return '≥' + e.nm.mapMin; }, tone: function (e) { return e.map < e.nm.mapMin ? 'hi' : (e.map < e.nm.mapMin + 5 ? 'mid' : ''); } },
     /* ---- NICU のモードで出すもの ---- */
     { k: 'Pmean', u: 'cmH₂O', get: function (e) { return r1(e.m.pmean); } },
@@ -638,7 +671,7 @@
     applyLimits(S.eng);
     settleEngine(S.eng);
     S.abgs = []; S.abgPending = null; S.trend = []; S.sbt = null; S.sbtSaved = null; S.extubated = null;
-    S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1; S.o2 = null;
+    S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1; S.o2 = null; S.almView = false;
     S.provisional = false;
     S.loopCur = []; S.loopLast = null; S.banner = null; trendAcc = 4;
     W.paw.clear(); W.flow.clear(); W.vol.clear();
@@ -729,9 +762,14 @@
   var keyNodes = {};
   function buildKeys() {
     var box = $('keys'); box.innerHTML = ''; keyNodes = {};
-    (KEYS_BY_MODE[S.eng.s.mode] || []).forEach(function (id) {
+    box.classList.toggle('alm', !!S.almView);
+    $('kAlm').classList.toggle('on', !!S.almView);
+    document.querySelector('.dialrow .hint').textContent = S.almView
+      ? 'アラームの項目を押し、ダイヤルで枠を変えて「確定」。もう一度「アラーム」で設定に戻ります。'
+      : '設定キーを押し、ダイヤルを回して「確定」で反映します。';
+    (S.almView ? alarmKeysFor(S.eng.s.mode) : (KEYS_BY_MODE[S.eng.s.mode] || [])).forEach(function (id) {
       var p = P[id];
-      var b = el('button', 'pkey' + (p.sim ? ' sim' : ''));
+      var b = el('button', 'pkey' + (p.sim ? ' sim' : '') + (p.alm ? ' alm' : ''));
       b.setAttribute('aria-pressed', 'false');
       var v = el('div', 'v'), vs = el('span'), u = el('span', 'u', p.u);
       v.appendChild(vs); v.appendChild(u);
@@ -767,7 +805,8 @@
     if (S.pend === p.get(S.eng.s)) return;
     p.set(S.eng.s, S.pend);
     SND.play('confirm');
-    S.eng._raise('設定変更: ' + p.k + ' ' + fmtP(p, S.pend) + (p.u ? ' ' + p.u : ''));
+    S.eng._raise((p.alm ? 'アラーム設定: ' : '設定変更: ') + p.k + ' ' + fmtP(p, S.pend) + (p.u ? ' ' + p.u : ''));
+    if (p.alm) lessonEvent('alarm:' + S.sel);
     if (S.sel === 'sed') S.eng._recomputeDrive();
     /* 確定したら選択を外す。実機と同じで、次の操作はまたキーを押すところから。 */
     S.sel = null; S.pend = null;
@@ -779,8 +818,11 @@
     var p = P[S.sel];
     var v = (S.pend == null ? p.get(S.eng.s) : S.pend) + dir * p.step * (mult || 1);
     v = Math.round(v / p.step) * p.step;
+    if (p.dec) v = +v.toFixed(p.dec);
     var before = S.pend == null ? p.get(S.eng.s) : S.pend;
-    S.pend = Math.max(p.min, Math.min(p.max, v));
+    var b = p.bound ? p.bound(S.eng.s, p) : [p.min, p.max];
+    S.pend = Math.max(b[0], Math.min(b[1], v));
+    if (p.dec) S.pend = +S.pend.toFixed(p.dec);
     if (S.pend !== before) SND.play('tick');
     paintKeys(); paintDial();
   }
@@ -916,6 +958,12 @@
       $('kFrz').classList.toggle('on', S.frozen);
       $('frz').hidden = !S.frozen;
     };
+    /* アラーム設定画面。設定キーの段をアラームの上限・下限に入れ替える。操作は同じ「キー → ダイヤル → 確定」。 */
+    $('kAlm').onclick = function () {
+      S.almView = !S.almView;
+      S.sel = null; S.pend = null;
+      buildKeys(); paintDial();
+    };
     $('kSpd').onclick = function () { setSpeed(S.speed === 1 ? 10 : (S.speed === 10 ? 60 : 1)); };
     $('kAbg').onclick = abgKey;
     $('kPt').onclick = openPatient;
@@ -983,7 +1031,8 @@
   function restoreSettings() {
     if (!S.sbtSaved) return;
     var e = S.eng, sv = S.sbtSaved;
-    for (var k in sv) if (Object.prototype.hasOwnProperty.call(sv, k)) e.s[k] = sv[k];
+    /* アラームの枠は SBT の途中で直したものをそのまま残す。 */
+    for (var k in sv) if (Object.prototype.hasOwnProperty.call(sv, k) && k !== 'alarms') e.s[k] = sv[k];
     e.sedation = Math.min(0.5, e.sedation + 0.25);
     S.sel = null; S.pend = null;
     buildKeys(); syncTabs(); paintDial();
@@ -1490,6 +1539,19 @@
       bar('抵抗 R·V̇', tm.resistive, 'cmH2O', PAL.flow) +
       bar('筋 −Pmus', tm.muscular, 'cmH2O', PAL.spo2) +
       bar(tight ? '＝ Paw' : '＝ 気道内圧 Paw', mo.paw, 'cmH2O', PAL.paw);
+  }
+
+  /* アラーム設定画面に並べる項目。モードで意味を持たないものは出さない（engine._alarmCheck と同じ分け方）。
+   * HFO は量と回数を見ない。鼻から支えるモードは漏れるので量を見ない。HFNC は呼吸器ではないので圧も見ない。
+   * 無呼吸時間は、バックアップ換気（PSV・CPAP）か無呼吸アラーム（HFNC）に効くモードだけ。 */
+  function alarmKeysFor(md) {
+    var monitor = ['aSpo2', 'aSpo2H', 'aHr'];
+    if (md === 'HFO') return monitor;
+    if (md === 'HFNC') return ['aRr', 'aApn'].concat(monitor);
+    if (md === 'NIV-NAVA') return ['aP', 'aRr'].concat(monitor);
+    var k = ['aP', 'aVtLo', 'aVtHi', 'aMvLo', 'aMvHi', 'aRr'];
+    if (md === 'PSV' || md === 'CPAP') k.push('aApn');
+    return k.concat(monitor);
   }
 
   function esc(t) {
@@ -2017,6 +2079,10 @@
   }
 
   function applySpot(spec) {
+    /* レッスンが設定キーを光らせたのにアラーム設定画面を開いていたら、設定キーの段に戻す。 */
+    if (S.almView && spec && [].concat(spec).some(function (x) { return /^key:/.test(x) && P[x.slice(4)] && !P[x.slice(4)].alm; })) {
+      S.almView = false; S.sel = null; S.pend = null; buildKeys(); paintDial(); return;
+    }
     spotted.forEach(function (n) { n.classList.remove('spot'); delete n.dataset.spot; });
     spotted = spec ? spotEls(spec) : [];
     spotted.forEach(function (n) { n.classList.add('spot'); n.dataset.spot = '1'; });

@@ -154,7 +154,17 @@
       hfoFreq: { min: fine ? 6 : 4, max: 15, step: 1 },
       navaLevel: { min: 0, max: 4, step: 0.1, dec: 1 },
       hfncFlow: fine ? { min: 1, max: 8, step: 0.5, dec: 1 }
-                     : { min: 2, max: Math.min(60, Math.ceil(pbw * 2.5)), step: 1 }
+                     : { min: 2, max: Math.min(60, Math.ceil(pbw * 2.5)), step: 1 },
+      /* アラーム設定画面のダイヤル。量の枠は体重で変わる。 */
+      almP:     { min: 10, max: 60, step: 1 },
+      almVt:    { min: vtStep, max: Math.max(vtStep * 6, Math.ceil(pbw * 20 / vtStep) * vtStep), step: vtStep, dec: fine ? 1 : 0 },
+      almMv:    fine ? { min: 0.01, max: 2, step: 0.01, dec: 2 }
+                     : (small ? { min: 0.05, max: Math.max(2, Math.ceil(pbw * 0.8)), step: 0.05, dec: 2 }
+                              : { min: 0.1, max: Math.ceil(pbw * 0.8), step: 0.1, dec: 1 }),
+      almRr:    { min: 10, max: Math.ceil(nm.rrMax * 1.5), step: 1 },
+      almApnea: { min: 5, max: 60, step: 1 },
+      almSpo2:  { min: 70, max: 100, step: 1 },
+      almHr:    { min: 30, max: 200, step: 1 }
     };
   }
 
@@ -168,7 +178,12 @@
       mvLow: Math.max(0.05, Math.round(mv * 0.6 * 100) / 100),
       mvHigh: Math.round(mv * 1.8 * 100) / 100,
       rrHigh: Math.round(Math.min(nm.rrMax, rr * 1.5 + 8)),
-      apnea: nm.apnea
+      apnea: nm.apnea,
+      /* ここから下はベッドサイドモニターの枠。初期値は年齢の目安から作る。
+       * SpO₂ 上限は 100（鳴らない）で始め、早産児で高すぎる酸素を見張りたいときに下げる。 */
+      spo2Low: nm.spo2[0],
+      spo2High: 100,
+      hrLow: Math.round(nm.hr[0] * 0.8)
     };
   }
 
@@ -193,7 +208,8 @@
       hfoFreq: 12,        // HFO の周波数 (Hz)
       navaLevel: 1.5,     // NAVA レベル (cmH2O/µV)：Edi 1 µV あたりに上乗せする圧
       hfncFlow: 6,        // HFNC の流量 (L/min)
-      alarms: { pMax: 35, vtLow: 250, vtHigh: 800, mvLow: 3, mvHigh: 15, rrHigh: 35, apnea: 20 }
+      alarms: { pMax: 35, vtLow: 250, vtHigh: 800, mvLow: 3, mvHigh: 15, rrHigh: 35, apnea: 20,
+                spo2Low: 94, spo2High: 100, hrLow: 60 }
     };
   }
 
@@ -1056,11 +1072,12 @@
     if (conv && m.mv < s.alarms.mvLow && this.clock > 30) a.push({ k: 'mv', msg: '分時換気量 低下', sev: 2 });
     if (conv && m.mv > s.alarms.mvHigh) a.push({ k: 'mvh', msg: '分時換気量 過大', sev: 1 });
     if (md !== 'HFO' && m.rrTotal > s.alarms.rrHigh) a.push({ k: 'rr', msg: '頻呼吸', sev: 1 });
-    if (md === 'HFNC' && this.sinceBreath > this.nm.apnea) a.push({ k: 'apnea', msg: '無呼吸', sev: 2 });
-    if (this.spo2 < this.nm.spo2[0]) a.push({ k: 'spo2', msg: 'SpO2 低下', sev: 2 });
+    if (md === 'HFNC' && this.sinceBreath > s.alarms.apnea) a.push({ k: 'apnea', msg: '無呼吸', sev: 2 });
+    if (this.spo2 < s.alarms.spo2Low) a.push({ k: 'spo2', msg: 'SpO2 低下', sev: 2 });
+    if (this.spo2 > s.alarms.spo2High) a.push({ k: 'spo2h', msg: 'SpO2 上限', sev: 1 });
     if (m.autoPeep > 5) a.push({ k: 'ap', msg: 'auto-PEEP', sev: 1 });
     if (this.map < this.nm.mapMin) a.push({ k: 'map', msg: '血圧低下', sev: 2 });
-    if (this.hr < this.nm.hr[0] * 0.8) a.push({ k: 'hr', msg: '徐脈', sev: 2 });
+    if (this.hr < s.alarms.hrLow) a.push({ k: 'hr', msg: '徐脈', sev: 2 });
     this.alarms = a;
   };
 
