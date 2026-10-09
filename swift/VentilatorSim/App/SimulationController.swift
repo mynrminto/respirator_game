@@ -48,21 +48,34 @@ final class WaveformTrace {
 final class SimulationController {
 
     enum Speed: Double, CaseIterable, Identifiable {
-        case paused = 0, realtime = 1, fast = 10, veryFast = 60
+        // 早送りは × 3 / × 5 / × 10 まで。それより長い待ちは「⏭ 先へ」（skip）で次の出来事まで進める。
+        case paused = 0, realtime = 1, triple = 3, quintuple = 5, fast = 10
         var id: Double { rawValue }
-        var label: String {
+        var label: String { self == .paused ? "‖" : "\(Int(rawValue))×" }
+        /// 早送りキーを押したときの次の倍速。× 1 → × 3 → × 5 → × 10 → × 1。
+        var next: Speed {
             switch self {
-            case .paused: return "‖"
-            case .realtime: return "1×"
-            case .fast: return "10×"
-            case .veryFast: return "60×"
+            case .realtime: return .triple
+            case .triple: return .quintuple
+            case .quintuple: return .fast
+            default: return .realtime
             }
         }
     }
 
     private(set) var engine: VentilatorEngine
     private(set) var scenario: Scenario
-    var speed: Speed = .realtime
+    /// 倍速を変えると（等速に戻すのも含めて）一気送りは止まる。
+    var speed: Speed = .realtime { didSet { skip = nil } }
+    /// 「⏭ 先へ」で次の出来事まで一気に進めている最中の目標（web の S.skip）。
+    struct Skip {
+        let why: String
+        let until: Double
+        let alarms: Set<String>
+        let runtime: ObjectIdentifier?
+        let index: Int
+    }
+    private(set) var skip: Skip?
     private(set) var bloodGases: [BloodGas] = []
     private(set) var pendingBloodGasAt: Double?
     private(set) var log: [(time: Double, message: String)] = []
@@ -392,6 +405,12 @@ final class SimulationController {
     /// テストやプレビューからも呼べるよう、実時間の差分を受け取る形にしてある。
     func advance(realSeconds: Double) {
         guard speed != .paused else { return }
+        if skip != nil, extubation == nil {
+            advanceSkip()
+            refreshLessonWatch()
+            syncDisplay(realSeconds)
+            return
+        }
         if extubation != nil {
             // 抜管後は換気を止める。ただしレッスンの判定（「結果を確認してください」など）は続ける。
             advanceLesson(simulated: realSeconds * speed.rawValue)
@@ -438,6 +457,64 @@ final class SimulationController {
         advanceLesson(simulated: simulated)
         refreshLessonWatch()
         syncDisplay(realSeconds)
+    }
+
+    // MARK: - 一気送り（⏭ 先へ）
+
+    /// 一気送りで 1 フレームに進める秒数（30 分が約 1.5 秒）。
+    private static let skipPerFrame = 20.0
+
+    /// 「⏭ 先へ」でどこまで進めるか。進められない場面（会話・クイズ・キー待ち・抜管後）は nil。
+    /// SBT 中は SBT の終わりまで、採血の結果待ちは結果まで、レッスンの「待つ・見る」課題はその課題が進むまで
+    /// （最長は残りの保持時間 ＋ 30 秒か 5 分の長いほう）、それ以外（症例で練習）は 5 分後まで。Web 版 skipPlan と同じ。
+    var skipPlan: (why: String, seconds: Double)? {
+        guard extubation == nil else { return nil }
+        if let elapsed = sbtElapsed, !sbtFinished { return ("SBT の終わりまで", 1800 - elapsed + 1) }
+        if let due = pendingBloodGasAt { return ("血液ガスの結果まで", due - engine.clock + 0.5) }
+        if let runtime = lessonRuntime {
+            guard lessonPhase == .task, let task = runtime.task, case .condition = task.advance else { return nil }
+            return ("次の変化まで", max(300, task.holdSeconds - runtime.held + 30))
+        }
+        return ("5 分後まで", 300)
+    }
+
+    private var dangerAlarms: Set<String> {
+        Set(engine.alarms.filter { $0.severity >= 2 }.map(\.message))
+    }
+
+    /// 「⏭ 先へ」。もう一度押すと止まる。
+    func toggleSkip() {
+        if skip != nil { speed = .realtime; return }
+        guard let plan = skipPlan else { return }
+        speed = .realtime
+        selectedParameterID = nil
+        pendingValue = nil
+        skip = Skip(why: plan.why, until: engine.clock + plan.seconds, alarms: dangerAlarms,
+                    runtime: lessonRuntime.map(ObjectIdentifier.init), index: lessonRuntime?.index ?? -1)
+    }
+
+    /// 0.5 秒ごとに採血・SBT・レッスンの判定を回し、出来事が起きたらそこで等速に戻す。
+    private func advanceSkip() {
+        var left = Self.skipPerFrame
+        while left > 0, let goal = skip {
+            let chunk = min(0.5, left)
+            left -= chunk
+            for _ in 0..<Int((chunk / 0.01).rounded()) { engine.step(dt: 0.01) }
+            recordTrend(simulated: chunk)
+            updateTimers(simulated: chunk)
+            advanceLesson(simulated: chunk)
+            guard skip != nil else { break }
+            let moved = lessonRuntime.map(ObjectIdentifier.init) != goal.runtime
+                || (lessonRuntime?.index ?? -1) != goal.index
+                || (lessonRuntime != nil && lessonPhase != .task)
+            let alarm = !dangerAlarms.subtracting(goal.alarms).isEmpty
+            if moved || alarm || extubation != nil || engine.clock >= goal.until {
+                speed = .realtime
+                break
+            }
+        }
+        lastPhase = engine.phase
+        loopBuffer = []
     }
 
     private func syncDisplay(_ realSeconds: Double) {
@@ -554,7 +631,7 @@ final class SimulationController {
     /// 気管吸引。痰が取れて抵抗は下がるが、吸っているあいだ換気が止まり、少し遅れて酸素化が落ちる。
     func performSuction() {
         // 吸引中の数秒と SpO₂ の遅れた落ち込みは等速で見せる
-        if speed == .fast || speed == .veryFast { speed = .realtime }
+        if speed.rawValue > 1 || skip != nil { speed = .realtime }
         engine.suction()
         append("気管吸引を実施")
         send(.suction)
@@ -591,6 +668,8 @@ final class SimulationController {
             if let reason = Weaning.failureReason(for: engine, elapsed: elapsed) {
                 let since = sbtBadSince ?? engine.clock
                 sbtBadSince = since
+                // 崩れはじめたら等速に戻して見せる（Web 版 sbtTick と同じ）。
+                if engine.clock - since <= 60, speed.rawValue > 1 || skip != nil { speed = .realtime }
                 if engine.clock - since > 60 {
                     sbtFinished = true
                     sbtPassed = false

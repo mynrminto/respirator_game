@@ -93,7 +93,7 @@ extension LessonLibrary {
                 .spotting(["key:peep", "key:fio2"]).watching(["SpO₂", "ABP mean", "Pplat"]),
             .talk(.doctor, "では、この設定で CO₂ がどこまで上がるか。換気を変えてから数分おいて採血しましょう。"),
             .step("数分進めてから採血し、pH を確かめてください。",
-                  hint: "「× 10」で 5 分ほど進めてから「血液ガス」を押します。",
+                  hint: "「⏭ 先へ」で 5 分進めてから「血液ガス」を押します。",
                   check: { !$0.bloodGases.isEmpty })
                 .explaining { c in
                 guard let g = c.lastBloodGas else { return "" }
@@ -273,7 +273,7 @@ extension LessonLibrary {
                  why: "PEEP 5 と PS 8 に切り替わり、30 分の計測が始まりました。")
                 .spotting(["hard:kWean"]),
             .step("30 分の SBT を、最後まで通してください。",
-                  hint: "「× 10」や「× 60」で早送りできます。中止になったら原因を直して、もう一度開始します。",
+                  hint: "「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。",
                   why: "30 分、呼吸回数も酸素化も循環も保てました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
                 .spotting(["val:f/VT"]).watching(["f/VT", "RR tot", "SpO₂", "HR"]),
@@ -379,7 +379,7 @@ extension LessonLibrary {
                 .spotting(["key:fio2"]).watching(["SpO₂"]),
             .talk(.doctor, "最後に回数。量を絞ったぶん、CO₂ は回数で補います。この子なら 28〜30 回あたりから始めます。"),
             .step("回数を整えてから採血し、pH 7.25 以上を確かめてください。",
-                  hint: "RR を上げたら「× 10」で数分進め、「血液ガス」を押します。低ければ RR を足して採り直します。",
+                  hint: "RR を上げたら「⏭ 先へ」で 5 分進め、「血液ガス」を押します。低ければ RR を足して採り直します。",
                   check: { ($0.lastBloodGas?.pH ?? 0) >= 7.25 })
                 .explaining { c in
                 guard let g = c.lastBloodGas else { return "" }
@@ -459,7 +459,7 @@ extension LessonLibrary {
                   check: { $0.settings.peep <= 8 && $0.engine.spo2 >= 92 })
                 .spotting(["key:peep"]).watching(["SpO₂", "Pplat", "ABP mean"]),
             .step("もう一度採血して、P/F 比を確かめてください。",
-                  hint: "「× 10」で数分進めてから採血します。",
+                  hint: "「⏭ 先へ」で 5 分進めてから採血します。",
                   check: { $0.bloodGases.count >= 2 && ($0.lastBloodGas?.pfRatio ?? 0) >= 160 })
                 .explaining { c in
                 "P/F 比 \(Int((c.memory["pf81"] ?? 0).rounded())) → \(Int((c.lastBloodGas?.pfRatio ?? 0).rounded()))。"
@@ -550,7 +550,7 @@ extension LessonLibrary {
                  why: "PEEP 5 と PS 8 に切り替わり、30 分の計測が始まりました。")
                 .spotting(["hard:kWean"]),
             .step("30 分の SBT を、最後まで通してください。",
-                  hint: "「× 10」や「× 60」で早送りできます。中止になったら原因を直して、もう一度開始します。",
+                  hint: "「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。",
                   why: "30 分、崩れずに呼吸できました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
                 .spotting(["val:f/VT"]).watching(["f/VT", "RR tot", "SpO₂", "HR"]),
@@ -709,7 +709,7 @@ extension LessonLibrary {
                 .spotting(["key:fio2"]).watching(["SpO₂"]),
             .talk(.doctor, "早産児の血液ガスは、正常値より少し CO₂ が高めでも許します。pH 7.25 以上、PaCO₂ 45〜55 前後が目安です。"),
             .step("数分進めてから採血し、PaCO₂ を確かめてください。",
-                  hint: "「× 10」で 5 分ほど進めてから「血液ガス」を押します。",
+                  hint: "「⏭ 先へ」で 5 分進めてから「血液ガス」を押します。",
                   check: { !$0.bloodGases.isEmpty })
                 .explaining { c in
                 guard let g = c.lastBloodGas else { return "" }
@@ -782,7 +782,7 @@ extension LessonLibrary {
                 .spotting(["key:fio2", "key:peep", "key:sed"]).watching(["SpO₂", "RR tot", "ABP mean"]),
             .talk(.doctor, "早産児の呼吸は不規則です。速くなったり、間があいたりをくり返します（周期性呼吸）。SpO₂ と心拍が保たれていれば、慌てません。"),
             .step("「離脱」キーから SBT を開始し、最後まで通してください。",
-                  hint: "早送りを使ってください。中止になったら原因を直して、もう一度開始します。",
+                  hint: "「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。",
                   why: "自分の力で 30 分、呼吸を保てました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
                 .spotting(["hard:kWean"]).watching(["f/VT", "RR tot", "SpO₂", "HR"]),
@@ -850,7 +850,7 @@ extension LessonLibrary {
                   check: { $0.settings.respiratoryRate <= 12 })
                 .spotting(["key:rr"]).watching(["auto-PEEP", "ABP mean", "MV"]),
             .step("平均動脈圧が下限まで戻るのを見届けてください。",
-                  hint: "戻るまで数分かかります。「× 10」で早送りできます。",
+                  hint: "戻るまで数分かかります。「⏭ 先へ」で 5 分ずつ進められます。",
                   hold: 10,
                   check: { $0.engine.meanArterialPressure >= $0.engine.norms.meanArterialPressureMin })
                 .explaining { c in
@@ -936,7 +936,7 @@ extension LessonLibrary {
                 .spotting(["key:rr", "hard:kExp"]).watching(["auto-PEEP", "ABP mean", "MV"]),
             .talk(.doctor, "では、CO₂ はどこまで許すのか。採血して、自分の目で確かめましょう。"),
             .step("数分進めてから採血し、pH と PaCO₂ を確かめてください。",
-                  hint: "「× 10」で 5 分ほど進めてから「血液ガス」を押します。",
+                  hint: "「⏭ 先へ」で 5 分進めてから「血液ガス」を押します。",
                   check: { !$0.bloodGases.isEmpty })
                 .explaining { c in
                 guard let g = c.lastBloodGas else { return "" }
@@ -1024,7 +1024,7 @@ extension LessonLibrary {
             .talk(.puku, "目が覚めたら、また発作が起きたりしない？"),
             .talk(.doctor, "起きることがあります。だから SBT のあいだも聴診と呼気ポーズで、吐けているかを確かめ続けます。"),
             .step("「離脱」キーから SBT を開始し、最後まで通してください。",
-                  hint: "早送りを使ってください。中止になったら原因を直して、もう一度開始します。",
+                  hint: "「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。",
                   why: "30 分、吐けなくなることもなく呼吸できました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
                 .spotting(["hard:kWean"]).watching(["f/VT", "RR tot", "SpO₂", "HR"]),
@@ -1078,7 +1078,7 @@ extension LessonLibrary {
             }
                 .spotting(["val:RR tot", "val:f/VT"]).watching(["RR tot", "f/VT", "Vte"]),
             .step("PS を 7 に下げて、15 分見てください。",
-                  hint: "「× 60」で早送りできます。RR tot と f/VT の動きに注目します。",
+                  hint: "「⏭ 先へ」で 15 分後まで進められます。RR tot と f/VT の動きは「トレンド」で見返せます。",
                   hold: 900,
                   check: { $0.settings.pressureSupport <= 7 })
                 .explaining { c in
@@ -1152,7 +1152,7 @@ extension LessonLibrary {
                  why: "PEEP 5 と PS 6 に切り替わり、30 分の計測が始まりました。")
                 .spotting(["hard:kWean"]),
             .step("30 分の SBT を、最後まで見届けてください。",
-                  hint: "「× 10」や「× 60」で早送りできます。後半の RR と f/VT に注目します。",
+                  hint: "「⏭ 先へ」で SBT の終わりまで進められます。後半の RR と f/VT は「トレンド」で見返せます。",
                   why: "30 分、後半まで崩れずに呼吸できました。前回、18 分で崩れた子です。",
                   check: { $0.sbt.finished && $0.sbt.passed })
                 .spotting(["val:f/VT"]).watching(["f/VT", "RR tot", "Vte", "SpO₂"]),

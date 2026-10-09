@@ -118,7 +118,8 @@
   var S = {
     eng: null, scen: null,
     screen: 'wave',          // wave | loops | trend
-    speed: 1,                // 1 / 10 / 60
+    speed: 1,                // 1 / 3 / 5 / 10
+    skip: null,              // 「⏭ 先へ」で次の出来事まで一気に進めている最中の目標
     frozen: false,
     sel: null,               // 選択中の設定キー id
     pend: null,              // 確定待ちの値
@@ -671,14 +672,14 @@
     applyLimits(S.eng);
     settleEngine(S.eng);
     S.abgs = []; S.abgPending = null; S.trend = []; S.sbt = null; S.sbtSaved = null; S.extubated = null;
-    S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1; S.o2 = null; S.almView = false;
+    S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1; S.skip = null; S.o2 = null; S.almView = false;
     S.provisional = false;
     S.loopCur = []; S.loopLast = null; S.banner = null; trendAcc = 4;
     W.paw.clear(); W.flow.clear(); W.vol.clear();
     var pf = SC.patientProfile(sc);
     $('ptName').textContent = pf.name + '・' + pf.weight;
     $('kFrz').classList.remove('on'); $('frz').hidden = true;
-    $('kSpd').textContent = '× 1'; $('kSpd').classList.remove('on'); $('ff').hidden = true;
+    setSpeed(1);
     $('kO2').classList.remove('on');
     $('kAbg').textContent = '血液ガス'; $('kAbg').classList.remove('on');
     buildKeys(); syncTabs(); fitAll();
@@ -967,7 +968,8 @@
       S.sel = null; S.pend = null;
       buildKeys(); paintDial();
     };
-    $('kSpd').onclick = function () { setSpeed(S.speed === 1 ? 10 : (S.speed === 10 ? 60 : 1)); };
+    $('kSpd').onclick = function () { setSpeed(SPEEDS[(SPEEDS.indexOf(S.speed) + 1) % SPEEDS.length]); };
+    $('kSkip').onclick = function () { if (S.skip) setSpeed(1); else startSkip(); };
     $('kAbg').onclick = abgKey;
     $('kPt').onclick = openPatient;
     $('ptName').onclick = openPatient;
@@ -1013,6 +1015,7 @@
     var g = S.eng.sampleABG();
     S.abgs.push(g); S.abgPending = null;
     $('kAbg').textContent = '血液ガス'; $('kAbg').classList.remove('on');
+    if (S.skip) setSpeed(1);                        // 結果が返ったところで一気送りを止める
     openABG(g);
   }
 
@@ -1056,15 +1059,76 @@
       if (e.clock - b.badSince > 60) {
         b.done = 'fail'; b.failMsg = bad; b.tEnd = e.clock;
         restoreSettings(); setSpeed(1); openSBTResult();
-      } else if (S.speed > 1) setSpeed(1);          // 崩れはじめたら等速に戻して見せる
+      } else if (S.speed > 1 || S.skip) setSpeed(1);   // 崩れはじめたら等速に戻して見せる
     } else b.badSince = -1;
     if (!b.done && e.clock - b.t0 >= b.dur) { b.done = 'pass'; b.tEnd = e.clock; setSpeed(1); openSBTResult(); }
   }
+  /* 早送りは × 3 / × 5 / × 10 まで。それより長い待ち（SBT の 30 分、15 分の観察、採血の 2 分）は
+   * 「⏭ 先へ」で次の出来事まで一気に進める。倍速を変えると一気送りは止まる。 */
+  var SPEEDS = [1, 3, 5, 10];
+  var SKIP_PER_FRAME = 20;          // 一気送りで 1 フレームに進める秒数（30 分が約 1.5 秒）
   function setSpeed(v) {
     S.speed = v;
+    S.skip = null;
     $('kSpd').textContent = '× ' + S.speed;
     $('kSpd').classList.toggle('on', S.speed > 1);
-    $('ff').hidden = S.speed <= 1;
+    paintSkip();
+  }
+  /* 「⏭ 先へ」でどこまで進めるか。進められない場面（会話・クイズ・キー待ち・抜管後）は null。
+   *   SBT 中 → SBT の終わりまで（崩れはじめたら、そこで等速に戻る）
+   *   採血の結果待ち → 結果が返るまで
+   *   レッスンの「待つ・見る」課題 → その課題が進むまで（最長は残りの保持時間 ＋ 30 秒か 5 分の長いほう）
+   *   それ以外（症例で練習） → 5 分後まで */
+  function skipPlan() {
+    var e = S.eng, L = S.lesson;
+    if (!e || e.extubated) return null;
+    if (S.sbt && !S.sbt.done) return { why: 'SBT の終わりまで', max: S.sbt.dur - (e.clock - S.sbt.t0) + 1 };
+    if (S.abgPending) return { why: '血液ガスの結果まで', max: S.abgPending.readyAt - e.clock + 0.5 };
+    if (L) {
+      if (L.mode !== 'task') return null;
+      var t = L.rt.task();
+      if (!t || t.talk || t.quiz || t.event) return null;
+      return { why: '次の変化まで', max: Math.max(300, (t.hold || 0) - L.rt.held + 30) };
+    }
+    return { why: '5 分後まで', max: 300 };
+  }
+  function sev2Alarms() {
+    return (S.eng.alarms || []).filter(function (a) { return a.sev >= 2; }).map(function (a) { return a.k; });
+  }
+  function startSkip() {
+    var p = skipPlan();
+    if (!p) return;
+    setSpeed(1);
+    S.skip = { why: p.why, until: S.eng.clock + p.max, alarms: sev2Alarms(),
+      lesson: S.lesson, idx: S.lesson ? S.lesson.rt.index : -1 };
+    S.sel = null; S.pend = null; paintDial();
+    paintSkip();
+  }
+  /* 一気送り。0.5 秒ごとに採血・SBT・レッスンの判定を回し、出来事が起きたらそこで等速に戻す。 */
+  function skipTick() {
+    var e = S.eng, k = S.skip, left = SKIP_PER_FRAME;
+    while (left > 0 && S.skip === k) {
+      var chunk = Math.min(0.5, left);
+      left -= chunk;
+      for (var i = 0, n = Math.round(chunk / 0.01); i < n; i++) e.step(0.01, false);
+      trendTick(chunk);
+      abgTick(); sbtTick(); extubTick(); o2Tick(); lessonTick(chunk);
+      if (S.skip !== k) break;
+      var L = S.lesson;
+      var moved = L !== k.lesson || (L && (L.rt.index !== k.idx || L.mode !== 'task'));
+      var alarm = sev2Alarms().some(function (a) { return k.alarms.indexOf(a) < 0; });
+      if (moved || alarm || e.extubated || e.clock >= k.until) { setSpeed(1); break; }
+    }
+  }
+  function paintSkip() {
+    var b = $('kSkip');
+    if (!b) return;
+    var can = !!S.skip || !!skipPlan();
+    b.classList.toggle('on', !!S.skip);
+    b.disabled = !can;
+    b.classList.toggle('off', !can);
+    $('ff').hidden = S.speed <= 1 && !S.skip;
+    $('ff').textContent = S.skip ? '⏭ ' + S.skip.why + ' 進めています' : '早送り中 × ' + S.speed;
   }
 
   /* ===================== トレンド ===================== */
@@ -1085,10 +1149,13 @@
   function frame(now) {
     requestAnimationFrame(frame);
     if (!lastT) { lastT = now; return; }
-    if (now - railT > 400) { railT = now; paintRails(false); }
+    if (now - railT > 400) { railT = now; paintRails(false); paintSkip(); }
     var real = Math.min(0.25, (now - lastT) / 1000); lastT = now;
     var e = S.eng;
-    if (!e.extubated) {
+    if (S.skip && !e.extubated) {
+      skipTick();
+      sampAcc = 0;
+    } else if (!e.extubated) {
       var simSec = real * S.speed;
       var dt = S.speed > 1 ? 0.01 : 0.005;
       var steps = Math.min(1600, Math.round(simSec / dt));
@@ -1478,7 +1545,7 @@
   function drawLung(real) {
     if (!LUNG.view || !LU) return;
     var mo = LU.readModel(S.eng);
-    LUNG.view.update(mo, real, S.speed);
+    LUNG.view.update(mo, real, S.skip ? 10 : S.speed);
 
     // HUD は毎フレーム書き換えると読めないので 6 Hz に落とす
     LUNG.hudT += real;
@@ -1973,7 +2040,7 @@
       if (e.clock - x.badSince > 60) {
         x.ok = false; x.failMsg = bad;
         if (!x.warned) { x.warned = true; setSpeed(1); if (e._note) e._note('抜管後の呼吸が崩れた'); openExtubationTrouble(); }
-      } else if (S.speed > 1) setSpeed(1);          // 崩れはじめたら等速に戻して見せる
+      } else if (S.speed > 1 || S.skip) setSpeed(1);   // 崩れはじめたら等速に戻して見せる
     } else {
       x.badSince = -1;
       if (x.goodSince < 0) x.goodSince = e.clock;
@@ -2135,7 +2202,7 @@
       });
       b.appendChild(g);
       var n = el('p', 'note', '「学習コース」は呼吸器の操作を 1 から順に学ぶモードです。'
-        + '「× 1 / × 10 / × 60」はシミュレーター側の早送りで（× 1 が実時間）、血液ガスは採血から 2 分後に返ります。');
+        + '「× 1 / × 3 / × 5 / × 10」は早送り（× 1 が実時間）、「⏭ 先へ」は SBT の終わりや血液ガスの結果など、次の出来事まで一気に進めます。血液ガスは採血から 2 分後に返ります。');
       n.style.marginTop = '10px'; b.appendChild(n);
     });
   }

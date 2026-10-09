@@ -1513,5 +1513,36 @@ console.log('\n32. 自由操作の抜管：止めずに HFNC で呼吸を続け�
     && /e\.extubated = true;/.test(app));
 }
 
+console.log('\n33. 早送りは × 3 / × 5 / × 10 まで、長い待ちは「⏭ 先へ」で次の出来事まで');
+{
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const swDir = path.join(__dirname, '..', 'swift', 'VentilatorSim');
+  const ctl = fs.readFileSync(path.join(swDir, 'App', 'SimulationController.swift'), 'utf8');
+  const scr = fs.readFileSync(path.join(swDir, 'App', 'VentilatorScreen.swift'), 'utf8');
+  ok('Web の倍速は 1・3・5・10 の順に回る', /var SPEEDS = \[1, 3, 5, 10\];/.test(app) && !/S\.speed === 10 \? 60/.test(app));
+  ok('iPhone の倍速も 1・3・5・10（× 60 は無い）', /realtime = 1, triple = 3, quintuple = 5, fast = 10/.test(ctl) && !/veryFast/.test(ctl + scr));
+  ok('「⏭ 先へ」キーが両方にある', /id="kSkip"/.test(html) && /\$\('kSkip'\)\.onclick/.test(app) && /"⏭ 先へ"/.test(scr) && /func toggleSkip\(\)/.test(ctl));
+  ok('一気送りは SBT の終わり・採血の結果・課題の進み・新しい危険アラームで止まる',
+    /SBT の終わりまで/.test(app) && /血液ガスの結果まで/.test(app) && /moved \|\| alarm/.test(app)
+    && /SBT の終わりまで/.test(ctl) && /血液ガスの結果まで/.test(ctl) && /moved \|\| alarm/.test(ctl));
+  ok('SBT が崩れはじめたら一気送りも等速に戻る', /S\.speed > 1 \|\| S\.skip\) setSpeed\(1\)/.test(app) && /speed\.rawValue > 1 \|\| skip != nil \{ speed = \.realtime \}/.test(ctl));
+  const LSx = require('./lessons.js');
+  const hints = [];
+  LSx.CHAPTERS.forEach(ch => ch.lessons.forEach(l => l.tasks.forEach(t => { if (typeof t.hint === 'string') hints.push(t.hint); if (typeof t.why === 'string') hints.push(t.why); })));
+  ok('レッスンの文に「× 60」が残っていない', !hints.some(h => /× ?60/.test(h)));
+  const swLessons = fs.readdirSync(path.join(swDir, 'Sources', 'VentilatorCore')).filter(f => /^Lessons/.test(f))
+    .map(f => fs.readFileSync(path.join(swDir, 'Sources', 'VentilatorCore', f), 'utf8')).join('\n');
+  const skipHints = hints.filter(h => h.indexOf('⏭ 先へ') >= 0);
+  ok('「⏭ 先へ」の案内は iPhone 版にも同じ文である', skipHints.length >= 15 && skipHints.every(h => swLessons.indexOf(h) >= 0) && !/× ?60/.test(swLessons),
+    `${skipHints.length} 件`);
+  /* 一気送りと同じ刻み（0.01 秒 × 0.5 秒ごとの判定）で SBT の 30 分を回すと、Web でも軽く終わる。 */
+  const e = mk('ards');
+  const t0 = Date.now();
+  for (let k = 0; k < 3600; k++) for (let i = 0; i < 50; i++) e.step(0.01, false);
+  const ms = Date.now() - t0;
+  ok('30 分ぶんの一気送りは 1 秒未満で計算できる', ms < 1000, `${ms} ms`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

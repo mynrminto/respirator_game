@@ -398,6 +398,7 @@
   .hkey.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 3px 0 rgba(0,0,0,.12)}
   .hkey.sim{color:var(--accent2);border-color:#D6DEFF}
   .hkey.sim.on{background:var(--accent2);border-color:var(--accent2);color:#fff}
+  .hkey.off{opacity:.38}
   :root[data-theme="device"] .hard{gap:5px;padding:5px 6px;background:var(--bar);border-top:1px solid #0A0E12}
   :root[data-theme="device"] .hkey{border-radius:4px;border-width:1px;font-weight:400}
   :root[data-theme="device"] .hkey.on{background:var(--key);color:var(--flow);border-color:var(--flow)}
@@ -1019,6 +1020,7 @@
     <button class="hkey" id="kFrz">波形停止</button>
     <button class="hkey" id="kAlm">アラーム</button>
     <button class="hkey sim" id="kSpd">× 1</button>
+    <button class="hkey sim" id="kSkip" title="次の出来事まで一気に進める">⏭ 先へ</button>
     <button class="hkey sim" id="kPt">患者情報</button>
     <button class="hkey sim" id="kAbg">血液ガス</button>
     <button class="hkey sim" id="kWean">離脱</button>

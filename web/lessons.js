@@ -1080,7 +1080,7 @@
             say: '「血液ガス」を押して採血してください。',
             spot: 'hard:kAbg',
             event: 'abg:order',
-            why: '結果が出るまで約 2 分かかります。急ぐときは「× 10」で早送りできます。'
+            why: '結果が出るまで約 2 分かかります。急ぐときは「⏭ 先へ」で結果まで進められます。'
           },
           {
             say: '結果が返るまで待ちます。',
@@ -1244,7 +1244,7 @@
           },
           {
             say: 'もう一度採血して、PaCO₂ が 35〜48 mmHg に入ったことを確かめてください。',
-            hint: '「× 10」で 5 分ほど進めてから採血します。',
+            hint: '「⏭ 先へ」で 5 分進めてから採血します。',
             spot: 'hard:kAbg', watch: ['MV', 'etCO₂'],
             check: function (c) {
               return c.abgs.length >= 2 && c.lastAbg.paco2 >= 33 && c.lastAbg.paco2 <= 48;
@@ -1356,7 +1356,7 @@
           },
           {
             say: 'もう一度採血して、P/F 比が上がったことを確かめてください。',
-            hint: '「× 10」で早送りすると待ち時間が縮みます。',
+            hint: '「⏭ 先へ」で 5 分進めてから採血すると、待たずに済みます。',
             spot: 'hard:kAbg', watch: ['SpO₂'],
             check: function (c) {
               return c.abgs.length >= 2 && c.mem.pf0 != null && pf(c.lastAbg) > c.mem.pf0 + 20;
@@ -1463,7 +1463,7 @@
           },
           {
             say: '採血して、CO₂ と pH がどうなったか確かめてください。',
-            hint: '「× 10」で 5 分ほど進めてから採血すると、変化がはっきりします。',
+            hint: '「⏭ 先へ」で 5 分進めてから採血すると、変化がはっきりします。',
             spot: 'hard:kAbg', watch: ['etCO₂'],
             check: function (c) { return c.abgs.length >= 1; },
             why: function (c) {
@@ -1492,7 +1492,7 @@
           },
           {
             say: 'Vt は触らず RR だけを上げ、採血で pH 7.25 以上を確かめてください。',
-            hint: 'RR を 4〜6 回/分 ずつ上げ、「× 10」で数分進めてから採血します。',
+            hint: 'RR を 4〜6 回/分 ずつ上げ、「⏭ 先へ」で 5 分進めてから採血します。',
             spot: ['key:rr', 'hard:kAbg'], watch: ['Vte', 'MV', 'auto-PEEP'],
             onStart: function (c) { c.mem.nAbg = c.abgs.length; c.mem.vt44 = c.s.vt; },
             check: function (c) {
@@ -2030,7 +2030,7 @@
           },
           {
             say: '30 分の SBT を最後まで見てください。f/VT と呼吸回数の動きに注目します。',
-            hint: '「× 10」または「× 60」で早送りできます。異常が出ると自動的に等速に戻ります。',
+            hint: '「⏭ 先へ」で SBT の終わりまで一気に進められます。異常が出るとそこで等速に戻ります。',
             spot: 'val:f/VT', watch: ['f/VT', 'RR tot', 'Vte', 'SpO₂'],
             check: function (c) { return c.sbt != null && c.sbt.done != null; },
             why: function (c) {
@@ -2097,7 +2097,7 @@
           },
           {
             say: '「離脱」キーから SBT を開始し、最後まで完走させてください。',
-            hint: '早送りを使ってください。',
+            hint: '「⏭ 先へ」で SBT の終わりまで進められます。',
             spot: 'hard:kWean', watch: ['f/VT', 'RR tot', 'SpO₂'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: 'SBT に通りました。'
@@ -2283,7 +2283,7 @@
           },
           {
             say: '数分進めてから採血し、pH を確かめてください。',
-            hint: '「× 10」で 5 分ほど進めてから「血液ガス」を押します。',
+            hint: '「⏭ 先へ」で 5 分進めてから「血液ガス」を押します。',
             spot: 'hard:kAbg', watch: ['etCO₂', 'MV'],
             check: function (c) { return c.abgs.length >= 1; },
             why: function (c) {
@@ -2524,7 +2524,7 @@
           },
           {
             say: '30 分の SBT を、最後まで通してください。',
-            hint: '「× 10」や「× 60」で早送りできます。中止になったら原因を直して、もう一度開始します。',
+            hint: '「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。',
             spot: 'val:f/VT', watch: ['f/VT', 'RR tot', 'SpO₂', 'HR'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '30 分、呼吸回数も酸素化も循環も保てました。'
@@ -2693,7 +2693,7 @@
           },
           {
             say: '回数を整えてから採血し、pH 7.25 以上を確かめてください。',
-            hint: 'RR を上げたら「× 10」で数分進め、「血液ガス」を押します。低ければ RR を足して採り直します。',
+            hint: 'RR を上げたら「⏭ 先へ」で 5 分進め、「血液ガス」を押します。低ければ RR を足して採り直します。',
             spot: ['key:rr', 'hard:kAbg'], watch: ['MV', 'etCO₂', 'auto-PEEP'],
             check: function (c) { return c.abgs.length >= 1 && c.lastAbg.ph >= 7.25; },
             why: function (c) {
@@ -2793,7 +2793,7 @@
           },
           {
             say: 'もう一度採血して、P/F 比を確かめてください。',
-            hint: '「× 10」で数分進めてから採血します。',
+            hint: '「⏭ 先へ」で 5 分進めてから採血します。',
             spot: 'hard:kAbg', watch: ['SpO₂'],
             check: function (c) { return c.abgs.length >= 2 && pf(c.lastAbg) >= 160; },
             why: function (c) {
@@ -2914,7 +2914,7 @@
           },
           {
             say: '30 分の SBT を、最後まで通してください。',
-            hint: '「× 10」や「× 60」で早送りできます。中止になったら原因を直して、もう一度開始します。',
+            hint: '「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。',
             spot: 'val:f/VT', watch: ['f/VT', 'RR tot', 'SpO₂', 'HR'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '30 分、崩れずに呼吸できました。'
@@ -3147,7 +3147,7 @@
           },
           {
             say: '数分進めてから採血し、PaCO₂ を確かめてください。',
-            hint: '「× 10」で 5 分ほど進めてから「血液ガス」を押します。',
+            hint: '「⏭ 先へ」で 5 分進めてから「血液ガス」を押します。',
             spot: 'hard:kAbg', watch: ['etCO₂', 'MV'],
             check: function (c) { return c.abgs.length >= 1; },
             why: function (c) {
@@ -3240,7 +3240,7 @@
           },
           {
             say: '「離脱」キーから SBT を開始し、最後まで通してください。',
-            hint: '早送りを使ってください。中止になったら原因を直して、もう一度開始します。',
+            hint: '「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。',
             spot: 'hard:kWean', watch: ['f/VT', 'RR tot', 'SpO₂', 'HR'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '自分の力で 30 分、呼吸を保てました。'
@@ -3341,7 +3341,7 @@
           },
           {
             say: '平均動脈圧が下限まで戻るのを見届けてください。',
-            hint: '戻るまで数分かかります。「× 10」で早送りできます。',
+            hint: '戻るまで数分かかります。「⏭ 先へ」で 5 分ずつ進められます。',
             spot: 'val:ABP mean', watch: ['ABP mean', 'auto-PEEP', 'SpO₂'],
             check: function (c) { return c.e.map >= c.e.nm.mapMin; },
             hold: 10,
@@ -3456,7 +3456,7 @@
           },
           {
             say: '数分進めてから採血し、pH と PaCO₂ を確かめてください。',
-            hint: '「× 10」で 5 分ほど進めてから「血液ガス」を押します。',
+            hint: '「⏭ 先へ」で 5 分進めてから「血液ガス」を押します。',
             spot: 'hard:kAbg', watch: ['etCO₂', 'ABP mean'],
             check: function (c) { return c.abgs.length >= 1; },
             why: function (c) {
@@ -3571,7 +3571,7 @@
           },
           {
             say: '「離脱」キーから SBT を開始し、最後まで通してください。',
-            hint: '早送りを使ってください。中止になったら原因を直して、もう一度開始します。',
+            hint: '「⏭ 先へ」で SBT の終わりまで進められます。中止になったら原因を直して、もう一度開始します。',
             spot: 'hard:kWean', watch: ['f/VT', 'RR tot', 'SpO₂', 'HR'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '30 分、吐けなくなることもなく呼吸できました。'
@@ -3654,7 +3654,7 @@
           },
           {
             say: 'PS を 7 に下げて、15 分見てください。',
-            hint: '「× 60」で早送りできます。RR tot と f/VT の動きに注目します。',
+            hint: '「⏭ 先へ」で 15 分後まで進められます。RR tot と f/VT の動きは「トレンド」で見返せます。',
             spot: ['key:ps', 'val:RR tot'], watch: ['RR tot', 'f/VT', 'Vte'],
             check: function (c) { return c.s.ps <= 7; },
             hold: 900,
@@ -3751,7 +3751,7 @@
           },
           {
             say: '30 分の SBT を、最後まで見届けてください。',
-            hint: '「× 10」や「× 60」で早送りできます。後半の RR と f/VT に注目します。',
+            hint: '「⏭ 先へ」で SBT の終わりまで進められます。後半の RR と f/VT は「トレンド」で見返せます。',
             spot: 'val:f/VT', watch: ['f/VT', 'RR tot', 'Vte', 'SpO₂'],
             check: function (c) { return c.sbt != null && c.sbt.done === 'pass'; },
             why: '30 分、後半まで崩れずに呼吸できました。前回、18 分で崩れた子です。'

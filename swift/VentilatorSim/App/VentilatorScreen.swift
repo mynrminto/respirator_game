@@ -340,8 +340,8 @@ struct VentilatorScreen: View {
                     )
                     .padding(8)
             }
-            if controller.speed.rawValue > 1 {
-                Text("早送り中  \(Int(controller.speed.rawValue))×")
+            if controller.speed.rawValue > 1 || controller.skip != nil {
+                Text(controller.skip.map { "⏭ \($0.why) 進めています" } ?? "早送り中 × \(Int(controller.speed.rawValue))")
                     .font(Chrome.label(11, weight: .bold))
                     .foregroundStyle(Color.black.opacity(0.75))
                     .padding(.horizontal, 12).padding(.vertical, 3)
@@ -645,6 +645,11 @@ struct VentilatorScreen: View {
                       isOn: controller.speed.rawValue > 1) { cycleSpeed() }
                 .spotlight(controller.isSpotted("hard:kSpd"), corner: hardCorner)
                 .id("hard:kSpd")
+            DeviceKey(title: "⏭ 先へ", tint: Chrome.sim,
+                      isOn: controller.skip != nil) { controller.toggleSkip() }
+                .opacity(controller.skip != nil || controller.skipPlan != nil ? 1 : 0.38)
+                .spotlight(controller.isSpotted("hard:kSkip"), corner: hardCorner)
+                .id("hard:kSkip")
             DeviceKey(title: "患者情報", tint: Chrome.sim) { openPatientInfo() }
                 .spotlight(controller.isSpotted("hard:kPt"), corner: hardCorner)
                 .id("hard:kPt")
@@ -686,11 +691,7 @@ struct VentilatorScreen: View {
     }
 
     private func cycleSpeed() {
-        switch controller.speed {
-        case .realtime: controller.speed = .fast
-        case .fast: controller.speed = .veryFast
-        default: controller.speed = .realtime
-        }
+        controller.speed = controller.speed.next
     }
 
     // MARK: - ダイヤル（下に固定）

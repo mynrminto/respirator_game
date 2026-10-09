@@ -28,7 +28,7 @@ extension LessonLibrary {
             .talk(.puku, "4 つも覚えるの？"),
             .talk(.doctor, "pH → PaCO₂ → HCO₃⁻ → 代償。それだけです。まず採ってみましょう。"),
             .key("「血液ガス」を押して採血してください。", event: .orderBloodGas,
-                 why: "結果が出るまで約 2 分かかります。急ぐときは「× 10」で早送りできます。")
+                 why: "結果が出るまで約 2 分かかります。急ぐときは「⏭ 先へ」で結果まで進められます。")
                 .spotting(["hard:kAbg"]),
             .step("結果が返るまで待ちます。",
                   check: { !$0.bloodGases.isEmpty })
@@ -135,7 +135,7 @@ extension LessonLibrary {
                 }
                 .spotting(["key:vt", "key:rr"]).watching(["MV", "Pplat", "etCO₂"]),
             .step("もう一度採血して、PaCO₂ が 35〜48 mmHg に入ったことを確かめてください。",
-                  hint: "「× 10」で 5 分ほど進めてから採血します。",
+                  hint: "「⏭ 先へ」で 5 分進めてから採血します。",
                   check: { c in
                       guard c.bloodGases.count >= 2, let g = c.lastBloodGas else { return false }
                       return g.paco2 >= 33 && g.paco2 <= 48
@@ -214,7 +214,7 @@ extension LessonLibrary {
                 }
                 .watching(["SpO₂", "Pplat", "ABP mean"]),
             .step("もう一度採血して、P/F 比が上がったことを確かめてください。",
-                  hint: "「× 10」で早送りすると待ち時間が縮みます。",
+                  hint: "「⏭ 先へ」で 5 分進めてから採血すると、待たずに済みます。",
                   check: { c in
                       guard c.bloodGases.count >= 2, let g = c.lastBloodGas,
                             let base = c.memory["pf0"] else { return false }
@@ -294,7 +294,7 @@ extension LessonLibrary {
                 }
                 .spotting(["key:vt"]).watching(["Vte", "Pplat", "ΔP"]),
             .step("採血して、CO₂ と pH がどうなったか確かめてください。",
-                  hint: "「× 10」で 5 分ほど進めてから採血すると、変化がはっきりします。",
+                  hint: "「⏭ 先へ」で 5 分進めてから採血すると、変化がはっきりします。",
                   check: { !$0.bloodGases.isEmpty })
                 .explaining { c in
                     guard let g = c.lastBloodGas else { return "" }
@@ -311,7 +311,7 @@ extension LessonLibrary {
                          "PEEP は酸素化のつまみで、CO₂ は下がりません。", "呼吸が抑えられ、CO₂ はむしろ上がります。"],
                   why: "pH 7.25 以上なら許容範囲です。ここで Vt を増やすのは、数字を良くするために肺を傷めること。もう少し上げたいなら RR で、この年齢なら 40〜50 /分 まで使えることもあります。"),
             .step("Vt は触らず RR だけを上げ、採血で pH 7.25 以上を確かめてください。",
-                  hint: "RR を 4〜6 回/分 ずつ上げ、「× 10」で数分進めてから採血します。",
+                  hint: "RR を 4〜6 回/分 ずつ上げ、「⏭ 先へ」で 5 分進めてから採血します。",
                   check: { c in
                       guard let g = c.lastBloodGas, let n0 = c.memory["nAbg"],
                             let vt0 = c.memory["vt44"] else { return false }
@@ -667,7 +667,7 @@ extension LessonLibrary {
                 .spotting(["hard:kWean"]),
             .talk(.doctor, "30 分、そばで見ます。最初の 5 分ではなく、後半で崩れる子がいます。"),
             .step("30 分の SBT を最後まで見てください。f/VT と呼吸回数の動きに注目します。",
-                  hint: "「× 10」または「× 60」で早送りできます。異常が出ると自動的に等速に戻ります。",
+                  hint: "「⏭ 先へ」で SBT の終わりまで一気に進められます。異常が出るとそこで等速に戻ります。",
                   check: { $0.sbt.finished })
                 .explaining { c in
                     if c.sbt.passed { return "30 分、呼吸回数も酸素化も循環も保てました。抜管を検討できます。" }
@@ -715,7 +715,7 @@ extension LessonLibrary {
             .talk(.doctor, "最後の関門です。呼吸の力だけでなく、気道を自分で守れるかを見ます。"),
             .talk(.doctor, "気道を守るとは、痰を咳で出せること、つばや吐いたものを気管に入れないこと。そのために、意識と咳の力を見ます。"),
             .step("「離脱」キーから SBT を開始し、最後まで完走させてください。",
-                  hint: "早送りを使ってください。",
+                  hint: "「⏭ 先へ」で SBT の終わりまで進められます。",
                   why: "SBT に通りました。",
                   check: { $0.sbt.finished && $0.sbt.passed })
                 .spotting(["hard:kWean"]).watching(["f/VT", "RR tot", "SpO₂"]),
