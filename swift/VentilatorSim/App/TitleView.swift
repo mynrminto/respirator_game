@@ -140,7 +140,7 @@ struct TitleView: View {
         return VStack(spacing: 2) {
             Text("触って覚える！")
                 .font(Chrome.label(14 * titleBoost, weight: .heavy))
-                .foregroundStyle(Chrome.dim)
+                .foregroundStyle(Chrome.ink)
                 .tracking(3)
             ZStack {
                 WaveMark()
