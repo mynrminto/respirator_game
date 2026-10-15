@@ -1484,5 +1484,166 @@ console.log('\n31. 急性の過換気・低換気で HCO₃⁻ がその場で�
     `PaCO₂ ${d0.toFixed(0)}→${lo.paco2.toFixed(0)}, HCO₃⁻ ${g0.toFixed(1)}→${lo.hco3.toFixed(1)}, pH ${lo.ph.toFixed(2)}`);
 }
 
+console.log('\n32. 自由操作の抜管：止めずに HFNC で呼吸を続け、崩れるかどうかは計算に任せる');
+{
+  const SCN = require('./scenarios.js');
+  /* SBT 後と同じく鎮静を浅くし、HFNC（子ども 2 L/kg/分、3 kg 未満 6 L/分）につなぐ。 */
+  function extubate(id) {
+    const e = mk(id); run(e, 60);
+    e.sedation = 0.15; e._recomputeDrive(); run(e, 300);
+    e.s.hfncFlow = SCN.postExtubationFlow(e); e.s.mode = 'HFNC';
+    return e;
+  }
+  ok('HFNC の流量：25 kg は 50、6 kg は 12、1.1 kg は 6 L/分',
+    SCN.postExtubationFlow(mk('postop')) === 50 && SCN.postExtubationFlow(mk('bronchiolitis')) === 12
+    && SCN.postExtubationFlow(mk('rds')) === 6);
+  const h = extubate('postop');
+  let worst = null;
+  for (let t = 0; t < 3600; t += 30) { run(h, 30); if (t > 30) worst = worst || SCN.extubationTrouble(h); }
+  ok('ハルト君（肺はほぼ正常）は抜管後 1 時間崩れない', !worst,
+    `RR ${h.m.rrTotal.toFixed(0)}, SpO₂ ${h.spo2.toFixed(0)}, PaCO₂ ${h.paco2.toFixed(0)}`);
+  const s = extubate('bronchiolitis');
+  let tBad = -1;
+  for (let t = 0; t < 900 && tBad < 0; t += 10) { run(s, 10); if (SCN.extubationTrouble(s)) tBad = t + 10; }
+  ok('急性期のそうた君は抜管すると 15 分以内に崩れる（再挿管の判断になる）', tBad > 0,
+    `${tBad} 秒で「${SCN.extubationTrouble(s)}」`);
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  ok('レッスン中の抜管は今までどおり結果の画面で止まり、自由操作だけが続く',
+    /function doExtubate\(\) \{\s*if \(!S\.lesson\) \{ extubateFreePlay\(\); return; \}/.test(app)
+    && /e\.extubated = true;/.test(app));
+}
+
+console.log('\n33. 早送りは × 3 / × 5 / × 10 まで、長い待ちは「⏭ 先へ」で次の出来事まで');
+{
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const swDir = path.join(__dirname, '..', 'swift', 'VentilatorSim');
+  const ctl = fs.readFileSync(path.join(swDir, 'App', 'SimulationController.swift'), 'utf8');
+  const scr = fs.readFileSync(path.join(swDir, 'App', 'VentilatorScreen.swift'), 'utf8');
+  ok('Web の倍速は 1・3・5・10 の順に回る', /var SPEEDS = \[1, 3, 5, 10\];/.test(app) && !/S\.speed === 10 \? 60/.test(app));
+  ok('iPhone の倍速も 1・3・5・10（× 60 は無い）', /realtime = 1, triple = 3, quintuple = 5, fast = 10/.test(ctl) && !/veryFast/.test(ctl + scr));
+  ok('「⏭ 先へ」キーが両方にある', /id="kSkip"/.test(html) && /\$\('kSkip'\)\.onclick/.test(app) && /"⏭ 先へ"/.test(scr) && /func toggleSkip\(\)/.test(ctl));
+  ok('一気送りは SBT の終わり・採血の結果・課題の進み・新しい危険アラームで止まる',
+    /SBT の終わりまで/.test(app) && /血液ガスの結果まで/.test(app) && /moved \|\| alarm/.test(app)
+    && /SBT の終わりまで/.test(ctl) && /血液ガスの結果まで/.test(ctl) && /moved \|\| alarm/.test(ctl));
+  ok('SBT が崩れはじめたら一気送りも等速に戻る', /S\.speed > 1 \|\| S\.skip\) setSpeed\(1\)/.test(app) && /speed\.rawValue > 1 \|\| skip != nil \{ speed = \.realtime \}/.test(ctl));
+  const LSx = require('./lessons.js');
+  const hints = [];
+  LSx.CHAPTERS.forEach(ch => ch.lessons.forEach(l => l.tasks.forEach(t => { if (typeof t.hint === 'string') hints.push(t.hint); if (typeof t.why === 'string') hints.push(t.why); })));
+  ok('レッスンの文に「× 60」が残っていない', !hints.some(h => /× ?60/.test(h)));
+  const swLessons = fs.readdirSync(path.join(swDir, 'Sources', 'VentilatorCore')).filter(f => /^Lessons/.test(f))
+    .map(f => fs.readFileSync(path.join(swDir, 'Sources', 'VentilatorCore', f), 'utf8')).join('\n');
+  const skipHints = hints.filter(h => h.indexOf('⏭ 先へ') >= 0);
+  ok('「⏭ 先へ」の案内は iPhone 版にも同じ文である', skipHints.length >= 15 && skipHints.every(h => swLessons.indexOf(h) >= 0) && !/× ?60/.test(swLessons),
+    `${skipHints.length} 件`);
+  /* 一気送りと同じ刻み（0.01 秒 × 0.5 秒ごとの判定）で SBT の 30 分を回すと、Web でも軽く終わる。 */
+  const e = mk('ards');
+  const t0 = Date.now();
+  for (let k = 0; k < 3600; k++) for (let i = 0; i < 50; i++) e.step(0.01, false);
+  const ms = Date.now() - t0;
+  ok('30 分ぶんの一気送りは 1 秒未満で計算できる', ms < 1000, `${ms} ms`);
+}
+
+console.log('\n34. 自由操作：鎮静は数分かけて覚め、時間がたつと病気が治って離脱できる');
+{
+  const SCN = require('./scenarios.js');
+  const e = mk('postop'); run(e, 60);
+  const s0 = e.sedation; e.sedationTarget = 0;
+  run(e, 30); const at30 = e.sedation;
+  run(e, 150); const at3m = e.sedation;
+  run(e, 420); const at10m = e.sedation;
+  ok('鎮静を切って 30 秒ではまだ眠っている（0.6 超）', at30 > 0.6, `${s0} → ${at30.toFixed(2)}`);
+  ok('3 分で「覚醒」（0.4 以下）に入る', at3m <= 0.4, at3m.toFixed(2));
+  ok('10 分でほぼ醒めきり、自分で吸い始める', at10m < 0.05 && SCN.spontOk(e),
+    `${at10m.toFixed(3)}、トリガ ${Math.round(e.m.rrTrig || 0)} 回/分`);
+  e.sedationTarget = 0.85; run(e, 120);
+  ok('深くするのは速い（2 分で 0.8 以上）', e.sedation > 0.8, e.sedation.toFixed(2));
+
+  /* 治りきる日数ぶん進め、離脱の手前の設定で 2 時間おいてから SBT → 抜管。 */
+  const PRE = { asthma: { mode: 'VC-AC', vt: 280, rr: 12, peep: 5, fio2: 0.4, flow: 40, pause: 0.3 },
+    gbs: { mode: 'PSV', ps: 8, peep: 5, fio2: 0.3 } };
+  for (const id of ['bronchiolitis', 'ards', 'asthma', 'gbs']) {
+    const sc = scen(id), r = mk(id); run(r, 60);
+    const c0 = r.C, rin0 = r.p.Rinsp;
+    SCN.recover(r, sc, sc.recovery.days * 86400);
+    if (PRE[id]) Object.assign(r.s, PRE[id]);
+    r.sedation = 0.3; r._recomputeDrive(); run(r, 7200, 0.01);
+    r.s.mode = 'PSV'; r.s.ps = r.p.pbw < 10 ? 8 : (r.p.pbw < 25 ? 6 : 5); r.s.peep = Math.min(r.s.peep, 5);
+    r.s.fio2 = Math.min(r.s.fio2, 0.4); r.sedation = 0.15; r._recomputeDrive();
+    const nm = r.nm; let fail = null;
+    for (let t = 0; t < 1800 && !fail; t += 10) {
+      run(r, 10, 0.01);
+      if (t > 60 && (r.m.rrTotal > Math.round(nm.rr[1] * 1.5) || r.spo2 < nm.spo2[0] || r.ph < 7.30)) fail = `${t} 秒`;
+    }
+    r.s.hfncFlow = SCN.postExtubationFlow(r); r.s.mode = 'HFNC';
+    let bad = null;
+    for (let t = 0; t < 3600 && !fail && !bad; t += 30) { run(r, 30, 0.01); if (t > 30) bad = SCN.extubationTrouble(r); }
+    ok(id + `：${sc.recovery.days} 日で治り、SBT を通って抜管後 1 時間もつ`, !fail && !bad,
+      `C ${(c0 * 1000).toFixed(1)}→${(r.C * 1000).toFixed(1)} mL/cmH₂O, Rinsp ${rin0}→${r.p.Rinsp.toFixed(0)}`
+      + (fail ? `、SBT ${fail}で失敗` : '') + (bad ? `、抜管後「${bad}」` : ''));
+  }
+  const half = mk('ards'), sc = scen('ards');
+  SCN.recover(half, sc, 86400);
+  ok('ARDS は 1 日では少ししか治らない（11 日かけて回復）', half.C > sc.patient.compliance && half.C < 0.0075,
+    `C ${(half.C * 1000).toFixed(1)} mL/cmH₂O`);
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  ok('回復はレッスン外でだけ進み、レッスンの鎮静は今までどおりすぐ効く',
+    /if \(!S\.lesson\) SC\.recover\(e, S\.scen, simSec\)/.test(app)
+    && /if \(S\.lesson\) setSedation\(v \/ 100\); else S\.eng\.sedationTarget = v \/ 100;/.test(app));
+}
+
+console.log('\n35. レッスン中は今の課題に要るキーだけ触れる／心停止で止まる');
+{
+  const LSx = require('./lessons.js');
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const all = [];
+  LSx.CHAPTERS.forEach(ch => ch.lessons.forEach(l => l.tasks.forEach((t, i) => all.push({ id: l.id + '#' + i, t }))));
+  ok('会話・クイズの場面では機器のキーはどれも触れない', all.filter(x => x.t.talk || x.t.quiz).every(x => LSx.controlsFor(x.t).length === 0));
+  const EV = { 'hold:insp': 'hard:kInsp', 'hold:exp': 'hard:kExp', 'abg:order': 'hard:kAbg', suction: 'hard:kSuc', o2100: 'hard:kO2',
+    patient: 'hard:kPt', 'weaning:open': 'hard:kWean', 'sbt:start': 'sbt', extubate: 'extubate' };
+  const badEv = all.filter(x => x.t.event).filter(x => LSx.controlsFor(x.t).indexOf(/^mode:/.test(x.t.event) ? x.t.event : EV[x.t.event]) < 0);
+  ok('キーを押す課題では、そのキーが触れる', badEv.length === 0, badEv.map(x => x.id).join(' '));
+  const badSpot = all.filter(x => !x.t.talk && !x.t.quiz).filter(x => [].concat(x.t.spot || []).filter(s => /^(key|hard|mode):/.test(s))
+    .some(s => LSx.controlsFor(x.t).indexOf(s) < 0));
+  ok('光らせたキーはすべて触れる', badSpot.length === 0, badSpot.map(x => x.id).join(' '));
+  const sbtPass = all.filter(x => x.t.check && /done === 'pass'/.test(x.t.check.toString()));
+  ok('SBT を最後まで通す課題では、中止のあと設定を直して開き直せる', sbtPass.length === 6
+    && sbtPass.every(x => ['sbt', 'hard:kWean', 'key:fio2', 'key:peep', 'key:sed'].every(k => LSx.controlsFor(x.t).indexOf(k) >= 0)));
+  const missOk = all.filter(x => x.t.missEvents).every(x => Object.keys(x.t.missEvents).every(k => LSx.controlsFor(x.t).indexOf(/^mode:/.test(k) ? k : EV[k]) >= 0));
+  ok('違うキーに一言がある課題では、そのキーも押せる（答えを教えない）', missOk);
+  ok('Web：キーを止める仕組みと、修了後の「自由操作モードへ」', /function canUse\(tok\)/.test(app) && /function paintLocks\(\)/.test(app)
+    && /lockEl\(go, !canUse\('sbt'\)\)/.test(app) && /lockEl\(ex, !canUse\('extubate'\)\)/.test(app) && /'自由操作モードへ'/.test(app));
+  const swDir = path.join(__dirname, '..', 'swift', 'VentilatorSim');
+  const swL = fs.readdirSync(path.join(swDir, 'Sources', 'VentilatorCore')).filter(f => /^Lessons/.test(f))
+    .map(f => fs.readFileSync(path.join(swDir, 'Sources', 'VentilatorCore', f), 'utf8')).join('\n');
+  ok('iPhone 版も同じ規則（controls / allowing が 6 か所）', /public var controls: \[String\]/.test(swL)
+    && (swL.match(/\.allowing\(\["hard:kWean", "sbt", "key:fio2", "key:peep", "key:sed", "key:ps"\]\)/g) || []).length === 6);
+
+  // 心停止：換気をほぼ止めると、どの子も数分で心停止になる。いつもの設定のままなら 30 分たっても止まらない。
+  const ids = ['postop', 'rds', 'micro', 'bronchiolitis', 'ards', 'asthma', 'gbs'];
+  const tStop = ids.map(id => {
+    const e = mk(id); run(e, 300, 0.01);
+    e.sedation = 1; e._recomputeDrive(); e.s.rr = 1; e.s.fio2 = 0.21;
+    let t = 0; while (!e.arrested && t < 900) { run(e, 5, 0.01); t += 5; }
+    return { id, t, hr: e.hr, spo2: e.spo2 };
+  });
+  ok('換気がほぼ止まると、どの子も 2〜5 分で心停止になる', tStop.every(x => x.t >= 120 && x.t <= 300), tStop.map(x => `${x.id} ${x.t}s`).join(' / '));
+  const steady = ids.filter(id => { const e = mk(id); run(e, 1800, 0.01); return e.arrested; });
+  ok('推奨設定のままなら 30 分たっても心停止しない', steady.length === 0, steady.join(','));
+  ok('心停止は SpO₂ 10% 未満・心拍 20/分 未満が 1 分続いたとき（年齢によらない）', VE.ARREST_SPO2 === 10 && VE.ARREST_HR === 20 && VE.ARREST_SEC === 60);
+  {
+    // 心停止の手前（SpO₂ 20% 台で心拍が落ちはじめたところ）で換気を戻せば、止まらずに戻る。
+    const e = mk('bronchiolitis'); run(e, 300, 0.01);
+    const s0 = JSON.parse(JSON.stringify(e.s));
+    e.sedation = 1; e._recomputeDrive(); e.s.rr = 1; e.s.fio2 = 0.21;
+    while (e.spo2 > 25) run(e, 1, 0.01);
+    const low = { spo2: e.spo2, hr: e.hr };
+    Object.assign(e.s, s0); e.s.fio2 = 1; run(e, 300, 0.01);
+    ok('SpO₂ 25% で換気と酸素を戻せば、心停止せずに戻る', !e.arrested && e.spo2 > 90 && e.hr > 100,
+      `底 SpO₂ ${low.spo2.toFixed(0)} / HR ${low.hr.toFixed(0)} → ${e.spo2.toFixed(0)} / ${e.hr.toFixed(0)}`);
+  }
+  ok('Web は心停止で計算を止め、やり直しを出す', /if \(e\.arrested\) \{\s*arrestTick\(\);/.test(app) && /'レッスンをやり直す'/.test(app));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

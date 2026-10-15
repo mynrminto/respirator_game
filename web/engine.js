@@ -12,7 +12,7 @@
   var C_SPEC_NORMAL = 1.0;       // mL/cmH2O/kg  健康な小児の比コンプライアンスの目安
   var BLOOD_PER_KG = 75;         // mL/kg  循環血液量
   var CO2_STORE_PER_KG = 0.33;   // mL/kg/mmHg  速く平衡する CO2 の貯え
-  var PA_O2_FLOOR = 12;          // mmHg
+  var PA_O2_FLOOR = 4;           // mmHg（心停止の手前、SpO₂ 10% を切るところまで下がれるように）
   /* 気管吸引（開放式）。吸っているあいだに潰れる肺胞の割合、開き直す時定数、吸い出される肺のガスの割合。 */
   var SUCTION_SHUNT = 0.08;
   var SUCTION_REOPEN = 60;       // s
@@ -29,6 +29,12 @@
   var HFO_R_FACTOR = 2.5;
   var HFO_K = 0.11;
   var NATURAL_R = 0.6;
+  /* 鎮静を浅くしてから覚めるまでの時定数（秒）と、深くするときの時定数。
+   * 0.85 から「覚醒（0.4 以下）」まで約 2 分、ほぼ醒めきる（0.05）まで約 8 分。 */
+  var SED_WAKE_TAU = 180, SED_DEEPEN_TAU = 30;
+  /* 心停止。SpO₂ が ARREST_SPO2 % 未満、心拍が ARREST_HR /分 未満のまま ARREST_SEC 秒たったら止まる（年齢によらない）。 */
+  var ARREST_SEC = 60, ARREST_SPO2 = 10, ARREST_HR = 20;
+  function arrestHr() { return ARREST_HR; }
   var NAVA_APNEA = 5;
 
   /* ---------- 酸素解離曲線 (Severinghaus) ---------- */
@@ -256,6 +262,9 @@
     this.vtGain = 1;                // 努力の補正係数（実測 Vt を見て動く）
     this._lastSpontVte = 0;         // L
     this.sedation = p.sedation != null ? p.sedation : 0.9;
+    /* 鎮静の目標。null なら sedation をそのまま使う（レッスン）。自由操作でダイヤルを回すと目標だけが変わり、
+     * 薬が抜けるまで数分かけて覚める（SED_WAKE_TAU）。深くするのは静注なので速い（SED_DEEPEN_TAU）。 */
+    this.sedationTarget = null;
 
     // 血液ガス・循環
     this.paco2 = p.paco2 != null ? p.paco2 : 40;
@@ -282,6 +291,8 @@
     this.waveform = { paw: [], flow: [], vol: [], n: 0 };
     this.wfCap = 1500;
     this.alarms = [];
+    this.arrested = false;     // 心停止で止まったか
+    this.arrestT = 0;          // 心停止の条件が続いている秒数
     this.lastTrigger = null;        // 'patient' | 'timer' | 'backup'
     this.apneaT = 0;
     this.events = [];
@@ -440,6 +451,11 @@
     this.phaseT += dt; this.sinceMand += dt; this.sinceBreath += dt;
 
     if (s.mode !== this._mode) { this._modeChanged(this._mode, s.mode); this._mode = s.mode; }
+    if (this.sedationTarget != null && this.sedation !== this.sedationTarget) {
+      var sx = approach(this.sedation, this.sedationTarget, dt,
+        this.sedationTarget < this.sedation ? SED_WAKE_TAU : SED_DEEPEN_TAU);
+      this.sedation = Math.abs(sx - this.sedationTarget) < 0.002 ? this.sedationTarget : sx;
+    }
     this.sinceNeural += dt;
 
     /* 神経性の吸気努力。無呼吸発作のあいだ（apneaUntil まで）は呼吸中枢が吸気を出さない。 */
@@ -962,7 +978,7 @@
     var ccO2 = o2Content(this.pAO2, p.hb);
     var coFloor = 0.25 * (p.co || 5.0);
     var caO2 = ccO2 - this.shunt * vo2 / ((1 - this.shunt) * 10 * Math.max(coFloor, this.co));
-    caO2 = Math.max(2, caO2);
+    caO2 = Math.max(0.5, caO2);
     var pao2Target = po2FromContent(caO2, p.hb);
     this.pao2 = approach(this.pao2, pao2Target, d, nm.paLag);      // 肺から動脈までの数秒
     var sat = satFromPO2(this.pao2) * 100;
@@ -1004,7 +1020,16 @@
     var bradySpo2 = nm.label === '新生児' ? 78 : (nm.label === '乳児' ? 72 : 65);
     var bradySlope = nm.label === '新生児' ? 3.2 : 3.6 * hrScale;
     if (this.spo2 < bradySpo2) hrTarget -= (bradySpo2 - this.spo2) * bradySlope;
-    this.hr = approach(this.hr, clamp(hrTarget, nm.hr[0] * 0.2, nm.hr[1] * 1.45), d, 12);
+    /* SpO₂ が 30% を切ると、心筋そのものが酸素不足で持たなくなり、心拍は 0 に向かって落ちていく。 */
+    var terminal = this.spo2 < 30;
+    if (terminal) hrTarget -= (30 - this.spo2) * 8 * hrScale;
+    this.hr = approach(this.hr, clamp(hrTarget, terminal ? 0 : nm.hr[0] * 0.2, nm.hr[1] * 1.45), d, 12);
+    /* 心停止。SpO₂ 10% 未満・心拍 20/分 未満のまま 1 分たったら止まる。
+     * 画面はここで止めて「心停止」を知らせる（蘇生の操作はこのシミュレーターには無い）。 */
+    if (!this.arrested) {
+      this.arrestT = (this.spo2 < ARREST_SPO2 && this.hr < ARREST_HR) ? this.arrestT + d : 0;
+      if (this.arrestT >= ARREST_SEC) { this.arrested = true; this._raise('心停止'); }
+    }
     var mapTarget = clamp((p.map || 80) * (this.co / (p.co || 5)) * (this.ph < 7.2 ? 0.88 : 1),
       nm.mapMin * 0.25, nm.mapMin * 2.2);
     this.map = approach(this.map, mapTarget, d, 15);
@@ -1146,7 +1171,9 @@
     o2Content: o2Content,
     clamp: clamp,
     isNava: isNava,
-    isNoninvasive: isNoninvasive
+    isNoninvasive: isNoninvasive,
+    SED_WAKE_TAU: SED_WAKE_TAU, SED_DEEPEN_TAU: SED_DEEPEN_TAU,
+    arrestHr: arrestHr, ARREST_SEC: ARREST_SEC, ARREST_SPO2: ARREST_SPO2, ARREST_HR: ARREST_HR
   };
   root.VentEngine = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

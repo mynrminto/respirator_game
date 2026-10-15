@@ -53,6 +53,18 @@ public final class VentilatorEngine {
     public private(set) var spo2: Double = 98
     public private(set) var etco2: Double = 38
     public private(set) var heartRate: Double = 80
+    /// 心停止で止まったか。SpO₂ 10% 未満・心拍 20/分 未満のまま 1 分たったら true（Web 版 arrested）。
+    public private(set) var isArrested = false
+    /// 心停止のあと、モニターに止まった心臓を映す（脈拍音も止まる）。
+    public func flatline() {
+        heartRate = 0
+        meanArterialPressure = 0
+    }
+    private var arrestTimer: Double = 0
+    public static let arrestSeconds: Double = 60
+    public static let arrestSpO2: Double = 10
+    /// 心停止とみなす心拍（年齢によらない）。Web 版 ARREST_HR。
+    public static let arrestHeartRate: Double = 20
     public private(set) var meanArterialPressure: Double = 80
     public private(set) var cardiacOutput: Double = 5
     public private(set) var shunt: Double = 0.05
@@ -84,6 +96,8 @@ public final class VentilatorEngine {
     private var phaseTime: Double = 0
     private var sinceMandatory: Double = 0
     private var sinceBreath: Double = 0
+    /// 最後の呼吸からの秒数。抜管後の無呼吸の判定に使う（Web 版 sinceBreath）。
+    public var secondsSinceBreath: Double { sinceBreath }
     private var breathType: BreathType = .mandatory
     private var inspiredVolume: Double = 0
     private var peakFlowThisBreath: Double = 0
@@ -932,7 +946,7 @@ public final class VentilatorEngine {
     static let normalSpecificCompliance = 1.0   // mL/cmH2O/kg  健康な小児の比コンプライアンスの目安
     static let bloodVolumePerKg = 75.0   // mL/kg  循環血液量
     static let co2StorePerKg = 0.33      // mL/kg/mmHg  速く平衡する CO2 の貯え
-    static let alveolarO2Floor = 12.0    // mmHg
+    static let alveolarO2Floor = 4.0     // mmHg（心停止の手前、SpO₂ 10% を切るところまで下がれるように）
     /* 気管吸引（開放式）。吸っているあいだに潰れる肺胞の割合、開き直す時定数、吸い出される肺のガスの割合。 */
     static let suctionShuntTarget = 0.08
     static let suctionReopen = 60.0      // s
@@ -1078,7 +1092,7 @@ public final class VentilatorEngine {
         }
         let endCapillary = Physiology.oxygenContent(po2: alveolarPO2,
                                                     hemoglobin: patient.hemoglobin)
-        let arterial = max(2, endCapillary
+        let arterial = max(0.5, endCapillary
             - shunt * vo2 / ((1 - shunt) * 10 * max(0.25 * patient.cardiacOutput, cardiacOutput)))
         let targetPaO2 = Physiology.po2(fromContent: arterial, hemoglobin: patient.hemoglobin)
         pao2 = Physiology.approach(pao2, toward: targetPaO2, dt: d, tau: norms.arterialLag)   // 肺から動脈までの数秒
@@ -1127,10 +1141,18 @@ public final class VentilatorEngine {
         let bradySpO2: Double = norms.label == "新生児" ? 78 : (norms.label == "乳児" ? 72 : 65)
         let bradySlope = norms.label == "新生児" ? 3.2 : 3.6 * hrScale
         if spo2 < bradySpO2 { hrTarget -= (bradySpO2 - spo2) * bradySlope }
+        /* SpO₂ が 30% を切ると、心筋そのものが酸素不足で持たなくなり、心拍は 0 に向かって落ちていく。 */
+        let terminal = spo2 < 30
+        if terminal { hrTarget -= (30 - spo2) * 8 * hrScale }
         heartRate = Physiology.approach(heartRate,
-            toward: Physiology.clamp(hrTarget, norms.heartRate.lowerBound * 0.2,
+            toward: Physiology.clamp(hrTarget, terminal ? 0 : norms.heartRate.lowerBound * 0.2,
                                      norms.heartRate.upperBound * 1.45),
                                         dt: d, tau: 12)
+        /* 心停止。画面はここで止めて「心停止」を知らせる（蘇生の操作はこのシミュレーターには無い）。 */
+        if !isArrested {
+            arrestTimer = (spo2 < Self.arrestSpO2 && heartRate < Self.arrestHeartRate) ? arrestTimer + d : 0
+            if arrestTimer >= Self.arrestSeconds { isArrested = true }
+        }
         let mapTarget = Physiology.clamp(
             patient.meanArterialPressure * (cardiacOutput / patient.cardiacOutput)
                 * (pH < 7.2 ? 0.88 : 1),

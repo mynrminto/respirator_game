@@ -219,7 +219,8 @@ const EXEC = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
     await p.getByRole('button', { name: '波形', exact: true }).click();
     await p.locator('#kSpd').click(); await p.locator('#kSpd').click();
     await p.locator('#kAbg').click();
-    await p.waitForTimeout(3000);
+    await p.locator('#kSkip').click();          // 結果が返るまで一気に進める
+    await p.waitForTimeout(1500);
     await p.screenshot({ path: `${SHOT}/${vp.n}-12-abg.png` });
     console.log(vp.n, '血液ガスの画面:', await p.locator('.mbox h3').count());
     await p.close();

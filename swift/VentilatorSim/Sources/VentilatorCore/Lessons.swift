@@ -186,6 +186,48 @@ public struct LessonTask {
     public var onPass: ((LessonContext) -> Void)?
     /// event の課題で、違うキーを押したときに返す一言。
     public var missEvents: [LessonEvent: String] = [:]
+    /// spot のほかに触れてよいキー（SBT を最後まで通す課題で、中止したあと設定を直して開き直すため）。
+    public var allow: [String] = []
+
+    /* レッスン中に触れるキー。web/lessons.js の controlsFor と同じ規則で、今の課題に要るもの
+     * （spot・event・allow）と、違うキーを押したときの一言があるキー（missEvents）だけ。会話・クイズでは何も触れない。
+     * "key:<設定>" / "hard:<ハードキー>" / "mode:<モード>" / "sbt"（SBT 開始）/ "extubate"（抜管）。 */
+    public var controls: [String] {
+        if isTalk || quiz != nil { return [] }
+        var out: [String] = []
+        func add(_ x: String) {
+            let ok = x.hasPrefix("key:") || x.hasPrefix("hard:") || x.hasPrefix("mode:") || x == "sbt" || x == "extubate"
+            if ok && !out.contains(x) { out.append(x) }
+        }
+        (spot + allow).forEach(add)
+        if case .event(let e) = advance { LessonTask.controls(for: e).forEach(add) }
+        for e in missEvents.keys.sorted(by: { $0.rawValue < $1.rawValue }) { LessonTask.controls(for: e).forEach(add) }
+        return out
+    }
+
+    public static func controls(for event: LessonEvent) -> [String] {
+        switch event {
+        case .inspiratoryHold: return ["hard:kInsp"]
+        case .expiratoryHold: return ["hard:kExp"]
+        case .suction: return ["hard:kSuc"]
+        case .oxygenFlush: return ["hard:kO2"]
+        case .orderBloodGas: return ["hard:kAbg"]
+        case .openPatientInfo: return ["hard:kPt"]
+        case .openWeaning: return ["hard:kWean"]
+        case .startSBT: return ["hard:kWean", "sbt"]
+        case .extubate: return ["hard:kWean", "extubate"]
+        case .modeVolumeAC: return ["mode:" + VentilationMode.volumeAssistControl.rawValue]
+        case .modePressureAC: return ["mode:" + VentilationMode.pressureAssistControl.rawValue]
+        case .modeSIMV: return ["mode:" + VentilationMode.simvVolume.rawValue]
+        case .modePSV: return ["mode:" + VentilationMode.pressureSupport.rawValue]
+        case .modeCPAP: return ["mode:" + VentilationMode.cpap.rawValue]
+        case .modeHFO: return ["mode:" + VentilationMode.hfo.rawValue]
+        case .modeNAVA: return ["mode:" + VentilationMode.nava.rawValue]
+        case .modeNIVNAVA: return ["mode:" + VentilationMode.nivNava.rawValue]
+        case .modeHFNC: return ["mode:" + VentilationMode.hfnc.rawValue]
+        default: return []        // 後から足した出来事（キーに結びつかないもの）
+        }
+    }
 
     public init(advance: Advance,
                 holdSeconds: Double = 0,
@@ -278,6 +320,10 @@ public extension LessonTask {
             copy.explanation = body
         }
         return copy
+    }
+    /// spot のほかに触れてよいキー。
+    func allowing(_ specs: [String]) -> LessonTask {
+        var copy = self; copy.allow = specs; return copy
     }
     /// 違うキーを押したときの一言。黙って無視すると、押せていないのかと迷う。
     func missing(_ events: [LessonEvent: String]) -> LessonTask {

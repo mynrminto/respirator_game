@@ -48,21 +48,34 @@ final class WaveformTrace {
 final class SimulationController {
 
     enum Speed: Double, CaseIterable, Identifiable {
-        case paused = 0, realtime = 1, fast = 10, veryFast = 60
+        // 早送りは × 3 / × 5 / × 10 まで。それより長い待ちは「⏭ 先へ」（skip）で次の出来事まで進める。
+        case paused = 0, realtime = 1, triple = 3, quintuple = 5, fast = 10
         var id: Double { rawValue }
-        var label: String {
+        var label: String { self == .paused ? "‖" : "\(Int(rawValue))×" }
+        /// 早送りキーを押したときの次の倍速。× 1 → × 3 → × 5 → × 10 → × 1。
+        var next: Speed {
             switch self {
-            case .paused: return "‖"
-            case .realtime: return "1×"
-            case .fast: return "10×"
-            case .veryFast: return "60×"
+            case .realtime: return .triple
+            case .triple: return .quintuple
+            case .quintuple: return .fast
+            default: return .realtime
             }
         }
     }
 
     private(set) var engine: VentilatorEngine
     private(set) var scenario: Scenario
-    var speed: Speed = .realtime
+    /// 倍速を変えると（等速に戻すのも含めて）一気送りは止まる。
+    var speed: Speed = .realtime { didSet { skip = nil } }
+    /// 「⏭ 先へ」で次の出来事まで一気に進めている最中の目標（web の S.skip）。
+    struct Skip {
+        let why: String
+        let until: Double
+        let alarms: Set<String>
+        let runtime: ObjectIdentifier?
+        let index: Int
+    }
+    private(set) var skip: Skip?
     private(set) var bloodGases: [BloodGas] = []
     private(set) var pendingBloodGasAt: Double?
     private(set) var log: [(time: Double, message: String)] = []
@@ -97,6 +110,30 @@ final class SimulationController {
         var totalCriteria: Int
         var passedSBT: Bool
     }
+
+    /// 自由操作で抜管したあとの経過（Web 版 S.extubated の live）。レッスンの抜管は extubation で止まるが、
+    /// 自由操作では止めずに高流量鼻カニュラで子ども自身の呼吸を続け、崩れたら知らせて再挿管できる。
+    struct PostExtubation {
+        var since: Double
+        var before: VentilatorSettings          // 再挿管したら戻す、抜管前（SBT 前）の換気設定
+        var passedSBT: Bool
+        var reintubated = false
+        var stable = true
+        var warned = false
+        var badSince: Double?
+        var goodSince: Double?
+        var reason: String?
+        var live: Bool { !reintubated }
+    }
+    private(set) var postExtubation: PostExtubation?
+
+    /// 抜管後に呼吸が崩れたときの知らせ。
+    struct ExtubationTrouble: Identifiable {
+        let id: Int
+        let reason: String
+    }
+    var extubationTrouble: ExtubationTrouble?
+    @ObservationIgnored private var troubleCount = 0
 
     // MARK: - 学習コース
 
@@ -188,6 +225,56 @@ final class SimulationController {
             }
         }
         if look != lessonLook { lessonLook = look }
+        // 課題が変わって触れなくなったキーを選んだままにしない。
+        if let id = selectedParameterID, !canUse("key:" + id) {
+            selectedParameterID = nil
+            pendingValue = nil
+        }
+    }
+
+    /* レッスン中のキーの制限（Web 版 canUse）。レッスン中は今の課題に要るキー（LessonTask.controls）しか触れない。
+     * 会話・クイズ・解説・修了の画面では、機器の操作キーはどれも触れない。
+     * 自由に触れるのは「自由操作モードへ」でレッスンを離れてから。
+     * 早送り・⏭・患者情報・波形停止・画面の切り替え・消音・学習コースは、見るだけなのでいつでも触れる。 */
+    func canUse(_ token: String) -> Bool {
+        guard let runtime = lessonRuntime else { return true }
+        guard lessonPhase == .task, let task = runtime.task else { return false }
+        return task.controls.contains(token)
+    }
+
+    // MARK: - 心停止
+
+    struct CardiacArrest: Identifiable {
+        let id: Int
+        let spo2: Double
+        let heartRate: Double
+        let threshold: Double
+        let inLesson: Bool
+    }
+    /// 心停止の画面。閉じてもやり直すまで計算は止まったまま。
+    var cardiacArrest: CardiacArrest?
+    @ObservationIgnored private var arrestShown = false
+    @ObservationIgnored private var arrestCount = 0
+
+    private func presentArrestIfNeeded() {
+        guard !arrestShown else { return }
+        arrestShown = true
+        speed = .realtime
+        selectedParameterID = nil
+        pendingValue = nil
+        arrestCount &+= 1
+        cardiacArrest = CardiacArrest(id: arrestCount, spo2: engine.spo2, heartRate: engine.heartRate,
+                                      threshold: VentilatorEngine.arrestHeartRate,
+                                      inLesson: lessonRuntime != nil)
+        engine.flatline()
+        append("心停止")
+    }
+
+    /// 心停止のあと、レッスンか症例を最初からやり直す。
+    func restartAfterArrest() {
+        cardiacArrest = nil
+        if let lesson { startLesson(lesson) }
+        else { load(scenario: scenario, settings: scenario.initialSettings()) }
     }
 
     /* 帯にも出す計測値。課題に入った時点の値を控えておき、操作が終わったら「前 → 後」で見せる。
@@ -339,6 +426,8 @@ final class SimulationController {
     private func resetRun(scenario: Scenario, settings: VentilatorSettings, sedation: Double?) {
         self.scenario = scenario
         engine = VentilatorEngine(patient: scenario.patient, settings: settings)
+        arrestShown = false
+        cardiacArrest = nil
         if let sedation { engine.sedation = sedation }
         engine.settle()                  // その設定で数呼吸ぶん進め、実測をそろえてから始める
         settingsVersion &+= 1
@@ -362,6 +451,8 @@ final class SimulationController {
         sbtBadSince = nil
         sbtOutcome = nil
         extubation = nil
+        postExtubation = nil
+        extubationTrouble = nil
         selectedParameterID = nil
         pendingValue = nil
         showsAlarmSettings = false
@@ -407,6 +498,17 @@ final class SimulationController {
     /// テストやプレビューからも呼べるよう、実時間の差分を受け取る形にしてある。
     func advance(realSeconds: Double) {
         guard speed != .paused else { return }
+        if engine.isArrested {
+            presentArrestIfNeeded()
+            syncDisplay(realSeconds)
+            return
+        }
+        if skip != nil, extubation == nil {
+            advanceSkip()
+            refreshLessonWatch()
+            syncDisplay(realSeconds)
+            return
+        }
         if extubation != nil {
             // 抜管後は換気を止める。ただしレッスンの判定（「結果を確認してください」など）は続ける。
             advanceLesson(simulated: realSeconds * speed.rawValue)
@@ -450,9 +552,68 @@ final class SimulationController {
 
         recordTrend(simulated: simulated)
         updateTimers(simulated: simulated)
+        watchAfterExtubation()
         advanceLesson(simulated: simulated)
         refreshLessonWatch()
         syncDisplay(realSeconds)
+    }
+
+    // MARK: - 一気送り（⏭ 先へ）
+
+    /// 一気送りで 1 フレームに進める秒数（30 分が約 1.5 秒）。
+    private static let skipPerFrame = 20.0
+
+    /// 「⏭ 先へ」でどこまで進めるか。進められない場面（会話・クイズ・キー待ち・抜管後）は nil。
+    /// SBT 中は SBT の終わりまで、採血の結果待ちは結果まで、レッスンの「待つ・見る」課題はその課題が進むまで
+    /// （最長は残りの保持時間 ＋ 30 秒か 5 分の長いほう）、それ以外（症例で練習）は 5 分後まで。Web 版 skipPlan と同じ。
+    var skipPlan: (why: String, seconds: Double)? {
+        guard extubation == nil else { return nil }
+        if let elapsed = sbtElapsed, !sbtFinished { return ("SBT の終わりまで", 1800 - elapsed + 1) }
+        if let due = pendingBloodGasAt { return ("血液ガスの結果まで", due - engine.clock + 0.5) }
+        if let runtime = lessonRuntime {
+            guard lessonPhase == .task, let task = runtime.task, case .condition = task.advance else { return nil }
+            return ("次の変化まで", max(300, task.holdSeconds - runtime.held + 30))
+        }
+        return ("5 分後まで", 300)
+    }
+
+    private var dangerAlarms: Set<String> {
+        Set(engine.alarms.filter { $0.severity >= 2 }.map(\.message))
+    }
+
+    /// 「⏭ 先へ」。もう一度押すと止まる。
+    func toggleSkip() {
+        if skip != nil { speed = .realtime; return }
+        guard let plan = skipPlan else { return }
+        speed = .realtime
+        selectedParameterID = nil
+        pendingValue = nil
+        skip = Skip(why: plan.why, until: engine.clock + plan.seconds, alarms: dangerAlarms,
+                    runtime: lessonRuntime.map(ObjectIdentifier.init), index: lessonRuntime?.index ?? -1)
+    }
+
+    /// 0.5 秒ごとに採血・SBT・レッスンの判定を回し、出来事が起きたらそこで等速に戻す。
+    private func advanceSkip() {
+        var left = Self.skipPerFrame
+        while left > 0, let goal = skip {
+            let chunk = min(0.5, left)
+            left -= chunk
+            for _ in 0..<Int((chunk / 0.01).rounded()) { engine.step(dt: 0.01) }
+            recordTrend(simulated: chunk)
+            updateTimers(simulated: chunk)
+            advanceLesson(simulated: chunk)
+            guard skip != nil else { break }
+            let moved = lessonRuntime.map(ObjectIdentifier.init) != goal.runtime
+                || (lessonRuntime?.index ?? -1) != goal.index
+                || (lessonRuntime != nil && lessonPhase != .task)
+            let alarm = !dangerAlarms.subtracting(goal.alarms).isEmpty
+            if moved || alarm || extubation != nil || engine.isArrested || engine.clock >= goal.until {
+                speed = .realtime
+                break
+            }
+        }
+        lastPhase = engine.phase
+        loopBuffer = []
     }
 
     private func syncDisplay(_ realSeconds: Double) {
@@ -506,7 +667,7 @@ final class SimulationController {
     /// 設定キーを押す。選択中のキーをもう一度押しても外さない
     /// （外すと、確定前に押し直した人が「押したのに選ばれていない」状態にはまる）。
     func select(parameterID: String) {
-        guard selectedParameterID != parameterID, let key = self.parameter(id: parameterID) else { return }
+        guard canUse("key:" + parameterID), selectedParameterID != parameterID, let key = self.parameter(id: parameterID) else { return }
         selectedParameterID = parameterID
         pendingValue = currentValue(key)
     }
@@ -545,6 +706,13 @@ final class SimulationController {
     func change(mode: VentilationMode) {
         guard engine.settings.mode != mode else { return }
         let from = engine.settings.mode
+        // 自由操作では、チューブを抜いた・入れ直したことを覚えておき、抜管後の経過を見張る。
+        if lesson == nil && mode.isNoninvasive && !from.isNoninvasive {
+            postExtubation = PostExtubation(since: engine.clock, before: engine.settings,
+                                            passedSBT: sbtFinished && sbtPassed)
+        } else if lesson == nil && !mode.isNoninvasive && from.isNoninvasive, let x = postExtubation, x.live {
+            markReintubated(x)
+        }
         var updated = engine.settings
         updated.mode = mode
         settings = updated
@@ -573,7 +741,7 @@ final class SimulationController {
     /// 気管吸引。痰が取れて抵抗は下がるが、吸っているあいだ換気が止まり、少し遅れて酸素化が落ちる。
     func performSuction() {
         // 吸引中の数秒と SpO₂ の遅れた落ち込みは等速で見せる
-        if speed == .fast || speed == .veryFast { speed = .realtime }
+        if speed.rawValue > 1 || skip != nil { speed = .realtime }
         engine.suction()
         append("気管吸引を実施")
         send(.suction)
@@ -610,6 +778,8 @@ final class SimulationController {
             if let reason = Weaning.failureReason(for: engine, elapsed: elapsed) {
                 let since = sbtBadSince ?? engine.clock
                 sbtBadSince = since
+                // 崩れはじめたら等速に戻して見せる（Web 版 sbtTick と同じ）。
+                if engine.clock - since <= 60, speed.rawValue > 1 || skip != nil { speed = .realtime }
                 if engine.clock - since > 60 {
                     sbtFinished = true
                     sbtPassed = false
@@ -808,8 +978,79 @@ final class SimulationController {
     func openedPatientInfo() { send(.openPatientInfo) }
 
     /// 抜管。SBT に通っていて離脱条件もほぼ揃っていれば成功、そうでなければ再挿管。
+    func extubate() {
+        if lesson == nil { extubateFreePlay() } else { extubateInLesson() }
+    }
+
+    /// 自由操作の抜管。画面を止めず、高流量鼻カニュラにつないで計算を続け、成否は肺と呼吸筋に任せる。
+    private func extubateFreePlay() {
+        guard postExtubation?.live != true else { return }
+        let before = sbtSaved ?? engine.settings
+        var s = engine.settings
+        s.hfncFlow = Weaning.postExtubationFlow(for: engine)
+        settings = s
+        change(mode: .hfnc)
+        postExtubation?.before = before
+        speed = .realtime
+    }
+
+    /// 再挿管。抜管前の換気設定に戻し、鎮静をかけ直す。
+    func reintubate() {
+        guard let x = postExtubation, x.live else { return }
+        change(mode: x.before.mode.isNoninvasive ? .pressureAssistControl : x.before.mode)
+    }
+
+    private func markReintubated(_ x: PostExtubation) {
+        var restored = x.before
+        restored.alarms = engine.settings.alarms         // アラームの枠はそのまま
+        settings = restored
+        engine.sedation = max(engine.sedation, 0.6)
+        var done = x
+        done.reintubated = true
+        done.stable = false
+        postExtubation = done
+        sbtElapsed = nil
+        sbtFinished = false
+        sbtPassed = false
+        sbtSaved = nil
+        sbtFailureReason = nil
+        sbtBadSince = nil
+        extubationTrouble = nil
+    }
+
+    /// 抜管後の見張り（Web 版 extubTick）。つないだ直後の 30 秒は待ち、崩れが 1 分続いたら一度知らせる。
+    /// 5 分もちなおせば立て直せたとみる。
+    private func watchAfterExtubation() {
+        guard var x = postExtubation, x.live else { return }
+        let bad = engine.clock - x.since < 30 ? nil : Weaning.extubationTrouble(for: engine)
+        if let bad {
+            let since = x.badSince ?? engine.clock
+            x.badSince = since
+            x.goodSince = nil
+            if engine.clock - since > 60 {
+                x.stable = false
+                x.reason = bad
+                if !x.warned {
+                    x.warned = true
+                    speed = .realtime
+                    append("抜管後の呼吸が崩れた：\(bad)")
+                    troubleCount &+= 1
+                    extubationTrouble = ExtubationTrouble(id: troubleCount, reason: bad)
+                }
+            } else if speed.rawValue > 1 {
+                speed = .realtime                       // 崩れはじめたら等速に戻して見せる
+            }
+        } else {
+            x.badSince = nil
+            let good = x.goodSince ?? engine.clock
+            x.goodSince = good
+            if engine.clock - good > 300 { x.stable = true; x.warned = false; x.reason = nil }
+        }
+        postExtubation = x
+    }
+
     @discardableResult
-    func extubate() -> ExtubationResult {
+    private func extubateInLesson() -> ExtubationResult {
         if let done = extubation { return done }
         let criteria = Weaning.readiness(for: engine)
         let met = criteria.filter(\.met).count
@@ -833,7 +1074,7 @@ final class SimulationController {
     /// SBT の開始。Web 版 startSBT と同じく、元の設定を控えてから
     /// PSV・体重相応の PS（10 kg 未満 8、25 kg 未満 6、それ以上 5）・PEEP 5 以下・FiO₂ 40% 以下にし、鎮静を浅くする。
     func beginSBT() {
-        guard extubation == nil, !isSBTRunning else { return }
+        guard extubation == nil, postExtubation?.live != true, !isSBTRunning else { return }
         sbtSaved = engine.settings
         var s = engine.settings
         let pbw = engine.patient.predictedBodyWeight

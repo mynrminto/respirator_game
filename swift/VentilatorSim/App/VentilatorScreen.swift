@@ -117,6 +117,12 @@ struct VentilatorScreen: View {
         .sheet(item: $controller.sbtOutcome) { outcome in
             SBTResultSheet(controller: controller, outcome: outcome).padTextSize()
         }
+        .sheet(item: $controller.extubationTrouble) { trouble in
+            ExtubationTroubleSheet(controller: controller, trouble: trouble).padTextSize()
+        }
+        .sheet(item: $controller.cardiacArrest) { arrest in
+            CardiacArrestSheet(controller: controller, arrest: arrest).padTextSize()
+        }
         .sheet(isPresented: $showingWeaning) {
             WeaningSheet(controller: controller).padTextSize()
         }
@@ -340,8 +346,8 @@ struct VentilatorScreen: View {
                     )
                     .padding(8)
             }
-            if controller.speed.rawValue > 1 {
-                Text("早送り中  \(Int(controller.speed.rawValue))×")
+            if controller.speed.rawValue > 1 || controller.skip != nil {
+                Text(controller.skip.map { "⏭ \($0.why) 進めています" } ?? "早送り中 × \(Int(controller.speed.rawValue))")
                     .font(Chrome.label(11, weight: .bold))
                     .foregroundStyle(Color.black.opacity(0.75))
                     .padding(.horizontal, 12).padding(.vertical, 3)
@@ -504,6 +510,7 @@ struct VentilatorScreen: View {
                     tab(mode.uiLabel,
                         selected: controller.settings.mode == mode,
                         tint: Chrome.isPop ? Chrome.accent : Chrome.flow) { controller.change(mode: mode) }
+                        .locked(!controller.canUse("mode:" + mode.rawValue))
                         .spotlight(controller.isSpotted("mode:" + mode.rawValue), corner: hardCorner)
                         .id("mode:" + mode.rawValue)
                 }
@@ -624,6 +631,7 @@ struct VentilatorScreen: View {
                 Capsule().fill(Chrome.pressure).frame(height: 3).padding(.horizontal, 6).allowsHitTesting(false)
             }
         }
+        .locked(!controller.canUse("key:" + parameter.id))
         .spotlight(controller.isSpotted("key:" + parameter.id), corner: Chrome.corner)
         .id("key:" + parameter.id)
         .accessibilityLabel("\(parameter.label) \(shown.formatted()) \(parameter.unit)"
@@ -638,16 +646,20 @@ struct VentilatorScreen: View {
         FlowLayout(spacing: 5, lineSpacing: 5) {
             DeviceKey(title: "吸気ポーズ",
                       isOn: holdKey == .inspiratory) { controller.requestHold(.inspiratory) }
+                .locked(!controller.canUse("hard:kInsp"))
                 .spotlight(controller.isSpotted("hard:kInsp"), corner: hardCorner)
                 .id("hard:kInsp")
             DeviceKey(title: "呼気ポーズ",
                       isOn: holdKey == .expiratory) { controller.requestHold(.expiratory) }
+                .locked(!controller.canUse("hard:kExp"))
                 .spotlight(controller.isSpotted("hard:kExp"), corner: hardCorner)
                 .id("hard:kExp")
             DeviceKey(title: "100% O₂") { controller.oxygenFlush() }
+                .locked(!controller.canUse("hard:kO2"))
                 .spotlight(controller.isSpotted("hard:kO2"), corner: hardCorner)
                 .id("hard:kO2")
             DeviceKey(title: "気管吸引") { controller.performSuction() }
+                .locked(!controller.canUse("hard:kSuc"))
                 .spotlight(controller.isSpotted("hard:kSuc"), corner: hardCorner)
                 .id("hard:kSuc")
             DeviceKey(title: "波形停止", isOn: controller.waveformsFrozen) {
@@ -658,24 +670,32 @@ struct VentilatorScreen: View {
             DeviceKey(title: "アラーム", isOn: controller.isAlarmViewShown) {
                 controller.toggleAlarmSettings()
             }
+            .locked(!controller.canUse("hard:kAlm"))
             .spotlight(controller.isSpotted("hard:kAlm"), corner: hardCorner)
             .id("hard:kAlm")
             DeviceKey(title: speedLabel, tint: Chrome.sim,
                       isOn: controller.speed.rawValue > 1) { cycleSpeed() }
                 .spotlight(controller.isSpotted("hard:kSpd"), corner: hardCorner)
                 .id("hard:kSpd")
+            DeviceKey(title: "⏭ 先へ", tint: Chrome.sim,
+                      isOn: controller.skip != nil) { controller.toggleSkip() }
+                .opacity(controller.skip != nil || controller.skipPlan != nil ? 1 : 0.38)
+                .spotlight(controller.isSpotted("hard:kSkip"), corner: hardCorner)
+                .id("hard:kSkip")
             DeviceKey(title: "患者情報", tint: Chrome.sim) { openPatientInfo() }
                 .spotlight(controller.isSpotted("hard:kPt"), corner: hardCorner)
                 .id("hard:kPt")
             DeviceKey(title: controller.pendingBloodGasAt == nil ? "血液ガス" : "採血中…",
                       tint: Chrome.sim,
                       isOn: controller.pendingBloodGasAt != nil) { controller.orderBloodGas() }
+                .locked(!controller.canUse("hard:kAbg"))
                 .spotlight(controller.isSpotted("hard:kAbg"), corner: hardCorner)
                 .id("hard:kAbg")
             DeviceKey(title: "離脱", tint: Chrome.sim) {
                 controller.openedWeaning()
                 showingWeaning = true
             }
+            .locked(!controller.canUse("hard:kWean"))
             .spotlight(controller.isSpotted("hard:kWean"), corner: hardCorner)
             .id("hard:kWean")
             DeviceKey(title: "学習コース", tint: Chrome.sim,
@@ -705,11 +725,7 @@ struct VentilatorScreen: View {
     }
 
     private func cycleSpeed() {
-        switch controller.speed {
-        case .realtime: controller.speed = .fast
-        case .fast: controller.speed = .veryFast
-        default: controller.speed = .realtime
-        }
+        controller.speed = controller.speed.next
     }
 
     // MARK: - ダイヤル（下に固定）
@@ -828,4 +844,11 @@ struct VentilatorScreen: View {
         return min(max((value - parameter.range.lowerBound) / span, 0), 1)
     }
 
+}
+
+extension View {
+    /// レッスン中に触れないキー。押せなくし、薄くする（Web 版 .locked）。
+    func locked(_ on: Bool) -> some View {
+        self.disabled(on).opacity(on ? 0.3 : 1)
+    }
 }

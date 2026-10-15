@@ -118,7 +118,8 @@
   var S = {
     eng: null, scen: null,
     screen: 'wave',          // wave | loops | trend
-    speed: 1,                // 1 / 10 / 60
+    speed: 1,                // 1 / 3 / 5 / 10
+    skip: null,              // 「⏭ 先へ」で次の出来事まで一気に進めている最中の目標
     frozen: false,
     sel: null,               // 選択中の設定キー id
     pend: null,              // 確定待ちの値
@@ -190,8 +191,9 @@
     nava:  { k: 'NAVA',   u: 'cmH₂O/µV', min: 0, max: 4,  step: 0.1, dec: 1, get: function (s) { return s.navaLevel; }, set: function (s, v) { s.navaLevel = v; } },
     hflow: { k: 'Flow',   u: 'L/min', min: 1,   max: 8,   step: 0.5, dec: 1, get: function (s) { return s.hfncFlow; }, set: function (s, v) { s.hfncFlow = v; } },
     sed:   { k: '鎮静',    u: '%',     min: 0,   max: 100, step: 5, sim: true,
-             get: function () { return Math.round(S.eng.sedation * 100); },
-             set: function (s, v) { S.eng.sedation = v / 100; } },
+             /* 自由操作では目標だけを変え、薬が抜けるまで数分かけて覚める。レッスンでは今までどおりすぐ効く。 */
+             get: function () { var e = S.eng; return Math.round((e.sedationTarget != null ? e.sedationTarget : e.sedation) * 100); },
+             set: function (s, v) { if (S.lesson) setSedation(v / 100); else S.eng.sedationTarget = v / 100; } },
     /* ---- アラーム設定画面（「アラーム」キーで切り替える）。上限と下限は入れ違いにならないよう bound で挟む。 ---- */
     aP:     { k: 'Ppeak 上限', u: 'cmH₂O', alm: true, min: 10, max: 60, step: 1, get: function (s) { return s.alarms.pMax; }, set: function (s, v) { s.alarms.pMax = v; } },
     aVtLo:  { k: 'Vte 下限', u: 'mL', alm: true, min: 1, max: 800, step: 10, get: function (s) { return s.alarms.vtLow; }, set: function (s, v) { s.alarms.vtLow = v; },
@@ -510,7 +512,7 @@
   var pulseDot = null;
   function pulseSound() {
     var e = S.eng;
-    if (!$('title').hidden) { SND.pulseReset(); return; }
+    if (!$('title').hidden || e.arrested) { SND.pulseReset(); return; }
     if (!SND.pulse(e.spo2, e.hr, performance.now() / 1000) || !pulseDot) return;
     pulseDot.classList.remove('on');
     void pulseDot.offsetWidth;                  // 同じアニメーションをもう一度走らせる
@@ -670,15 +672,15 @@
     S.eng = new E.Engine(sc.patient, st);
     applyLimits(S.eng);
     settleEngine(S.eng);
-    S.abgs = []; S.abgPending = null; S.trend = []; S.sbt = null; S.sbtSaved = null; S.extubated = null;
-    S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1; S.o2 = null; S.almView = false;
+    S.abgs = []; S.abgPending = null; S.trend = []; S.sbt = null; S.sbtSaved = null; S.extubated = null; S.day = 1;
+    S.sel = null; S.pend = null; S.silenceUntil = -1; S.frozen = false; S.speed = 1; S.skip = null; S.o2 = null; S.almView = false;
     S.provisional = false;
     S.loopCur = []; S.loopLast = null; S.banner = null; trendAcc = 4;
     W.paw.clear(); W.flow.clear(); W.vol.clear();
     var pf = SC.patientProfile(sc);
     $('ptName').textContent = pf.name + '・' + pf.weight;
     $('kFrz').classList.remove('on'); $('frz').hidden = true;
-    $('kSpd').textContent = '× 1'; $('kSpd').classList.remove('on'); $('ff').hidden = true;
+    setSpeed(1);
     $('kO2').classList.remove('on');
     $('kAbg').textContent = '血液ガス'; $('kAbg').classList.remove('on');
     buildKeys(); syncTabs(); fitAll();
@@ -712,10 +714,14 @@
       }
       if (b.dataset.scr) b.setAttribute('aria-pressed', b.dataset.scr === S.screen ? 'true' : 'false');
     });
+    paintLocks();
   }
   function setMode(id) {
     if (S.eng.s.mode === id) return;
     var was = S.eng.s.mode;
+    /* 自由操作では、チューブを抜いた・入れ直したことを覚えておき、抜管後の経過を見張る。 */
+    if (!S.lesson && E.isNoninvasive(id) && !E.isNoninvasive(was)) markExtubated(JSON.parse(JSON.stringify(S.eng.s)));
+    else if (!S.lesson && !E.isNoninvasive(id) && E.isNoninvasive(was) && S.extubated && S.extubated.live) markReintubated();
     S.eng.s.mode = id;
     /* 鼻から支えるモードとチューブのモードを行き来するのは、抜管・再挿管にあたる。 */
     if (E.isNoninvasive(id) && !E.isNoninvasive(was)) S.banner = { t: S.eng.clock, msg: '抜管して、鼻のインターフェースにつなぎました' };
@@ -780,6 +786,7 @@
     });
     paintKeys();
     if (S.lesson) applySpot(S.lesson.spot);
+    paintLocks();
   }
   function fmtP(p, v) { return p.dec ? v.toFixed(p.dec) : String(Math.round(v)); }
   function paintKeys() {
@@ -964,7 +971,8 @@
       S.sel = null; S.pend = null;
       buildKeys(); paintDial();
     };
-    $('kSpd').onclick = function () { setSpeed(S.speed === 1 ? 10 : (S.speed === 10 ? 60 : 1)); };
+    $('kSpd').onclick = function () { setSpeed(SPEEDS[(SPEEDS.indexOf(S.speed) + 1) % SPEEDS.length]); };
+    $('kSkip').onclick = function () { if (S.skip) setSpeed(1); else startSkip(); };
     $('kAbg').onclick = abgKey;
     $('kPt').onclick = openPatient;
     $('ptName').onclick = openPatient;
@@ -988,6 +996,9 @@
     }
   }
 
+  /* 鎮静をすぐ効かせる（SBT・再挿管・レッスン）。ゆっくり覚める途中の目標は捨てる。 */
+  function setSedation(v) { S.eng.sedation = v; S.eng.sedationTarget = null; }
+
   function suction() {
     var e = S.eng;
     if (S.speed > 1) setSpeed(1);                  // 吸引中の数秒と SpO₂ の遅れた落ち込みは等速で見せる
@@ -1010,6 +1021,7 @@
     var g = S.eng.sampleABG();
     S.abgs.push(g); S.abgPending = null;
     $('kAbg').textContent = '血液ガス'; $('kAbg').classList.remove('on');
+    if (S.skip) setSpeed(1);                        // 結果が返ったところで一気送りを止める
     openABG(g);
   }
 
@@ -1020,7 +1032,7 @@
     e.s.mode = 'PSV'; e.s.ps = e.p.pbw < 10 ? 8 : (e.p.pbw < 25 ? 6 : 5);
     e.s.peep = Math.min(e.s.peep, 5);
     e.s.fio2 = Math.min(e.s.fio2, 0.4);
-    e.sedation = Math.min(e.sedation, 0.15);
+    setSedation(Math.min(e.sedation, 0.15));
     e._recomputeDrive();
     S.sbt = { t0: e.clock, dur: 1800, badSince: -1, failMsg: null, done: null, tEnd: null };
     S.sel = null; S.pend = null;
@@ -1033,7 +1045,7 @@
     var e = S.eng, sv = S.sbtSaved;
     /* アラームの枠は SBT の途中で直したものをそのまま残す。 */
     for (var k in sv) if (Object.prototype.hasOwnProperty.call(sv, k) && k !== 'alarms') e.s[k] = sv[k];
-    e.sedation = Math.min(0.5, e.sedation + 0.25);
+    setSedation(Math.min(0.5, e.sedation + 0.25));
     S.sel = null; S.pend = null;
     buildKeys(); syncTabs(); paintDial();
   }
@@ -1053,15 +1065,103 @@
       if (e.clock - b.badSince > 60) {
         b.done = 'fail'; b.failMsg = bad; b.tEnd = e.clock;
         restoreSettings(); setSpeed(1); openSBTResult();
-      } else if (S.speed > 1) setSpeed(1);          // 崩れはじめたら等速に戻して見せる
+      } else if (S.speed > 1 || S.skip) setSpeed(1);   // 崩れはじめたら等速に戻して見せる
     } else b.badSince = -1;
     if (!b.done && e.clock - b.t0 >= b.dur) { b.done = 'pass'; b.tEnd = e.clock; setSpeed(1); openSBTResult(); }
   }
+  /* 早送りは × 3 / × 5 / × 10 まで。それより長い待ち（SBT の 30 分、15 分の観察、採血の 2 分）は
+   * 「⏭ 先へ」で次の出来事まで一気に進める。倍速を変えると一気送りは止まる。 */
+  var SPEEDS = [1, 3, 5, 10];
+  var SKIP_PER_FRAME = 20;          // 一気送りで 1 フレームに進める秒数（30 分が約 1.5 秒）
   function setSpeed(v) {
     S.speed = v;
+    S.skip = null;
     $('kSpd').textContent = '× ' + S.speed;
     $('kSpd').classList.toggle('on', S.speed > 1);
-    $('ff').hidden = S.speed <= 1;
+    paintSkip();
+  }
+  /* 「⏭ 先へ」でどこまで進めるか。進められない場面（会話・クイズ・キー待ち・抜管後）は null。
+   *   SBT 中 → SBT の終わりまで（崩れはじめたら、そこで等速に戻る）
+   *   採血の結果待ち → 結果が返るまで
+   *   レッスンの「待つ・見る」課題 → その課題が進むまで（最長は残りの保持時間 ＋ 30 秒か 5 分の長いほう）
+   *   それ以外（症例で練習） → 5 分後まで */
+  function skipPlan() {
+    var e = S.eng, L = S.lesson;
+    if (!e || e.extubated) return null;
+    if (S.sbt && !S.sbt.done) return { why: 'SBT の終わりまで', max: S.sbt.dur - (e.clock - S.sbt.t0) + 1 };
+    if (S.abgPending) return { why: '血液ガスの結果まで', max: S.abgPending.readyAt - e.clock + 0.5 };
+    if (L) {
+      if (L.mode !== 'task') return null;
+      var t = L.rt.task();
+      if (!t || t.talk || t.quiz || t.event) return null;
+      return { why: '次の変化まで', max: Math.max(300, (t.hold || 0) - L.rt.held + 30) };
+    }
+    return { why: '5 分後まで', max: 300 };
+  }
+  function sev2Alarms() {
+    return (S.eng.alarms || []).filter(function (a) { return a.sev >= 2; }).map(function (a) { return a.k; });
+  }
+  function startSkip() {
+    var p = skipPlan();
+    if (!p) return;
+    setSpeed(1);
+    S.skip = { why: p.why, until: S.eng.clock + p.max, alarms: sev2Alarms(),
+      lesson: S.lesson, idx: S.lesson ? S.lesson.rt.index : -1 };
+    S.sel = null; S.pend = null; paintDial();
+    paintSkip();
+  }
+  /* 一気送り。0.5 秒ごとに採血・SBT・レッスンの判定を回し、出来事が起きたらそこで等速に戻す。 */
+  function skipTick() {
+    var e = S.eng, k = S.skip, left = SKIP_PER_FRAME;
+    while (left > 0 && S.skip === k) {
+      var chunk = Math.min(0.5, left);
+      left -= chunk;
+      for (var i = 0, n = Math.round(chunk / 0.01); i < n; i++) e.step(0.01, false);
+      if (!S.lesson) SC.recover(e, S.scen, chunk);
+      trendTick(chunk);
+      abgTick(); sbtTick(); extubTick(); o2Tick(); lessonTick(chunk);
+      if (S.skip !== k) break;
+      var L = S.lesson;
+      var moved = L !== k.lesson || (L && (L.rt.index !== k.idx || L.mode !== 'task'));
+      var alarm = sev2Alarms().some(function (a) { return k.alarms.indexOf(a) < 0; });
+      if (moved || alarm || e.extubated || e.arrested || e.clock >= k.until) { setSpeed(1); break; }
+    }
+  }
+  function paintSkip() {
+    var b = $('kSkip');
+    if (!b) return;
+    var can = !!S.skip || !!skipPlan();
+    b.classList.toggle('on', !!S.skip);
+    b.disabled = !can;
+    b.classList.toggle('off', !can);
+    $('ff').hidden = S.speed <= 1 && !S.skip;
+    $('ff').textContent = S.skip ? '⏭ ' + S.skip.why + ' 進めています' : '早送り中 × ' + S.speed;
+  }
+
+  /* ===================== 心停止 =====================
+   * SpO₂ が下がり続けて心拍が落ちきると、モデルが心停止にする（engine の arrested）。
+   * そこで計算を止め、何が起きたかを見せて、レッスンか症例を最初からやり直してもらう。 */
+  function arrestTick() {
+    if (S.arrestShown === S.eng) return;
+    S.arrestShown = S.eng;
+    setSpeed(1);
+    S.sel = null; S.pend = null; paintKeys(); paintDial();
+    var e = S.eng, L = S.lesson;
+    var spo2 = Math.round(e.spo2), hr = Math.round(e.hr);
+    e.hr = 0; e.map = 0;                  // モニターも止まった心臓を映す（脈拍音も止まる）
+    modal('心停止', function (b, close) {
+      var t = el('div', 'tip bad');
+      t.textContent = 'SpO₂ ' + spo2 + '%、心拍 ' + hr + '/分 から、心臓が止まりました。';
+      b.appendChild(t);
+      b.appendChild(el('p', '', '酸素が足りない状態が続くと、子どもの心臓ははじめ速く打ち、やがて遅くなって止まります。'
+        + 'SpO₂ ' + E.ARREST_SPO2 + '% 未満・心拍 ' + E.ARREST_HR + '/分 未満のまま ' + Math.round(E.ARREST_SEC / 60) + ' 分たつと、ここで止まります。'));
+      b.appendChild(el('p', 'note', 'SpO₂ が下がりはじめたら、まず酸素（100% O₂）、次にチューブと換気を確かめます。'));
+      var r = el('div', 'mrow');
+      var again = el('button', 'mbtn go', L ? 'レッスンをやり直す' : 'この症例を最初から');
+      again.onclick = function () { close(); if (L) beginLesson(L.id); else loadScenario(S.scen, false); };
+      r.appendChild(again);
+      b.appendChild(r);
+    }, { noClose: true });
   }
 
   /* ===================== トレンド ===================== */
@@ -1082,10 +1182,15 @@
   function frame(now) {
     requestAnimationFrame(frame);
     if (!lastT) { lastT = now; return; }
-    if (now - railT > 400) { railT = now; paintRails(false); }
+    if (now - railT > 400) { railT = now; paintRails(false); paintSkip(); paintLocks(); }
     var real = Math.min(0.25, (now - lastT) / 1000); lastT = now;
     var e = S.eng;
-    if (!e.extubated) {
+    if (e.arrested) {
+      arrestTick();
+    } else if (S.skip && !e.extubated) {
+      skipTick();
+      sampAcc = 0;
+    } else if (!e.extubated) {
       var simSec = real * S.speed;
       var dt = S.speed > 1 ? 0.01 : 0.005;
       var steps = Math.min(1600, Math.round(simSec / dt));
@@ -1112,7 +1217,8 @@
         S.lastPhase = e.phase;
       }
       trendTick(simSec);
-      abgTick(); sbtTick(); o2Tick(); lessonTick(simSec);
+      if (!S.lesson) SC.recover(e, S.scen, simSec);   // 自由操作では時間とともに病気が治っていく
+      abgTick(); sbtTick(); extubTick(); o2Tick(); lessonTick(simSec);
     } else {
       lessonTick(0);          // 抜管後も「結果を確認」の課題は判定を続ける（止めると 6-3 が終わらない）
     }
@@ -1475,7 +1581,7 @@
   function drawLung(real) {
     if (!LUNG.view || !LU) return;
     var mo = LU.readModel(S.eng);
-    LUNG.view.update(mo, real, S.speed);
+    LUNG.view.update(mo, real, S.skip ? 10 : S.speed);
 
     // HUD は毎フレーム書き換えると読めないので 6 Hz に落とす
     LUNG.hudT += real;
@@ -1706,6 +1812,7 @@
       }
       var state = [
         ['換気モード', e.s.mode],
+        ['経過', S.day + ' 日目'],
         ['鎮静', SC.sedationLabel(e.sedation)],
         ['自発呼吸', SC.spontOk(e) ? 'あり' : '乏しい'],
         ['心拍', Math.round(e.hr) + ' /分'],
@@ -1717,7 +1824,7 @@
       state.push(['血液ガス', S.abgPending ? '採血中' : (g0
         ? 'pH ' + g0.ph.toFixed(2) + '／PaCO₂ ' + Math.round(g0.paco2) + '（' + fmtAgo(e.clock - g0.t) + '）'
         : 'まだ採っていない')]);
-      if (S.extubated) state.push(['離脱', S.extubated.ok ? '抜管した' : '抜管後に再挿管']);
+      if (S.extubated) state.push(['離脱', extubLabel(S.extubated)]);
       else if (S.sbt) state.push(['離脱', S.sbt.done ? (S.sbt.done === 'pass' ? 'SBT 合格' : 'SBT 中止') : 'SBT 中']);
       var sg = el('div', 'ptgrid');
       state.forEach(function (r) {
@@ -1808,6 +1915,7 @@
     var e = S.eng;
     lessonEvent('weaning:open');
     if (e.extubated) { openDebrief(); return; }
+    if (S.extubated && S.extubated.live) { openPostExtubation(); return; }
     modal('離脱（weaning）', function (b, close) {
       var list = SC.weaningReadiness(e);
       b.appendChild(el('p', '', 'SBT（自発呼吸トライアル）を始める前に、離脱の条件が揃っているかを確認します。'));
@@ -1828,22 +1936,47 @@
       if (!S.sbt || S.sbt.done) {
         var go = el('button', 'mbtn go', 'SBT を開始（30分）');
         go.onclick = function () { close(); startSBT(); };
+        lockEl(go, !canUse('sbt'));
         r2.appendChild(go);
       } else {
         var st = el('button', 'mbtn warn', 'SBT を中止');
         st.onclick = function () { close(); S.sbt = null; restoreSettings(); };
+        lockEl(st, !canUse('sbt'));
         r2.appendChild(st);
       }
       if (S.sbt && S.sbt.done === 'pass' && lessonAllowsExtubate()) {
         var ex = el('button', 'mbtn go', '抜管する');
         ex.onclick = function () { close(); doExtubate(); };
+        lockEl(ex, !canUse('extubate'));
         r2.appendChild(ex);
+      }
+      if (!S.lesson && (!S.sbt || S.sbt.done)) {
+        var dy = el('button', 'mbtn', '1 日待つ（' + (S.day + 1) + ' 日目へ）');
+        dy.onclick = function () { close(); advanceDay(); };
+        r2.appendChild(dy);
       }
       var dbg = el('button', 'mbtn', '振り返りを見る');
       dbg.onclick = function () { close(); openDebrief(); };
       r2.appendChild(dbg);
       b.appendChild(r2);
+      if (!S.lesson && S.scen.recovery) b.appendChild(el('p', 'note', '自由操作では、時間がたつと病気は少しずつ治っていきます（この子はおよそ '
+        + S.scen.recovery.days + ' 日で離脱を考えられるところまで）。「1 日待つ」で翌日まで進めます。'));
     });
+  }
+
+  /* 自由操作の「1 日待つ」。病気を 1 日ぶん治し、そのあと 30 分ぶん計算して血液ガスを落ち着かせる。
+   * 時間の早送り（「⏭ 先へ」）は分の単位、これは日の単位。夜のあいだに呼吸筋も休まる。 */
+  function advanceDay() {
+    var e = S.eng;
+    if (S.lesson || (S.sbt && !S.sbt.done)) return;
+    S.day += 1;
+    SC.recover(e, S.scen, 86400);
+    if (!(S.extubated && S.extubated.live)) e.fatigue = 0;
+    for (var i = 0; i < 180000 && !e.arrested; i++) e.step(0.01, false);   // 夜のうちに心停止したら、そこで止める
+    S.trend = [];
+    setSpeed(1);
+    S.banner = { t: e.clock, msg: S.day + ' 日目の朝になりました' };
+    if (e._note) e._note(S.day + ' 日目');
   }
 
   function openSBTResult() {
@@ -1884,6 +2017,7 @@
   }
 
   function doExtubate() {
+    if (!S.lesson) { extubateFreePlay(); return; }
     var e = S.eng;
     var list = SC.weaningReadiness(e);
     var nOk = list.filter(function (c) { return c.ok; }).length;
@@ -1911,6 +2045,114 @@
     });
   }
 
+  /* ===================== 自由操作の抜管 ===================== */
+  /* レッスンの抜管は結果の画面で止まるが、自由操作では止めない。高流量鼻カニュラにつないで
+   * 子ども自身の呼吸を続けて計算し、うまくいくかどうかは肺と呼吸筋に任せる。
+   * 崩れてきたら知らせ、「離脱」キーかチューブのモードのタブから再挿管できる。 */
+  function markExtubated(pre) {
+    var e = S.eng, list = SC.weaningReadiness(e);
+    S.extubated = {
+      live: true, ok: true, reint: false, t0: e.clock, pre: pre,
+      sbtPass: !!(S.sbt && S.sbt.done === 'pass'),
+      nOk: list.filter(function (c) { return c.ok; }).length, total: list.length,
+      badSince: -1, warned: false, goodSince: e.clock, failMsg: null
+    };
+    if (e._note) e._note('抜管');
+  }
+  function markReintubated() {
+    var e = S.eng, x = S.extubated, pre = x.pre;
+    /* チューブを入れ直したら、抜管前の換気設定に戻し、鎮静もかけ直す。アラームの枠はそのまま。 */
+    for (var k in pre) if (Object.prototype.hasOwnProperty.call(pre, k) && k !== 'alarms' && k !== 'mode') e.s[k] = pre[k];
+    setSedation(Math.max(e.sedation, 0.6));
+    e._recomputeDrive();
+    x.live = false; x.ok = false; x.reint = true;
+    S.sbt = null; S.sbtSaved = null;
+    if (e._note) e._note('再挿管');
+  }
+  function reintubate() {
+    var x = S.extubated;
+    if (!x || !x.live) return;
+    setMode(E.isNoninvasive(x.pre.mode) ? 'PC-AC' : x.pre.mode);
+  }
+  function extubateFreePlay() {
+    var e = S.eng;
+    var pre = JSON.parse(JSON.stringify(S.sbtSaved || e.s));
+    e.s.hfncFlow = SC.postExtubationFlow(e);
+    setMode('HFNC');
+    S.extubated.pre = pre;
+    setSpeed(1);
+    modal('抜管しました', function (b, close) {
+      b.appendChild(el('p', '', '高流量鼻カニュラ（' + fmtP(P.hflow, e.s.hfncFlow) + ' L/分、FiO₂ ' + Math.round(e.s.fio2 * 100)
+        + '%）で支えています。ここからは子ども自身の呼吸です。'));
+      var t = el('div', 'tip');
+      t.textContent = '呼吸の数と深さ、SpO₂、心拍を見てください。崩れてきたら知らせます。流量や FiO₂ を上げても戻らなければ、「離脱」キーから再挿管します。';
+      b.appendChild(t);
+      var r = el('div', 'mrow');
+      var ok = el('button', 'mbtn go', '様子を見る'); ok.onclick = close;
+      r.appendChild(ok); b.appendChild(r);
+    });
+  }
+  function extubTick() {
+    var x = S.extubated, e = S.eng;
+    if (!x || !x.live) return;
+    var bad = e.clock - x.t0 < 30 ? null : SC.extubationTrouble(e);   // つないだ直後の 30 秒は落ち着くのを待つ
+    if (bad) {
+      if (x.badSince < 0) x.badSince = e.clock;
+      x.goodSince = -1;
+      if (e.clock - x.badSince > 60) {
+        x.ok = false; x.failMsg = bad;
+        if (!x.warned) { x.warned = true; setSpeed(1); if (e._note) e._note('抜管後の呼吸が崩れた'); openExtubationTrouble(); }
+      } else if (S.speed > 1 || S.skip) setSpeed(1);   // 崩れはじめたら等速に戻して見せる
+    } else {
+      x.badSince = -1;
+      if (x.goodSince < 0) x.goodSince = e.clock;
+      if (e.clock - x.goodSince > 300) { x.ok = true; x.warned = false; x.failMsg = null; }   // 5 分もちなおせば立て直せたとみる
+    }
+  }
+  function openExtubationTrouble() {
+    var x = S.extubated;
+    modal('抜管後の呼吸が崩れています', function (b, close) {
+      var t = el('div', 'tip bad'); t.textContent = x.failMsg;
+      b.appendChild(t);
+      b.appendChild(el('p', '', '呼吸筋が疲れてきたか、肺がまだ支えなしでは保てない状態です。流量や FiO₂ を上げても戻らなければ、再挿管します。'));
+      var r = el('div', 'mrow');
+      var ri = el('button', 'mbtn warn', '再挿管する'); ri.onclick = function () { close(); reintubate(); };
+      var wk = el('button', 'mbtn', '様子を見る'); wk.onclick = close;
+      r.appendChild(ri); r.appendChild(wk); b.appendChild(r);
+    });
+  }
+  function openPostExtubation() {
+    var e = S.eng, x = S.extubated;
+    lessonEvent('weaning:open');
+    modal('抜管後', function (b, close) {
+      var mn = Math.round((e.clock - x.t0) / 60);
+      b.appendChild(el('p', '', (mn < 1 ? '抜管したばかりです。' : '抜管して ' + (mn < 60 ? mn + ' 分' : Math.floor(mn / 60) + ' 時間 ' + (mn % 60) + ' 分') + 'たちました。')
+        + (e.s.mode === 'HFNC' ? '高流量鼻カニュラ ' + fmtP(P.hflow, e.s.hfncFlow) + ' L/分' : e.s.mode)
+        + '、FiO₂ ' + Math.round(e.s.fio2 * 100) + '% で支えています。'));
+      [['呼吸回数', Math.round(e.m.rrTotal) + ' /分'], ['SpO₂', Math.round(e.spo2) + ' %'],
+       ['心拍', Math.round(e.hr) + ' /分'], ['PaCO₂', Math.round(e.paco2) + ' mmHg']].forEach(function (c) {
+        var r = el('div', 'row');
+        r.appendChild(el('span', '', c[0])); r.appendChild(el('span', 'rv', c[1]));
+        b.appendChild(r);
+      });
+      var bad = SC.extubationTrouble(e);
+      var t = el('div', 'tip' + (bad ? ' bad' : ''));
+      t.textContent = bad ? '崩れてきています：' + bad : '今のところ自分の呼吸で保てています。';
+      b.appendChild(t);
+      var r2 = el('div', 'mrow');
+      var ri = el('button', 'mbtn warn', '再挿管する'); ri.onclick = function () { close(); reintubate(); };
+      var dbg = el('button', 'mbtn', '振り返りを見る'); dbg.onclick = function () { close(); openDebrief(); };
+      var bk = el('button', 'mbtn go', '様子を見る'); bk.onclick = close;
+      var dy = el('button', 'mbtn', '1 日待つ（' + (S.day + 1) + ' 日目へ）'); dy.onclick = function () { close(); advanceDay(); };
+      r2.appendChild(ri); r2.appendChild(dy); r2.appendChild(dbg); r2.appendChild(bk); b.appendChild(r2);
+    });
+  }
+  function extubLabel(x) {
+    if (x.reint) return '抜管後に再挿管';
+    if (x.live) return x.ok ? '抜管後・安定' : '抜管後・崩れている';
+    return x.ok ? '抜管した' : '抜管後に再挿管';
+  }
+
   function openDebrief() {
     var e = S.eng;
     var tgt = e.timeInTarget.total > 0 ? e.timeInTarget.ok / e.timeInTarget.total : 0;
@@ -1931,7 +2173,7 @@
       [['目標域にいた時間', Math.round(tgt * 100) + '%', Math.round(tgt * 40) + ' / 40'],
        ['肺保護（Pplat・Vt・auto-PEEP）', Math.round(harmS) + ' 分の逸脱', Math.round(25 - harmPen) + ' / 25'],
        ['有害事象（低酸素・低血圧・高 FiO₂）', Math.round(advS) + ' 分', Math.round(20 - advPen) + ' / 20'],
-       ['離脱・抜管', S.extubated ? (S.extubated.ok ? '抜管成功' : '再挿管') : (S.sbt && S.sbt.done === 'pass' ? 'SBT 成功' : '未実施'), weanPts + ' / 15']
+       ['離脱・抜管', S.extubated ? (S.extubated.live || S.extubated.reint ? extubLabel(S.extubated) : (S.extubated.ok ? '抜管成功' : '再挿管')) : (S.sbt && S.sbt.done === 'pass' ? 'SBT 成功' : '未実施'), weanPts + ' / 15']
       ].forEach(function (r) {
         var n = el('div', 'row');
         n.appendChild(el('span', '', r[0]));
@@ -2023,7 +2265,7 @@
       });
       b.appendChild(g);
       var n = el('p', 'note', '「学習コース」は呼吸器の操作を 1 から順に学ぶモードです。'
-        + '「× 1 / × 10 / × 60」はシミュレーター側の早送りで（× 1 が実時間）、血液ガスは採血から 2 分後に返ります。');
+        + '「× 1 / × 3 / × 5 / × 10」は早送り（× 1 が実時間）、「⏭ 先へ」は SBT の終わりや血液ガスの結果など、次の出来事まで一気に進めます。血液ガスは採血から 2 分後に返ります。');
       n.style.marginTop = '10px'; b.appendChild(n);
     });
   }
@@ -2076,6 +2318,31 @@
       }
     });
     return out;
+  }
+
+  /* ===================== レッスン中のキーの制限 =====================
+   * レッスン中は、今の課題に要るキー（LS.controlsFor）しか触れない。会話・クイズ・解説・修了の画面では、
+   * 機器の操作キーはどれも触れない。自由に触れるのは「自由操作モードへ」でレッスンを離れてから。
+   * 早送り・⏭・患者情報・波形停止・画面の切り替え・消音・学習コース・メニューは、見るだけなのでいつでも触れる。 */
+  var LOCK_HARD = ['kInsp', 'kExp', 'kO2', 'kSuc', 'kAlm', 'kAbg', 'kWean'];
+  function canUse(tok) {
+    var L = S.lesson;
+    if (!L) return true;
+    if (L.mode !== 'task') return false;
+    return LS.controlsFor(L.rt.task()).indexOf(tok) >= 0;
+  }
+  function lockEl(b, on) {
+    if (!b) return;
+    b.disabled = !!on;
+    b.classList.toggle('locked', !!on);
+  }
+  function paintLocks() {
+    for (var id in keyNodes) lockEl(keyNodes[id].b, !canUse('key:' + id));
+    Array.prototype.forEach.call($('tabs').children, function (b) {
+      if (b.dataset.mode) lockEl(b, !canUse('mode:' + b.dataset.mode));
+    });
+    LOCK_HARD.forEach(function (id) { lockEl($(id), !canUse('hard:' + id)); });
+    if (S.sel && !canUse('key:' + S.sel)) { S.sel = null; S.pend = null; paintKeys(); paintDial(); }
   }
 
   function applySpot(spec) {
@@ -2188,7 +2455,7 @@
     loadScenario(sc, false, true);
     var st = lesson.settings || {};
     for (var k in st) if (Object.prototype.hasOwnProperty.call(st, k)) S.eng.s[k] = st[k];
-    if (lesson.sedation != null) S.eng.sedation = lesson.sedation;
+    if (lesson.sedation != null) setSedation(lesson.sedation);
     S.eng._recomputeDrive();
     settleEngine(S.eng, 2);              // レッスンの設定で 2 呼吸ぶん進め、実測をそろえてから始める
     setScreen('wave');
@@ -2212,6 +2479,7 @@
     $('coach').hidden = true;
     $('cWatch').hidden = true; $('cWatch')._h = '';
     $('kLearn').classList.remove('on');
+    paintLocks();
     if (!silent) fitAll();
   }
 
@@ -2431,6 +2699,7 @@
     if (spec && Array.isArray(spec) && !spec.length) spec = null;
     L.spot = spec || null;
     applySpot(L.spot);
+    paintLocks();
     spotFollow();
     if (L.spot) setTimeout(scrollToSpot, 60);
   }
@@ -2480,9 +2749,12 @@
       cb.style.flex = '0 0 auto';
       cb.onclick = openCourse;
       box.appendChild(cb);
-      var fb = el('button', 'cbtn', 'この症例を自由に操作する');
+      var fb = el('button', 'cbtn', '自由操作モードへ');
       fb.style.flex = '0 0 auto';
-      fb.onclick = function () { endLesson(false); };
+      fb.onclick = function () {
+        endLesson(false);
+        S.banner = { t: S.eng.clock, msg: '自由操作モードです。すべてのキーを自由に使えます' };
+      };
       box.appendChild(fb);
     }
   }

@@ -250,6 +250,7 @@ function play(id, opt) {
         + ` sbt ${S.sbt ? S.sbt.done + ' ' + S.sbt.failMsg : '-'}, Edi ${m.ediPeak == null ? '-' : m.ediPeak.toFixed(1)}]`);
     }
   }
+  if (e.arrested) throw new Error(`${id}: プレイヤーの手順どおりなのに心停止した`);
   return { id, ok: rt.finished, log, ext: S.ext, final: { spo2: e.spo2, map: e.map, ph: e.ph, paco2: e.paco2 } };
 }
 
