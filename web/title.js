@@ -178,12 +178,12 @@
   function fonts() {
     if (!document.fonts || !document.fonts.load) return Promise.resolve();
     /* 書体が来る前に文字を焼くと、あとから差し替わらない。画面に出す文字ぶんの書体を先に取り寄せて待つ。 */
-    var sample = ['こどもの人工呼吸器トレーニング', opts.line || '', opts.themeLabel || 'ポップ', '0123456789%']
+    var sample = ['触って覚える！', opts.line || '', opts.themeLabel || 'ポップ', '0123456789%']
       .concat((opts.items || []).map(function (it) { return (it.title || '') + (it.sub || ''); })).join('');
     var wants = [
       document.fonts.load('800 20px "M PLUS Rounded 1c"', sample),
       document.fonts.load('700 20px "M PLUS Rounded 1c"', sample),
-      document.fonts.load('400 20px "Dela Gothic One"', 'この手で、息をつなぐ')
+      document.fonts.load('400 20px "Dela Gothic One"', 'こどもの人工呼吸器')
     ];
     return Promise.race([Promise.all(wants).catch(function () {}), new Promise(function (r) { setTimeout(r, 2500); })]);
   }
@@ -251,13 +251,13 @@
     /* ロゴ */
     layers.ribbon = sprite(t.ribbon);
     layers.ribbon.anchor.set(0.5);
-    layers.logo = text('この手で、息をつなぐ', 54, 0xFFFFFF, '400', 0x2E2545);
+    layers.logo = text('こどもの人工呼吸器', 54, 0xFFFFFF, '400', 0x2E2545);
     layers.logo.style.fontFamily = LOGO_FONT;
     layers.logo.anchor.set(0.5);
     layers.logoArt = t.logo ? sprite(t.logo) : null;
     if (layers.logoArt) { layers.logoArt.anchor.set(0.5); layers.logo.visible = false; layers.ribbon.visible = false; }
     if (layers.logoArt) layers.ui.addChild(layers.logoArt);
-    layers.sub = text('こどもの人工呼吸器トレーニング', 18, opts.dark ? 0xCFE0FF : 0x4A3C62, '800');
+    layers.sub = text('触って覚える！', 18, opts.dark ? 0xCFE0FF : 0x4A3C62, '800');
     layers.sub.anchor.set(0.5);
     layers.ui.addChild(layers.ribbon, layers.logo, layers.sub);
 
@@ -372,14 +372,19 @@
     var logoW = wide ? col : Math.min(col, w * 0.92);
     var ribbonRatio = layers.ribbon.texture.height / layers.ribbon.texture.width;
     var logoH = logoW * (layers.logoArt ? layers.logoArt.texture.height / layers.logoArt.texture.width : ribbonRatio);
+    /* 題は「触って覚える！」を上に小さく、「こどもの人工呼吸器」をリボンに大きく。 */
+    layers.sub.x = colCx;
+    layers.sub.style.fontSize = short ? 15 : (wide ? 19 : 17);
+    layers.sub.y = (short ? 14 : wide ? 34 : 24) + layers.sub.style.fontSize * 0.6;
+    var logoTop = layers.sub.y + layers.sub.style.fontSize * 0.6;
     if (layers.logoArt) {
       layers.logoArt.width = logoW; layers.logoArt.height = logoH;
-      layers.logoArt.x = colCx; layers.logoArt.y = (short ? 14 : wide ? 34 : 24) + logoH / 2;
+      layers.logoArt.x = colCx; layers.logoArt.y = logoTop + logoH / 2;
     }
     layers.ribbon.width = logoW;
     layers.ribbon.height = logoH;
     layers.ribbon.x = colCx;
-    layers.ribbon.y = (short ? 14 : wide ? 34 : 24) + logoH / 2;
+    layers.ribbon.y = logoTop + logoH / 2;
     layers.logo.style.fontSize = Math.round(logoH * 0.50);
     /* 日本語の題はリボンからはみ出しやすいので、幅に収まるまで文字を小さくする */
     var logoFit = logoW * 0.72 / Math.max(1, layers.logo.width / layers.logo.scale.x);
@@ -387,9 +392,6 @@
     layers.logo.style.stroke = { color: 0x2E2545, width: Math.max(4, logoH * 0.09), join: 'round' };
     layers.logo.x = colCx;
     layers.logo.y = layers.ribbon.y - logoH * 0.04;
-    layers.sub.x = colCx;
-    layers.sub.style.fontSize = short ? 15 : (wide ? 19 : 17);
-    layers.sub.y = layers.ribbon.y + logoH * 0.64;
 
     /* ふきだし（文字の量で高さが決まるので先に置く） */
     var bw = Math.min(col, 420);
@@ -399,7 +401,7 @@
     var bh2 = Math.max(short ? 46 : 54, layers.say.height + 26);
     fitNine(layers.bubble, bw, bh2);
     layers.bubble.x = colCx - bw / 2;
-    layers.bubble.y = layers.sub.y + (short ? 12 : 18);
+    layers.bubble.y = layers.ribbon.y + logoH * 0.5 + (short ? 6 : 10);
     layers.say.x = colCx;
     layers.say.y = layers.bubble.y + bh2 / 2;
 
@@ -459,8 +461,8 @@
 
     /* メニュー列の下敷き（ロゴの上から足もとまで） */
     layers.shade.clear();
-    layers.shade.roundRect(colCx - col / 2 - 26, (layers.logoArt ? layers.logoArt.y : layers.ribbon.y) - logoH / 2 - 22,
-        col + 52, footY - ((layers.logoArt ? layers.logoArt.y : layers.ribbon.y) - logoH / 2) + 62, 34)
+    layers.shade.roundRect(colCx - col / 2 - 26, layers.sub.y - layers.sub.style.fontSize * 0.6 - 22,
+        col + 52, footY - (layers.sub.y - layers.sub.style.fontSize * 0.6) + 62, 34)
       .fill({ color: opts.dark ? 0x0B1020 : 0xFFF8EE, alpha: opts.dark ? 0.62 : 0.72 });
 
     /* 足もと：進捗とテーマ */

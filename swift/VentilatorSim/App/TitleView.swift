@@ -138,24 +138,24 @@ struct TitleView: View {
                      Color(red: 0.357, green: 0.486, blue: 0.980)],
             startPoint: .leading, endPoint: .trailing)
         return VStack(spacing: 2) {
+            Text("触って覚える！")
+                .font(Chrome.label(14 * titleBoost, weight: .heavy))
+                .foregroundStyle(Chrome.dim)
+                .tracking(3)
             ZStack {
                 WaveMark()
                     .stroke(gradient, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     .frame(height: Chrome.s(compact ? 26 : 32) * titleBoost)
                     .opacity(0.55)
                     .offset(y: Chrome.s(compact ? 10 : 12) * titleBoost)
-                Text("この手で、息をつなぐ")
+                Text("こどもの人工呼吸器")
                     .font(.system(size: Chrome.s(compact ? 28 : 32) * titleBoost, weight: .black, design: .rounded))
                     .foregroundStyle(gradient)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
-            // 題を和文にして文字が低くなったぶん、波形が副題にかからないよう下に余白を取る
+            // 波形が題の下にはみ出すぶん、下に余白を取る
             .padding(.bottom, Chrome.s(compact ? 10 : 12) * titleBoost)
-            Text("こどもの人工呼吸器トレーニング")
-                .font(Chrome.label(13 * titleBoost, weight: .bold))
-                .foregroundStyle(Chrome.dim)
-                .tracking(2)
         }
     }
 
