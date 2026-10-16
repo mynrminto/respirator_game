@@ -2898,7 +2898,7 @@
     }
     if (line.who === 'nurse') {
       var nu = AS.url('nurse_normal');
-      return { key: 'nurse', src: nu || null, cls: 'nurse', badge: nu ? '' : '看' };
+      return { key: 'nurse', src: nu || null, cls: nu ? 'nurse' : 'nurse badge', badge: nu ? '' : '看' };
     }
     if (line.who === 'pt' && line.case) {
       var sc = SC.SCENARIOS.filter(function (x) { return x.id === line.case; })[0];

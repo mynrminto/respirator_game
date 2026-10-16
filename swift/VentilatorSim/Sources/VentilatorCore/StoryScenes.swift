@@ -56,6 +56,7 @@ extension StoryLibrary {
                    bg: "night", time: "night", end: nil, lines: [
             StoryLine(.scene, "午後 8 時。手術室から、ハルト君のベッドが運ばれてきた。麻酔科医が、手際よく呼吸器につなぎ替えていく。"),
             StoryLine(.nurse, "呼吸器、つながりました。ノルアドレナリンは 0.1 で続いています。設定は麻酔科の先生が入れてくれています。"),
+            StoryLine(.nurse, "{名前}先生、看護師のミナミです。今夜は長〜い夜になりますよ。よろしくお願いします！"),
             StoryLine(.puku, "画面に線と数字がいっぱい…。どこから見ればいいの？", mood: "sad"),
             StoryLine(.doc, "全部を一度に見なくていい。{名前}先生、今夜は「読む」ことだけに集中しましょう。")
         ]),
@@ -156,7 +157,7 @@ extension StoryLibrary {
                    title: "第5章　扉　2 回目の当直",
                    card: StoryCard(kicker: "第5章", title: "アラームとトラブル", sub: "3 日目の夜　当直"),
                    bg: "station", time: "night", end: nil, lines: [
-            StoryLine(.scene, "2 回目の当直。ナースステーションで、ななみさんが {名前}先生に声をかけた。"),
+            StoryLine(.scene, "2 回目の当直。ナースステーションで、ミナミさんが {名前}先生に声をかけた。"),
             StoryLine(.nurse, "ハルト君、夕方に点滴の管が詰まって、左の鎖骨の下から入れ直しています。昇圧薬は、もう切れました。"),
             StoryLine(.nurse, "今夜は静かだといいですね。…って言うと、たいてい鳴るんですけど。"),
             StoryLine(.puku, "ぼく、アラームが鳴ると頭が真っ白になっちゃうんだ。", mood: "sad"),

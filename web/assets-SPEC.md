@@ -403,19 +403,10 @@ a feeling of relief after a long night. Same layout, empty floor in the center f
 No people, no text.
 ```
 
-### 19. `nurse_normal.png` あれば — PICU の看護師「ななみさん」（全身・縦長）
-サイズ: 1024×1536
-
-```
-{STYLE} CHARACTER "Nanami": a friendly young Japanese female ICU nurse, shoulder-length
-light-brown hair tied in a low ponytail, gentle eyes, navy-blue nurse scrubs with a small
-pink heart badge, a penlight and a small notebook in the chest pocket, a watch pinned to
-the chest, chibi-ish proportions (about 3.5 heads tall) in the same art style as
-Dr. Midori, full body, standing, facing the viewer, one hand holding a clipboard, on a
-solid flat bright green (#00FF00) background with nothing else.
-```
-注記: いぶき先生の 1 枚目を見せながら出すと絵柄がそろいます。無いあいだは「看」の丸い印で出しています。
-
+### 19. `nurse_normal.png` — PICU の看護師「ミナミさん」（全身・縦長）【入れ済み】
+「血液ガスマスター」「血液検査マスター」の看護師ミナミさんを流用（透過 PNG を 306×640 に縮めて web/assets に置いた）。
+ポニーテールの茶髪、ピンクのスクラブにクリーム色のカーディガン、クリップボード。明るくてテキパキした口調。
+差し替えるときは同じ名前で透過 PNG を置き、manifest.json の大きさを直す。
 
 ---
 

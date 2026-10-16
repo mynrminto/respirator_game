@@ -28,7 +28,7 @@ SHEETS = {
 PATIENTS = ['patient_postop', 'patient_rds', 'patient_bronchiolitis', 'patient_ards', 'patient_asthma', 'patient_gbs',
             'patient_neonate', 'patient_infant', 'patient_child', 'patient_bed']
 SINGLES = ['doctor_normal', 'doctor_happy', 'doctor_think', 'doctor_alert'] + PATIENTS + ['ui_button', 'ui_button_primary', 'ui_panel', 'ui_ribbon',
-           'logo', 'hud_patient_frame', 'fx_confetti']
+           'logo', 'hud_patient_frame', 'fx_confetti', 'nurse_normal']
 BACKGROUNDS = ['bg_title_day', 'bg_title_night', 'bg_play']
 NINE = ['ui_button', 'ui_button_primary', 'ui_panel', 'ui_ribbon', 'hud_patient_frame']
 MAX_SIDE = 1024   # 立ち絵はこれ以上大きくしない（iPhone のメモリと読み込み時間のため）

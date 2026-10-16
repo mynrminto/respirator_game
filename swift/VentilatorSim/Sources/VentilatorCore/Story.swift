@@ -181,7 +181,7 @@ public enum StoryLibrary {
 
     /// 名札。{名前} は主人公の名前。患者・家族は行の name を使う。
     static let speakerLabels: [StorySpeaker: String] = [
-        .scene: "", .doc: "いぶき先生", .puku: "ぷくぷく", .me: "{名前}", .nurse: "看護師 ななみ"
+        .scene: "", .doc: "いぶき先生", .puku: "ぷくぷく", .me: "{名前}", .nurse: "看護師 ミナミ"
     ]
 
     /// 背景。左から順に、届いている画像を使う（新しい絵が届くまでは今ある絵で代える）。
