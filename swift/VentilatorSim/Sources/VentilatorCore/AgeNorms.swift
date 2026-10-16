@@ -69,6 +69,14 @@ public struct DialLimits: Equatable, Sendable {
     public var hfoFrequency: DialRange
     public var navaLevel: DialRange
     public var hfncFlow: DialRange
+    /// アラーム設定画面のダイヤル（Web 版 limitsFor の alm*）。量の枠は体重で変わる。
+    public var alarmPressure: DialRange
+    public var alarmTidalVolume: DialRange
+    public var alarmMinuteVolume: DialRange
+    public var alarmRespiratoryRate: DialRange
+    public var alarmApnea: DialRange
+    public var alarmSpO2: DialRange
+    public var alarmHeartRate: DialRange
 }
 
 public extension Physiology {
@@ -166,7 +174,18 @@ public extension Physiology {
             hfoFrequency: DialRange(min: fine ? 6 : 4, max: 15, step: 1, decimals: 0),
             navaLevel: DialRange(min: 0, max: 4, step: 0.1, decimals: 1),
             hfncFlow: fine ? DialRange(min: 1, max: 8, step: 0.5, decimals: 1)
-                           : DialRange(min: 2, max: Swift.min(60, (w * 2.5).rounded(.up)), step: 1, decimals: 0))
+                           : DialRange(min: 2, max: Swift.min(60, (w * 2.5).rounded(.up)), step: 1, decimals: 0),
+            alarmPressure: DialRange(min: 10, max: 60, step: 1, decimals: 0),
+            alarmTidalVolume: DialRange(min: vtStep,
+                                        max: Swift.max(vtStep * 6, (w * 20 / vtStep).rounded(.up) * vtStep),
+                                        step: vtStep, decimals: fine ? 1 : 0),
+            alarmMinuteVolume: fine ? DialRange(min: 0.01, max: 2, step: 0.01, decimals: 2)
+                : (small ? DialRange(min: 0.05, max: Swift.max(2, (w * 0.8).rounded(.up)), step: 0.05, decimals: 2)
+                         : DialRange(min: 0.1, max: (w * 0.8).rounded(.up), step: 0.1, decimals: 1)),
+            alarmRespiratoryRate: DialRange(min: 10, max: (n.respiratoryRateMax * 1.5).rounded(.up), step: 1, decimals: 0),
+            alarmApnea: DialRange(min: 5, max: 60, step: 1, decimals: 0),
+            alarmSpO2: DialRange(min: 70, max: 100, step: 1, decimals: 0),
+            alarmHeartRate: DialRange(min: 30, max: 200, step: 1, decimals: 0))
     }
 }
 
@@ -183,6 +202,9 @@ public extension AlarmLimits {
         a.minuteVolumeHigh = (mv * 1.8 * 100).rounded() / 100
         a.respiratoryRateHigh = Swift.min(n.respiratoryRateMax, (rr * 1.5 + 8).rounded())
         a.apneaSeconds = n.apneaSeconds
+        a.spo2Low = n.spo2Target.lowerBound
+        a.spo2High = 100
+        a.heartRateLow = (n.heartRate.lowerBound * 0.8).rounded()
         return a
     }
 }
