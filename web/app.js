@@ -620,10 +620,12 @@
           if (!$('title').hidden) showTitle();
         }
       }).then(function (ok) {
+        $('title').classList.remove('loading');
         if (!ok) { $('title').classList.remove('gl'); showTitleDom(data); }
       });
       return;
     }
+    $('title').classList.remove('loading');
     showTitleDom(data);
   }
 
