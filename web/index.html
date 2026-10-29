@@ -136,7 +136,7 @@
     padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 
   /* ---- ステータスバー ---- */
-  .status{display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--bar);
+  .status{display:flex;min-width:0;align-items:center;gap:8px;padding:5px 10px;background:var(--bar);
     border-bottom:1px solid var(--br);min-height:38px}
   .brand{display:flex;align-items:baseline;gap:6px;flex:none}
   .brand b{font-family:var(--jp);font-size:15px;letter-spacing:.02em;font-weight:800;
@@ -730,6 +730,8 @@
   .tdemo{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;z-index:3;padding:4px 10px;border-radius:999px;
     background:#FF6B8A;color:#fff;font:800 12px/1.4 'M PLUS Rounded 1c',sans-serif;letter-spacing:.08em;box-shadow:0 2px 6px rgba(0,0,0,.18);pointer-events:none}
   .tdemo[hidden]{display:none}
+  .demotag{font-style:normal;align-self:center;padding:1px 7px;border-radius:999px;background:#FF6B8A;color:#fff;font:800 10px/1.5 'M PLUS Rounded 1c',sans-serif;letter-spacing:.06em}
+  .demotag[hidden]{display:none}
   .case.locked,.lesson.locked{opacity:.55}
   .case.locked .face{filter:grayscale(1)}
   /* WebGL のタイトルが動いているときは、控えの DOM を隠して絵だけにする。 */
@@ -974,7 +976,7 @@
 
 <div id="device">
   <div class="status">
-    <div class="brand"><b>VentaSim</b><i>5000</i></div>
+    <div class="brand"><b>VentaSim</b><i>5000</i><em class="demotag" id="demoTag" hidden>体験版</em></div>
     <span class="led on" id="ledPwr" title="運転中"></span>
     <button class="pt" id="ptName" title="患者情報を開く">—</button>
     <div class="alarm" id="alarm"><span class="led" id="ledAlarm"></span><span id="alarmTxt">起動中</span><span class="amore" id="alarmMoreBox" hidden><b id="alarmMore"></b></span></div>

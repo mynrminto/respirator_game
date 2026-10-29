@@ -13,10 +13,11 @@
   var BGM = window.VentBGM || { want: function () {}, duck: function () {}, enabled: function () { return false; },
     setEnabled: function () {}, clockTrack: function () { return 'day'; } };
   var $ = function (id) { return document.getElementById(id); };
-  /* 体験版（demo/index.html が window.VENTSIM_DEMO を立てる）。第1〜2章とハルト君の症例だけを開け、
-   * ほかは一覧に見せたまま鍵をかける。進み具合は製品版と同じ記録を使う。 */
+  /* 体験版（demo/index.html が window.VENTSIM_DEMO を立てる）。タイトルも物語も通さず、最初から
+   * 呼吸器の自由操作だけを開ける。学習コース・物語・研修手帳は製品版の案内にする。
+   * DEMO_CHAPTERS に章を足せばその章のレッスンも開く。DEMO_CASES が null なら全症例を開ける。 */
   var DEMO = !!window.VENTSIM_DEMO;
-  var DEMO_CHAPTERS = ['ch1', 'ch2'], DEMO_CASES = ['postop'];
+  var DEMO_CHAPTERS = [], DEMO_CASES = null;
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
   /* ===================== テーマ =====================
@@ -464,7 +465,18 @@
     window.addEventListener('resize', fitAll);
     requestAnimationFrame(frame);
     AS.ready.then(applyAssets);
-    showTitle();
+    if (DEMO) startDemo(); else showTitle();
+  }
+
+  /* 体験版はタイトルを出さず、免責に同意したらすぐ呼吸器の前に立つ。 */
+  function startDemo() {
+    $('demoTag').hidden = false;
+    hideTitle();
+    var go = function () {
+      S.banner = { t: S.eng.clock, msg: '自由に操作できます' };
+    };
+    if (agreed()) go();
+    else openDisclaimer(true, function () { setAgreed(); go(); });
   }
 
   /* ===================== 操作音 =====================
@@ -540,7 +552,7 @@
     var ch = LS.chapterOf(id);
     return !!ch && DEMO_CHAPTERS.indexOf(ch.id) >= 0;
   }
-  function caseOpen(sc) { return !DEMO || DEMO_CASES.indexOf(sc.id) >= 0; }
+  function caseOpen(sc) { return !DEMO || !DEMO_CASES || DEMO_CASES.indexOf(sc.id) >= 0; }
   /* 体験版で遊べるレッスン。製品版ではすべて。 */
   function playableLessons() {
     return LS.allLessons().filter(function (x) { return lessonOpen(x.lesson.id); });
@@ -550,13 +562,12 @@
   function openLocked(what) {
     modal('製品版のご案内', function (b, close) {
       if (what) b.appendChild(el('p', '', '「' + what + '」は製品版で遊べます。'));
-      b.appendChild(el('p', '', 'この体験版では、学習コースの第1〜2章（術後のハルト君、8 歳）と、'
-        + 'ハルト君の症例での自由操作を試せます。'));
+      b.appendChild(el('p', '', 'この体験版では、呼吸器を自由に操作して、設定を変えたときの波形・バイタル・血液ガスの変化を試せます。'));
       var box = el('div', 'tip');
-      box.innerHTML = '製品版では<br>・全 ' + LS.CHAPTERS.length + ' 章 ' + LS.allLessons().length + ' レッスン（モードの違い、血液ガス、'
-        + 'アラームとトラブル、離脱と抜管、HFNC、ARDS、新生児の nCPAP・HFO・NAVA など）<br>'
-        + '・NICU・PICU の ' + SC.SCENARIOS.length + ' 症例すべての自由操作<br>'
-        + '・物語の続きと研修手帳のすべてのページ<br>が遊べます。iPhone アプリとして配信予定です。';
+      box.innerHTML = '製品版では<br>・いぶき先生と ' + SC.SCENARIOS.length + ' 人の子どもを受け持つ物語つきの学習コース（全 '
+        + LS.CHAPTERS.length + ' 章 ' + LS.allLessons().length + ' レッスン）<br>'
+        + '・一歩ずつ操作を教わるレッスン（モードの違い、血液ガス、アラームとトラブル、離脱と抜管、HFNC、新生児の nCPAP・HFO・NAVA など）<br>'
+        + '・研修手帳<br>が遊べます。iPhone アプリとして配信予定です。';
       b.appendChild(box);
       var r = el('div', 'mrow');
       var ok = el('button', 'mbtn go', '体験版を続ける');
@@ -2289,14 +2300,19 @@
   function openMenu() {
     modal('メニュー', function (b, close) {
       var g = el('div', 'grid2');
-      [['☰', '学習コース', function () { close(); openCourse(); }],
+      var demoItems = [['◆', '製品版のご案内', function () { close(); openLocked(null); }],
+       ['✚', '症例を選ぶ', function () { close(); openCases(); }],
+       ['⟳', '初期設定をやり直す', function () { close(); openSetup(); }],
+       ['↺', 'この症例を最初から', function () { close(); loadScenario(S.scen, false); }],
+       ['★', '振り返り', function () { close(); openDebrief(); }]];
+      (DEMO ? demoItems : [['☰', '学習コース', function () { close(); openCourse(); }],
        ['✚', '症例を選ぶ', function () { close(); openCases(); }],
        ['⟳', '初期設定をやり直す', function () { close(); openSetup(); }],
        ['↺', 'この症例を最初から', function () { close(); loadScenario(S.scen, false); }],
        ['★', '振り返り', function () { close(); openDebrief(); }],
        ['✦', '物語を読み返す', function () { close(); openStoryList(); }],
        ['✎', '研修手帳', function () { close(); openNotebook(); }],
-       ['⌂', 'タイトルへ戻る', function () { close(); endLesson(false); showTitle(); }],
+       ['⌂', 'タイトルへ戻る', function () { close(); endLesson(false); showTitle(); }]]).concat([
        ['♪', SND.enabled() ? '音：オン（押すと消す）' : '音：オフ（押すと鳴らす）',
         function () { SND.setEnabled(!SND.enabled()); close(); openMenu(); }],
        ['♫', BGM.enabled() ? 'BGM：オン（押すと消す）' : 'BGM：オフ（押すと流す）',
@@ -2304,7 +2320,7 @@
        ['♥', SND.pulseEnabled() ? 'パルス音：オン（押すと消す）' : 'パルス音：オフ（押すと鳴らす）',
         function () { SND.setPulseEnabled(!SND.pulseEnabled()); close(); openMenu(); }],
        ['?', 'この教材について', function () { close(); openDisclaimer(false); }]
-      ].forEach(function (p) {
+      ]).forEach(function (p) {
         var c = el('button', 'case menuitem');
         c.appendChild(el('span', 'em', p[0]));
         c.appendChild(el('b', '', p[1]));
