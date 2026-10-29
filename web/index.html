@@ -736,6 +736,12 @@
     background:linear-gradient(180deg,#FFFFFF,var(--panel2));border-top:3px solid var(--accent);border-bottom:1px solid var(--br)}
   .dguide[hidden]{display:none}
   .dguide .cav{width:48px;height:48px}
+  /* 患者の絵。顔色（症例の重さと今の状態）で絵が変わる。 */
+  .dpt{flex:none;width:84px;height:56px;border-radius:12px;border:2px solid var(--br);background:#EEF3FF;
+    display:grid;place-items:center;overflow:hidden}
+  .dpt img{display:block;max-width:100%;max-height:100%}
+  :root[data-theme="device"] .dpt{background:#0B1220}
+  @media(max-width:380px){.dpt{width:64px;height:44px}}
   .dsay{flex:1;min-width:0;font-size:12.5px;line-height:1.55;color:var(--coach-ink);font-weight:500}
   :root[data-theme="device"] .dguide{background:linear-gradient(180deg,#0D1A17,#0B1512)}
   .case.locked,.lesson.locked{opacity:.55}
@@ -1017,6 +1023,7 @@
 
   <!-- 体験版の自由操作で、左右の柱が出ない画面（スマホなど）に出す先生の一言 -->
   <div class="dguide" id="dGuide" hidden>
+    <div class="dpt" id="dPt"></div>
     <div class="cav doc" id="dAv"></div>
     <div class="dsay" id="dSay"></div>
   </div>

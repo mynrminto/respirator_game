@@ -437,7 +437,9 @@
     if (rank[base] > rank[tone]) tone = base;
     if (force || tone !== RAIL.tone || S.scen.id !== RAIL.caseId) {
       RAIL.tone = tone;
-      $('portPatient').innerHTML = '<img alt="" src="' + patientArt(S.scen, tone, dark) + '">';
+      var pimg = '<img alt="" src="' + patientArt(S.scen, tone, dark) + '">';
+      $('portPatient').innerHTML = pimg;
+      $('dPt').innerHTML = pimg;
     }
     if (force || S.scen.id !== RAIL.caseId) { RAIL.caseId = S.scen.id; $('railCase').textContent = S.scen.title; }
 
