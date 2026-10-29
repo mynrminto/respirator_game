@@ -456,6 +456,14 @@
               : (S.scen.oneLine || '自由に操作できます。'));
     if (say.length > 96) say = say.slice(0, 94) + '…';
     if (force || say !== RAIL.say) { RAIL.say = say; $('railSay').textContent = say; }
+    /* 体験版の自由操作では、左右の柱が出ない画面でも先生と一言を出す（CSS が広い画面では隠す）。 */
+    var dg = $('dGuide'), showG = DEMO && !L;
+    if (dg.hidden === showG) { dg.hidden = !showG; fitAll(); }
+    if (showG && (force || !dg._art)) {
+      var gu = AS.url('doctor_normal');
+      if (gu) { $('dAv').innerHTML = '<img alt="" src="' + gu + '">'; dg._art = true; }
+    }
+    if (showG && $('dSay').textContent !== say) $('dSay').textContent = say;
   }
 
   /* ===================== 起動 ===================== */
