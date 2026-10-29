@@ -481,12 +481,16 @@
     if (DEMO) startDemo(); else showTitle();
   }
 
-  /* 体験版はタイトルを出さず、免責に同意したらすぐ呼吸器の前に立つ。 */
+  /* 体験版はタイトルを出さず、免責に同意したらすぐ呼吸器の前に立つ。初回だけ使い方を短く見せる。 */
+  var INTRO_KEY = 'ventsim.demo.intro.v1';
   function startDemo() {
     $('demoTag').hidden = false;
     hideTitle();
     var go = function () {
       S.banner = { t: S.eng.clock, msg: '自由に操作できます' };
+      var seen = false;
+      try { seen = window.localStorage.getItem(INTRO_KEY) === '1'; } catch (err) { seen = false; }
+      if (!seen) openIntro();
     };
     if (agreed()) go();
     else openDisclaimer(true, function () { setAgreed(); go(); });
@@ -558,6 +562,54 @@
   }
   function setAgreed() {
     try { window.localStorage.setItem(AGREE_KEY, '1'); } catch (err) { /* 記録できなくても進める */ }
+  }
+
+  /* 体験版の使い方。呼吸器を覆わない小さな札で、話している場所を光らせながら進める。 */
+  var INTRO = [
+    { spot: null, say: 'ようこそ。小児科の いぶき先生です。\nこの子は ハルト君、8 歳。おなかの手術のあと、人工呼吸器につながっています。' },
+    { spot: ['wave'], low: true, say: '上の画面には、呼吸器が送る圧・流量・換気量の波形が流れています。その横（スマホでは下）の数字が、いま測っている値です。' },
+    { spot: ['key:vt', 'dial', 'ok'], say: '設定は 3 段階です。キーを押して項目を選び、ダイヤルを回して、「確定」で反映します。確定するまで、患者さんには届きません。' },
+    { spot: ['hard:bmon'], say: '設定を変えると、心電図や SpO₂、血液ガスがその場で応えます。たとえば呼吸数を下げたり、酸素を減らしたりして、何が起きるか見てみましょう。' },
+    { spot: ['hard:kMenu'], say: 'ほかの子を診たいときや、最初からやり直したいときは「メニュー」から。では、自由に触ってみてください。' }
+  ];
+  function openIntro() {
+    var host = $('intro'), i = 0;
+    if (!host) return;
+    var close = function () {
+      host.hidden = true; applySpot(null);
+      try { window.localStorage.setItem(INTRO_KEY, '1'); } catch (err) { /* 記録できなくても動く */ }
+    };
+    var show = function () {
+      var st = INTRO[i], say = st.say;
+      /* メニューから見返したとき、別の子を診ていればその子を紹介する。 */
+      if (i === 0 && S.scen.id !== 'postop') {
+        var pf = SC.patientProfile(S.scen);
+        say = 'ようこそ。小児科の いぶき先生です。\nいま診ているのは ' + pf.name + (pf.ageSex ? '（' + pf.ageSex + '）' : '')
+          + '。' + S.scen.title + 'で、人工呼吸器につながっています。';
+      }
+      var du = AS.url('doctor_happy') || AS.url('doctor_normal');
+      $('inAv').innerHTML = du ? '<img alt="" src="' + du + '">' : '';
+      $('inSay').innerHTML = '';
+      say.split('\n').forEach(function (line, k) {
+        if (k) $('inSay').appendChild(el('br'));
+        $('inSay').appendChild(document.createTextNode(line));
+      });
+      $('inStep').textContent = (i + 1) + ' / ' + INTRO.length;
+      $('inNext').textContent = i === INTRO.length - 1 ? 'はじめる' : '次へ';
+      $('inSkip').hidden = i === INTRO.length - 1;
+      host.classList.toggle('low', !!st.low);   // 上の方を光らせるときは札を下に置く
+      applySpot(st.spot);
+      /* 光らせた場所が画面の外なら見える所まで動かす（スマホは縦に長い）。 */
+      var n = spotted[0];
+      if (n) {
+        var r = n.getBoundingClientRect();
+        if (r.top < 0 || r.bottom > window.innerHeight) n.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      } else window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    $('inNext').onclick = function () { if (++i >= INTRO.length) close(); else show(); };
+    $('inSkip').onclick = close;
+    host.hidden = false;
+    show();
   }
 
   function lessonOpen(id) {
@@ -2333,6 +2385,7 @@
     modal('メニュー', function (b, close) {
       var g = el('div', 'grid2');
       var demoItems = [['◆', '製品版のご案内', function () { close(); openLocked(null); }],
+       ['?', '使い方をもう一度', function () { close(); openIntro(); }],
        ['✚', '症例を選ぶ', function () { close(); openCases(); }],
        ['⟳', '初期設定をやり直す', function () { close(); openSetup(); }],
        ['↺', 'この症例を最初から', function () { close(); loadScenario(S.scen, false); }],

@@ -745,6 +745,18 @@
   .dguide{display:flex;align-items:center;gap:10px;padding:8px 12px;flex:none;
     background:linear-gradient(180deg,#FFFFFF,var(--panel2));border-top:3px solid var(--accent);border-bottom:1px solid var(--br)}
   .dguide[hidden]{display:none}
+  .intro{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 50px);transform:translateX(-50%);z-index:120;
+    width:min(520px,calc(100vw - 24px));display:flex;gap:12px;align-items:flex-start;padding:12px 14px;
+    background:#fff;border:3px solid var(--gline,#2E2545);border-radius:18px;box-shadow:0 6px 0 rgba(46,37,69,.22),0 14px 30px rgba(60,30,80,.25);
+    color:var(--coach-ink)}
+  .intro[hidden]{display:none}
+  .intro.low{top:auto;bottom:calc(var(--dialh,70px) + 12px)}
+  .intro .cav{width:52px;height:52px}
+  .inbody{flex:1;min-width:0}
+  .insay{font-size:13.5px;line-height:1.6;font-weight:500}
+  .inrow{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .instep{flex:1;font-size:11px;color:var(--dim);font-family:var(--num)}
+  :root[data-theme="device"] .intro{background:#0F1318;border-width:1px;border-color:#2C8A64;border-radius:6px}
   .dguide .cav{width:48px;height:48px}
   /* 患者の絵。顔色（症例の重さと今の状態）で絵が変わる。 */
   .dpt{flex:none;width:84px;height:56px;border-radius:12px;border:2px solid var(--br);background:#EEF3FF;
@@ -1040,6 +1052,15 @@
     </div>
   </div>
 
+  <!-- 体験版の使い方（初回だけ） -->
+  <div class="intro" id="intro" hidden>
+    <div class="cav doc" id="inAv"></div>
+    <div class="inbody">
+      <div class="insay" id="inSay"></div>
+      <div class="inrow"><span class="instep" id="inStep"></span>
+        <button class="cbtn" id="inSkip">とばす</button><button class="cbtn go" id="inNext">次へ</button></div>
+    </div>
+  </div>
   <!-- 体験版の自由操作で、左右の柱が出ない画面（スマホなど）に出す先生の一言 -->
   <div class="dguide" id="dGuide" hidden>
     <div class="dpt" id="dPt"></div>
