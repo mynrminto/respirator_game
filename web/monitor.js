@@ -20,15 +20,15 @@
       - 0.10 * gauss(s, 0.145, 0.008) + 1.0 * gauss(s, 0.16, 0.009) - 0.28 * gauss(s, 0.178, 0.009)
       + 0.28 * gauss(s, 0.16 + qt - 0.06, 0.045);
   }
-  /* 1 拍ぶんの脈波。s は QRS からの秒。立ち上がり → ゆっくり下がり、途中に重複切痕。 */
+  /* 1 拍ぶんの脈波。s は QRS からの秒。指先の容積の波なので角は無く、
+   * 速く立ち上がって丸い山になり、ゆっくり下がる途中に重複切痕と小さな山（拡張期の波）がある。
+   * 谷は次の拍の立ち上がりの直前に来る。時間の幅は拍の間隔に合わせて縮む。 */
+  function skew(x, mu, wl, wr) { var w = x < mu ? wl : wr; var z = (x - mu) / w; return Math.exp(-0.5 * z * z); }
   function plethBeat(s, rr) {
-    s -= PLETH_DELAY;
-    if (s < 0) return 0;
-    var up = 0.11 * Math.min(1, Math.sqrt(rr));
-    if (s < up) { var k = Math.sin(Math.PI / 2 * s / up); return k * k; }
-    var d = s - up, tau = 0.26 * Math.min(1.4, rr);
-    return Math.exp(-d / tau) * (1 - 0.18 * gauss(d, 0.16 * Math.min(1, rr), 0.03))
-      + 0.12 * gauss(d, 0.22 * Math.min(1, rr), 0.05);
+    var k = Math.min(1.2, rr / 0.75);
+    var u = (s - PLETH_DELAY) / k;
+    if (u < -0.12 || u > 1.6) return 0;
+    return 1.0 * skew(u, 0.16, 0.055, 0.13) + 0.42 * skew(u, 0.42, 0.07, 0.16);
   }
 
   function create(canvas) {
