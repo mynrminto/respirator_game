@@ -726,6 +726,12 @@
     background:var(--deck);overflow:auto}
   /* display を指定しているので、hidden を効かせる指定が要る。 */
   .title[hidden]{display:none}
+  /* 体験版のしるし（demo/ のときだけ出す） */
+  .tdemo{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;z-index:3;padding:4px 10px;border-radius:999px;
+    background:#FF6B8A;color:#fff;font:800 12px/1.4 'M PLUS Rounded 1c',sans-serif;letter-spacing:.08em;box-shadow:0 2px 6px rgba(0,0,0,.18);pointer-events:none}
+  .tdemo[hidden]{display:none}
+  .case.locked,.lesson.locked{opacity:.55}
+  .case.locked .face{filter:grayscale(1)}
   /* WebGL のタイトルが動いているときは、控えの DOM を隠して絵だけにする。 */
   .tcanvas{position:absolute;inset:0;display:none}
   .title.gl{padding:0;overflow:hidden}
@@ -1065,6 +1071,7 @@
     <strong class="tload-name">こどもの人工呼吸器</strong>
     <span class="tload-dots">読み込み中…</span>
   </div>
+  <div class="tdemo" id="tDemo" hidden>体験版</div>
   <div class="tcanvas" id="tCanvas"></div>
   <div class="tstage">
     <div class="tcast">

@@ -13,6 +13,10 @@
   var BGM = window.VentBGM || { want: function () {}, duck: function () {}, enabled: function () { return false; },
     setEnabled: function () {}, clockTrack: function () { return 'day'; } };
   var $ = function (id) { return document.getElementById(id); };
+  /* 体験版（demo/index.html が window.VENTSIM_DEMO を立てる）。第1〜2章とハルト君の症例だけを開け、
+   * ほかは一覧に見せたまま鍵をかける。進み具合は製品版と同じ記録を使う。 */
+  var DEMO = !!window.VENTSIM_DEMO;
+  var DEMO_CHAPTERS = ['ch1', 'ch2'], DEMO_CASES = ['postop'];
   var el = function (t, c, x) { var n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
   /* ===================== テーマ =====================
@@ -531,8 +535,39 @@
     try { window.localStorage.setItem(AGREE_KEY, '1'); } catch (err) { /* 記録できなくても進める */ }
   }
 
+  function lessonOpen(id) {
+    if (!DEMO) return true;
+    var ch = LS.chapterOf(id);
+    return !!ch && DEMO_CHAPTERS.indexOf(ch.id) >= 0;
+  }
+  function caseOpen(sc) { return !DEMO || DEMO_CASES.indexOf(sc.id) >= 0; }
+  /* 体験版で遊べるレッスン。製品版ではすべて。 */
+  function playableLessons() {
+    return LS.allLessons().filter(function (x) { return lessonOpen(x.lesson.id); });
+  }
+
+  /* 体験版で鍵のかかった項目を押したとき。 */
+  function openLocked(what) {
+    modal('製品版のご案内', function (b, close) {
+      if (what) b.appendChild(el('p', '', '「' + what + '」は製品版で遊べます。'));
+      b.appendChild(el('p', '', 'この体験版では、学習コースの第1〜2章（術後のハルト君、8 歳）と、'
+        + 'ハルト君の症例での自由操作を試せます。'));
+      var box = el('div', 'tip');
+      box.innerHTML = '製品版では<br>・全 ' + LS.CHAPTERS.length + ' 章 ' + LS.allLessons().length + ' レッスン（モードの違い、血液ガス、'
+        + 'アラームとトラブル、離脱と抜管、HFNC、ARDS、新生児の nCPAP・HFO・NAVA など）<br>'
+        + '・NICU・PICU の ' + SC.SCENARIOS.length + ' 症例すべての自由操作<br>'
+        + '・物語の続きと研修手帳のすべてのページ<br>が遊べます。iPhone アプリとして配信予定です。';
+      b.appendChild(box);
+      var r = el('div', 'mrow');
+      var ok = el('button', 'mbtn go', '体験版を続ける');
+      ok.onclick = close;
+      r.appendChild(ok);
+      b.appendChild(r);
+    });
+  }
+
   function firstUndoneLesson() {
-    var done = doneSet(), list = LS.allLessons();
+    var done = doneSet(), list = playableLessons();
     for (var i = 0; i < list.length; i++) {
       if (done.indexOf(list[i].lesson.id) < 0) return list[i];
     }
@@ -550,6 +585,7 @@
 
   function buildTitle() {
     $('tLogo').innerHTML = CH.logo();
+    if (DEMO) $('tDemo').hidden = false;
     titleCast('happy');
     $('tTheme').onclick = function () {
       applyTheme(currentTheme() === 'pop' ? 'device' : 'pop', true);
@@ -564,26 +600,33 @@
 
   /* タイトルの中身。ゲーム画面（title.js）にも DOM の控えにも同じものを渡す。 */
   function titleData() {
-    var n = LS.allLessons().length;
-    var d = doneSet().filter(function (id) { return LS.lessonById(id); }).length;
+    var n = playableLessons().length;
+    var d = doneSet().filter(function (id) { return LS.lessonById(id) && lessonOpen(id); }).length;
     var next = firstUndoneLesson();
     var items = [];
-    if (d > 0 && next) {
+    if (DEMO && !next) {
+      items.push({ id: 'full', glyph: '★', title: '体験版を修了', primary: true, sub: '製品版のご案内' });
+    } else if (d > 0 && next) {
       items.push({ id: 'go', glyph: '▶', title: 'つづきから', primary: true,
                    sub: next.chapter.title + '　' + next.lesson.title });
     } else {
-      items.push({ id: 'go', glyph: '▶', title: 'はじめる', primary: true, sub: '学習コースを 1 から' });
+      items.push({ id: 'go', glyph: '▶', title: 'はじめる', primary: true,
+                   sub: DEMO ? '体験版：第1〜2章を 1 から' : '学習コースを 1 から' });
     }
-    items.push({ id: 'course', glyph: '☰', title: 'コースを選ぶ', sub: LS.CHAPTERS.length + ' 章 ' + n + ' レッスンから選ぶ' });
-    items.push({ id: 'cases', glyph: '✚', title: '症例で練習', sub: SC.SCENARIOS.length + ' 症例を自由に操作する' });
+    items.push({ id: 'course', glyph: '☰', title: 'コースを選ぶ',
+                 sub: DEMO ? '体験版は第1〜2章（' + n + ' レッスン）' : LS.CHAPTERS.length + ' 章 ' + n + ' レッスンから選ぶ' });
+    items.push({ id: 'cases', glyph: '✚', title: '症例で練習',
+                 sub: DEMO ? '体験版はハルト君の症例を自由に操作' : SC.SCENARIOS.length + ' 症例を自由に操作する' });
     var notes = ST ? ST.notesOpen(storySeen()).length : 0;
     if (notes) items.push({ id: 'notebook', glyph: '✎', title: '研修手帳', sub: '書き留めたこと ' + notes + ' / ' + ST.NOTEBOOK.length });
+    if (DEMO && next) items.push({ id: 'full', glyph: '★', title: '製品版について', sub: '全 ' + LS.CHAPTERS.length + ' 章・' + SC.SCENARIOS.length + ' 症例' });
     items.push({ id: 'about', glyph: '?', title: 'この教材について', sub: '免責事項とモデルの説明' });
     return {
       done: d, total: n, items: items, next: next,
       line: d === 0 ? (storedName() ? 'おかえりなさい、' + storedName() + '先生。\nハルト君が待っています。'
                                     : 'はじめまして。小児科の いぶき先生です。\nいっしょに こどもたちの呼吸を守りましょう。')
-          : (d >= n ? '全レッスン修了、おみごとです。\n症例で腕を試してみましょう。'
+          : (d >= n ? (DEMO ? '体験版はここまで。おつかれさまでした。\n続きは製品版で会いましょう。'
+                            : '全レッスン修了、おみごとです。\n症例で腕を試してみましょう。')
                     : 'おかえりなさい、' + playerName() + '先生。\nここまで ' + d + ' / ' + n + ' レッスン。つづきからどうぞ。')
     };
   }
@@ -597,6 +640,8 @@
       enter(function () { openCases(); });
     } else if (id === 'notebook') {
       openNotebook();
+    } else if (id === 'full') {
+      openLocked(null);
     } else {
       openDisclaimer(false);
     }
@@ -1707,17 +1752,18 @@
       b.appendChild(el('p', '', '症例ごとに肺の硬さ・気道抵抗・シャント・呼吸ドライブが異なります。設定を変えると波形と血液ガスがその場で応答します。'));
       var g = el('div', 'grid2');
       SC.SCENARIOS.forEach(function (sc) {
-        var c = el('button', 'case');
+        var open = caseOpen(sc);
+        var c = el('button', 'case' + (open ? '' : ' locked'));
         var head = el('div', 'casehead');
         var face = el('div', 'face');
         face.style.backgroundImage = 'url("' + patientArt(sc, patientBaseTone(sc), currentTheme() === 'device') + '")';
         var ct = el('div', 'ct');
-        ct.appendChild(el('i', '', sc.tag));
+        ct.appendChild(el('i', '', open ? sc.tag : '🔒 製品版　' + sc.tag));
         ct.appendChild(el('b', '', sc.title));
         head.appendChild(face); head.appendChild(ct);
         c.appendChild(head);
         c.appendChild(el('span', '', sc.oneLine));
-        c.onclick = function () { close(); loadScenario(sc, true); };
+        c.onclick = open ? function () { close(); loadScenario(sc, true); } : function () { openLocked(sc.title); };
         g.appendChild(c);
       });
       b.appendChild(g);
@@ -2450,6 +2496,7 @@
   }
 
   function startLesson(id) {
+    if (!lessonOpen(id)) { var lk = LS.lessonById(id); openLocked(lk ? lk.title : null); return; }
     var lesson = LS.lessonById(id);
     if (!lesson) return;
     var sc = SC.SCENARIOS.filter(function (x) { return x.id === lesson.scenario; })[0] || SC.SCENARIOS[0];
@@ -2741,7 +2788,12 @@
       box.appendChild(n);
     } else {
       var nid = LS.nextLessonId(L.id);
-      if (nid) {
+      if (nid && !lessonOpen(nid)) {
+        var fl = el('button', 'cbtn go', '製品版のご案内');
+        fl.style.flex = '0 0 auto';
+        fl.onclick = function () { openLocked(null); };
+        box.appendChild(fl);
+      } else if (nid) {
         var nb = el('button', 'cbtn go', '次のレッスンへ');
         nb.style.flex = '0 0 auto';
         nb.onclick = function () { beginLesson(nid); };
@@ -2822,6 +2874,7 @@
 
   /* レッスンに入る入口はすべてここを通す。まだ見ていない幕があれば、先に見せる。 */
   function beginLesson(id) {
+    if (!lessonOpen(id)) { var lk = LS.lessonById(id); openLocked(lk ? lk.title : null); return; }
     var ch = LS.chapterOf(id);
     var list = ST ? ST.before(id, ch ? ch.id : '', storySeen()) : [];
     if (!list.length) { startLesson(id); return; }
@@ -3239,26 +3292,28 @@
       b.appendChild(pr);
       b.appendChild(el('p', 'note', '修了 ' + nDone + ' / ' + n + ' レッスン'
         + (nDone >= n ? '　🏆 全レッスン修了' : '')));
+      if (DEMO) b.appendChild(el('p', 'note', '体験版で遊べるのは第1〜2章です。🔒 の章は製品版で遊べます。'));
       LS.CHAPTERS.forEach(function (ch) {
+        var chOpen = !DEMO || DEMO_CHAPTERS.indexOf(ch.id) >= 0;
         var chDone = ch.lessons.filter(function (l) { return done.indexOf(l.id) >= 0; }).length;
         var h = el('div', 'chapline');
         h.setAttribute('data-chap', ch.id);
         h.appendChild(el('span', 'cdot'));
-        h.appendChild(el('span', '', ch.title));
+        h.appendChild(el('span', '', (chOpen ? '' : '🔒 ') + ch.title));
         h.appendChild(el('span', 'ccount', chDone + ' / ' + ch.lessons.length));
         h.appendChild(el('span', 'csub', ch.sub));
         b.appendChild(h);
         var g = el('div', 'grid2');
         ch.lessons.forEach(function (l, li) {
           var fin = done.indexOf(l.id) >= 0;
-          var c = el('button', 'lesson' + (fin ? ' done' : ''));
+          var c = el('button', 'lesson' + (fin ? ' done' : '') + (chOpen ? '' : ' locked'));
           c.setAttribute('data-chap', ch.id);
           c.appendChild(el('span', 'mk ' + (fin ? 'y' : 'n'), fin ? '✓' : String(li + 1)));
           var t = el('div', 'lt');
           t.appendChild(el('b', '', l.title));
           t.appendChild(el('span', '', '目安 ' + l.minutes + ' 分'));
           c.appendChild(t);
-          c.onclick = function () { close(); beginLesson(l.id); };
+          c.onclick = chOpen ? function () { close(); beginLesson(l.id); } : function () { openLocked(l.title); };
           g.appendChild(c);
         });
         b.appendChild(g);

@@ -27,6 +27,7 @@ jobs:
           cp web/index.html web/*.js _site/
           rm -f _site/test.js _site/smoke.js _site/build.js
           cp -r web/vendor web/assets _site/
+          node web/tools/demo-html.js _site/demo/index.html
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
