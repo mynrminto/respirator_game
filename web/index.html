@@ -191,6 +191,16 @@
   :root[data-theme="device"] .screen{margin:6px;border-width:1px}
   @media(max-width:860px){.screen{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}}
   .scopewrap{position:relative;min-width:0;min-height:0}
+  .bmon{margin:0 8px 8px;height:96px;border-radius:var(--r-l);background:var(--screen);border:3px solid var(--screen-frame);
+    box-shadow:var(--shadow);display:flex;overflow:hidden;min-width:0}
+  :root[data-theme="device"] .bmon{margin:0 6px 6px;border-width:1px}
+  .bmon canvas{display:block;flex:1;min-width:0;height:100%}
+  .bnums{flex:none;width:96px;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08)}
+  .bn{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 10px;line-height:1}
+  .bn i{font-style:normal;font-size:10px;font-weight:600;font-family:var(--num);letter-spacing:.06em}
+  .bn b{font-family:var(--num);font-size:28px;font-weight:700;text-align:right}
+  .bn.hr{color:#3CFF8F} .bn.sp{color:#2EE6FF;border-top:1px solid rgba(255,255,255,.08)}
+  .bn.alert b{color:#FF5E7A}
   .scopewrap canvas{display:block;width:100%;height:100%}
   .freeze{position:absolute;left:10px;bottom:8px;font-size:11px;font-weight:700;letter-spacing:.06em;
     color:#3B2A00;background:var(--paw);padding:3px 10px;border-radius:999px}
@@ -1021,6 +1031,15 @@
     <div class="vals" id="vals"></div>
   </div>
 
+  <!-- ベッドサイドモニタ（心電図・脈波）。呼吸器とは別の機械なので枠を分ける。 -->
+  <div class="bmon" id="bmon">
+    <canvas id="bmonCv"></canvas>
+    <div class="bnums">
+      <div class="bn hr"><i>HR</i><b id="bmHr">--</b></div>
+      <div class="bn sp"><i>SpO₂</i><b id="bmSp">--</b></div>
+    </div>
+  </div>
+
   <!-- 体験版の自由操作で、左右の柱が出ない画面（スマホなど）に出す先生の一言 -->
   <div class="dguide" id="dGuide" hidden>
     <div class="dpt" id="dPt"></div>
@@ -1141,4 +1160,5 @@
 <script src="lessons.js"></script>
 <script src="story.js"></script>
 <script src="lung3d.js"></script>
+<script src="monitor.js"></script>
 <script src="app.js"></script>

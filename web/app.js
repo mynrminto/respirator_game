@@ -1048,7 +1048,8 @@
     $('kPt').onclick = openPatient;
     $('ptName').onclick = openPatient;
     $('kWean').onclick = openWeaning;
-    $('kLearn').onclick = openCourse;
+    $('kLearn').onclick = DEMO ? function () { openLocked(null); } : openCourse;
+    if (DEMO) $('kLearn').textContent = '製品版のご案内';
     $('kMenu').onclick = openMenu;
     $('btnSil').onclick = function () {
       S.silenceUntil = S.silenceUntil > S.eng.clock ? -1 : S.eng.clock + 120;
@@ -1250,12 +1251,29 @@
   /* ===================== メインループ ===================== */
   var lastT = 0;
   var railT = 0;
+  /* ベッドサイドモニタ（monitor.js）。実時間で掃引する（早送り中も波形の速さは変えない）。 */
+  var BMON = null, bmonNum = 0;
+  function monitorTick(real) {
+    if (!window.VentMonitor || !$('bmonCv')) return;
+    if (!BMON) BMON = window.VentMonitor.create($('bmonCv'));
+    var e = S.eng, p = e.p;
+    BMON.tick(real, { hr: e.hr, spo2: e.spo2, perf: e.co / (p.co || 5), arrested: e.arrested, frozen: S.frozen });
+    if ((bmonNum += real) < 0.5) return;
+    bmonNum = 0;
+    var nm = e.nm;
+    $('bmHr').textContent = e.arrested ? '0' : String(Math.round(e.hr));
+    $('bmSp').textContent = String(Math.round(e.spo2));
+    $('bmHr').parentNode.classList.toggle('alert', e.arrested || e.hr < nm.hr[0] * 0.8 || e.hr > nm.hr[1] * 1.25);
+    $('bmSp').parentNode.classList.toggle('alert', e.spo2 < nm.spo2[0] - 4);
+  }
+
   function frame(now) {
     requestAnimationFrame(frame);
     if (!lastT) { lastT = now; return; }
     if (now - railT > 400) { railT = now; paintRails(false); paintSkip(); paintLocks(); }
     var real = Math.min(0.25, (now - lastT) / 1000); lastT = now;
     var e = S.eng;
+    monitorTick(real);
     if (e.arrested) {
       arrestTick();
     } else if (S.skip && !e.extubated) {
@@ -1361,6 +1379,7 @@
     var dr = document.querySelector('.dialrow');
     if (dr) document.documentElement.style.setProperty('--dialh', dr.offsetHeight + 'px');
     if (LUNG.view) LUNG.view.resize();
+    if (BMON) BMON.resize();
     paintDial();
   }
 
