@@ -951,6 +951,9 @@ public final class VentilatorEngine {
     static let suctionShuntTarget = 0.08
     static let suctionReopen = 60.0      // s
     static let suctionGasLoss = 0.4
+    /* O2 の貯えの効き目。実測どおり（1.0）だと SpO₂ の下がり方が遅すぎて見えたので、
+     * 2026-10-29 に Yuichi の判断で半分にした（下がる速さ・戻る速さとも約 2 倍）。 */
+    static let oxygenStoreScale = 0.5
 
     /* 肺胞 PO2 が 1 mmHg 下がるあいだに体が使える O2 の量（mL/mmHg）。
      * 肺のガス（FRC + PEEP で広げた分。潰れた肺胞＝シャントの分は O2 を持たない）と、
@@ -969,7 +972,7 @@ public final class VentilatorEngine {
         let slope = (Physiology.oxygenContent(po2: alveolarPO2 + 1, hemoglobin: hb)
             - Physiology.oxygenContent(po2: max(0, alveolarPO2 - 1), hemoglobin: hb)) / 2
         let blood = Self.bloodVolumePerKg * kg / 1000 * 10 * slope * (1 - shunt)
-        return gas + blood
+        return (gas + blood) * Self.oxygenStoreScale
     }
 
     private func updateGasExchange(dt: Double) {

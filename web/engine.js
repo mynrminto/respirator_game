@@ -17,6 +17,9 @@
   var SUCTION_SHUNT = 0.08;
   var SUCTION_REOPEN = 60;       // s
   var SUCTION_GAS_LOSS = 0.4;
+  /* O2 の貯えの効き目。実測どおり（1.0）だと画面の上では SpO₂ の下がり方が遅すぎて見えたので、
+   * 2026-10-29 に Yuichi の判断で半分にした（下がる速さ・戻る速さとも約 2 倍）。 */
+  var O2_STORE_SCALE = 0.5;
 
   /* ---------- NICU のモード（HFO・NAVA・NIV-NAVA・HFNC）で使う定数 ----------
    * HFO_R_FACTOR … 10 Hz を超える振動では、細い気管チューブの慣性と乱流で抵抗が見かけ上 2〜3 倍になる。
@@ -1055,7 +1058,7 @@
     var pa = this.pAO2, h = 1;
     var slope = (o2Content(pa + h, p.hb) - o2Content(Math.max(0, pa - h), p.hb)) / (2 * h);  // mL/dL/mmHg
     var blood = BLOOD_PER_KG * p.pbw / 1000 * 10 * slope * (1 - this.shunt);
-    return gas + blood;
+    return (gas + blood) * O2_STORE_SCALE;
   };
 
   /* ---------- 目標達成と有害事象の集計 ---------- */

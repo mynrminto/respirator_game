@@ -450,7 +450,10 @@
         || AR.doctor(dark, false);
       $('portDoc').innerHTML = '<img alt="" src="' + du + '">';
     }
-    var say = L ? ($('cSay').textContent || '') : (S.scen.oneLine || '自由に操作できます。');
+    /* 体験版の自由操作では、症例の説明ではなくシミュレータそのものを紹介する。 */
+    var say = L ? ($('cSay').textContent || '')
+      : (DEMO ? '設定の変更に対応して、シミュレータが換気量やバイタルなどをリアルタイムシミュレーションします。'
+              : (S.scen.oneLine || '自由に操作できます。'));
     if (say.length > 96) say = say.slice(0, 94) + '…';
     if (force || say !== RAIL.say) { RAIL.say = say; $('railSay').textContent = say; }
   }

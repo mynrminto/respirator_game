@@ -186,7 +186,7 @@ console.log('\n7. FiO2 と PaO2');
   };
   const infant = apneaTime('bronchiolitis'), school = apneaTime('postop');
   ok('前酸素化後の無呼吸：細気管支炎の乳児は 1 分半以内に 90% を切る', infant > 30 && infant <= 90, `${infant} 秒`);
-  ok('前酸素化後の無呼吸：術後の学童は 2.5〜5 分で 90% を切る', school >= 150 && school <= 320, `${school} 秒`);
+  ok('前酸素化後の無呼吸：術後の学童は 1.25〜2.5 分で 90% を切る（下がり方は実測の 2 倍に速めてある）', school >= 75 && school <= 160, `${school} 秒`);
   ok('乳児は学童の半分より早く下がる', infant < school / 2, `${infant} 秒 / ${school} 秒`);
 }
 
@@ -1627,7 +1627,7 @@ console.log('\n35. レッスン中は今の課題に要るキーだけ触れる�
     let t = 0; while (!e.arrested && t < 900) { run(e, 5, 0.01); t += 5; }
     return { id, t, hr: e.hr, spo2: e.spo2 };
   });
-  ok('換気がほぼ止まると、どの子も 2〜5 分で心停止になる', tStop.every(x => x.t >= 120 && x.t <= 300), tStop.map(x => `${x.id} ${x.t}s`).join(' / '));
+  ok('換気がほぼ止まると、どの子も 1.5〜5 分で心停止になる', tStop.every(x => x.t >= 90 && x.t <= 300), tStop.map(x => `${x.id} ${x.t}s`).join(' / '));
   const steady = ids.filter(id => { const e = mk(id); run(e, 1800, 0.01); return e.arrested; });
   ok('推奨設定のままなら 30 分たっても心停止しない', steady.length === 0, steady.join(','));
   ok('心停止は SpO₂ 10% 未満・心拍 20/分 未満が 1 分続いたとき（年齢によらない）', VE.ARREST_SPO2 === 10 && VE.ARREST_HR === 20 && VE.ARREST_SEC === 60);

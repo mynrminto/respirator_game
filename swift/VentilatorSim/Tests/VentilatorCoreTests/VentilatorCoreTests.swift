@@ -246,8 +246,8 @@ struct GasExchangeTests {
             return t
         }
         let infant = apneaTime("bronchiolitis"), school = apneaTime("postop")
-        #expect(infant > 30 && infant <= 90)
-        #expect(school >= 150 && school <= 320)
+        #expect(infant > 15 && infant <= 90)
+        #expect(school >= 75 && school <= 160)
         #expect(Double(infant) < Double(school) / 2)
     }
 
