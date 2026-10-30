@@ -191,16 +191,21 @@
   :root[data-theme="device"] .screen{margin:6px;border-width:1px}
   @media(max-width:860px){.screen{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}}
   .scopewrap{position:relative;min-width:0;min-height:0}
-  .bmon{margin:0 8px 8px;height:96px;border-radius:var(--r-l);background:var(--screen);border:3px solid var(--screen-frame);
+  .bmon{margin:0 8px 8px;height:102px;border-radius:var(--r-l);background:var(--screen);border:3px solid var(--screen-frame);
     box-shadow:var(--shadow);display:flex;overflow:hidden;min-width:0}
   :root[data-theme="device"] .bmon{margin:0 6px 6px;border-width:1px}
   .bmon canvas{display:block;flex:1;min-width:0;height:100%}
-  .bnums{flex:none;width:96px;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08)}
-  .bn{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 10px;line-height:1}
-  .bn i{font-style:normal;font-size:10px;font-weight:600;font-family:var(--num);letter-spacing:.06em}
-  .bn b{font-family:var(--num);font-size:28px;font-weight:700;text-align:right}
-  .bn.hr{color:#3CFF8F} .bn.sp{color:#2EE6FF;border-top:1px solid rgba(255,255,255,.08)}
-  .bn.alert b{color:#FF5E7A}
+  .bnums{flex:none;width:136px;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08)}
+  .bn{flex:1;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 10px;line-height:1.1;min-height:0}
+  .bn+.bn{border-top:1px solid rgba(255,255,255,.08)}
+  .bn i{font-style:normal;font-size:10px;font-weight:600;font-family:var(--num);letter-spacing:.04em;white-space:nowrap;
+    display:flex;flex-direction:column}
+  .bn s{text-decoration:none;opacity:.7;font-size:9px}
+  .bn b{font-family:var(--num);font-size:24px;font-weight:700;text-align:right}
+  .bn.hr{color:#3CFF8F} .bn.sp{color:#2EE6FF} .bn.bp{color:#FF8FB1}
+  .bn.mid b{color:var(--warn)} .bn.hi b{color:#FF5E7A}
+  .bn .pulse{font-style:normal}
+  .bn.spot{border-radius:8px}
   .scopewrap canvas{display:block;width:100%;height:100%}
   .freeze{position:absolute;left:10px;bottom:8px;font-size:11px;font-weight:700;letter-spacing:.06em;
     color:#3B2A00;background:var(--paw);padding:3px 10px;border-radius:999px}
@@ -327,8 +332,8 @@
   .lanehl[data-lane="flow"]{top:calc(4px + (100% - 4px) / 3);height:calc((100% - 4px) / 3 - 4px)}
   .lanehl[data-lane="vol"]{top:calc(4px + (100% - 4px) * 2 / 3);height:calc((100% - 4px) / 3 - 4px)}
   /* SpO₂ のタイルの ♥。パルス音と同じ拍で光る。 */
-  .val .k .pulse{font-style:normal;margin-left:4px;color:#FF6F91;opacity:.25;display:inline-block}
-  .val .k .pulse.on{animation:beat .28s ease-out}
+  .val .k .pulse,.bn .pulse{font-style:normal;margin-left:4px;color:#FF6F91;opacity:.25;display:inline-block}
+  .val .k .pulse.on,.bn .pulse.on{animation:beat .28s ease-out}
   @keyframes beat{0%{opacity:1;transform:scale(1.35)}100%{opacity:.25;transform:scale(1)}}
   @media (prefers-reduced-motion:reduce){.val .k .pulse.on{animation:none;opacity:1}}
   .cchoices{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
@@ -1047,8 +1052,9 @@
   <div class="bmon" id="bmon">
     <canvas id="bmonCv"></canvas>
     <div class="bnums">
-      <div class="bn hr"><i>HR</i><b id="bmHr">--</b></div>
-      <div class="bn sp"><i>SpO₂</i><b id="bmSp">--</b></div>
+      <div class="bn hr"><i><span>HR</span><s class="bl"></s></i><b id="bmHr">--</b></div>
+      <div class="bn sp"><i><span>SpO₂ <em class="pulse" id="bmPulse" aria-hidden="true">♥</em></span><s class="bl"></s></i><b id="bmSp">--</b></div>
+      <div class="bn bp"><i><span>ABP mean</span><s class="bl"></s></i><b id="bmBp">--</b></div>
     </div>
   </div>
 

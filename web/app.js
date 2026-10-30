@@ -312,15 +312,18 @@
   /* NIV-NAVA は鼻から漏れるので、戻ってくる量（Vte）は肺に入った量より少なく出る。 */
   function vteShown(e) { return E.isNoninvasive(e.s.mode) ? e.m.vte * (1 - (e.m.leak || 0)) : e.m.vte; }
 
-  /* モードごとに出す計測値。書いていないモードは、ふつうの 16 枚。 */
+  /* モードごとに呼吸器の画面に出す計測値。書いていないモードは、ふつうの 13 枚。
+   * SpO₂・HR・ABP mean は呼吸器ではなくベッドサイドモニタ（#bmon）に出す（MONITOR_VALS）。 */
   var VALS_BY_MODE = {
-    'HFO':      ['Pmean', 'VThf', 'DCO₂', 'tcPCO₂', 'SpO₂', 'HR', 'ABP mean'],
-    'NAVA':     ['Edi peak', 'Edi min', 'PIP', 'PEEP tot', 'Vte', 'MV', 'RR tot', 'f/VT', 'SpO₂', 'etCO₂', 'HR', 'ABP mean'],
-    'NIV-NAVA': ['Edi peak', 'Edi min', 'PIP', 'Pmean', 'Vte', 'Leak', 'RR tot', 'SpO₂', 'tcPCO₂', 'HR', 'ABP mean'],
-    'HFNC':     ['RR tot', 'SpO₂', 'tcPCO₂', 'HR', 'ABP mean']
+    'HFO':      ['Pmean', 'VThf', 'DCO₂', 'tcPCO₂'],
+    'NAVA':     ['Edi peak', 'Edi min', 'PIP', 'PEEP tot', 'Vte', 'MV', 'RR tot', 'f/VT', 'etCO₂'],
+    'NIV-NAVA': ['Edi peak', 'Edi min', 'PIP', 'Pmean', 'Vte', 'Leak', 'RR tot', 'tcPCO₂'],
+    'HFNC':     ['RR tot', 'tcPCO₂']
   };
   var DEFAULT_VALS = ['PIP', 'Pplat', 'PEEP tot', 'ΔP', 'Vte', 'MV', 'RR tot', 'I:E', 'Cstat', 'Raw',
-    'auto-PEEP', 'f/VT', 'SpO₂', 'etCO₂', 'HR', 'ABP mean'];
+    'auto-PEEP', 'f/VT', 'etCO₂'];
+  var MONITOR_VALS = { 'HR': 'bmHr', 'SpO₂': 'bmSp', 'ABP mean': 'bmBp' };
+  function valDef(k) { for (var i = 0; i < VALS.length; i++) if (VALS[i].k === k) return VALS[i]; return null; }
   function valsFor(mode) {
     var names = VALS_BY_MODE[mode] || DEFAULT_VALS;
     return names.map(function (k) { return VALS.filter(function (d) { return d.k === k; })[0]; });
@@ -866,7 +869,6 @@
       v.appendChild(vs); v.appendChild(u);
       var lim = el('div', 'lim', '');
       var kn = el('div', 'k', d.k);
-      if (d.k === 'SpO₂') { pulseDot = el('i', 'pulse', '♥'); pulseDot.setAttribute('aria-hidden', 'true'); kn.appendChild(pulseDot); }
       n.appendChild(kn); n.appendChild(lim); n.appendChild(v);
       box.appendChild(n);
       valNodes.push({ n: n, v: vs, lim: lim, d: d });
@@ -1307,16 +1309,22 @@
   var BMON = null, bmonNum = 0;
   function monitorTick(real) {
     if (!window.VentMonitor || !$('bmonCv')) return;
-    if (!BMON) BMON = window.VentMonitor.create($('bmonCv'));
+    if (!BMON) { BMON = window.VentMonitor.create($('bmonCv')); pulseDot = $('bmPulse'); }
     var e = S.eng, p = e.p;
     BMON.tick(real, { hr: e.hr, spo2: e.spo2, perf: e.co / (p.co || 5), arrested: e.arrested, frozen: S.frozen });
     if ((bmonNum += real) < 0.5) return;
     bmonNum = 0;
-    var nm = e.nm;
-    $('bmHr').textContent = e.arrested ? '0' : String(Math.round(e.hr));
-    $('bmSp').textContent = String(Math.round(e.spo2));
-    $('bmHr').parentNode.classList.toggle('alert', e.arrested || e.hr < nm.hr[0] * 0.8 || e.hr > nm.hr[1] * 1.25);
-    $('bmSp').parentNode.classList.toggle('alert', e.spo2 < nm.spo2[0] - 4);
+    /* 数字・正常域・色は呼吸器のタイルと同じ定義（VALS）を使う。 */
+    for (var k in MONITOR_VALS) {
+      var d = valDef(k), n = $(MONITOR_VALS[k]), box = n.parentNode;
+      var txt = k === 'HR' && e.arrested ? '0' : d.get(e);
+      if (n.textContent !== txt) n.textContent = txt;
+      var lim = box.querySelector('.bl');
+      if (lim && d.lim) lim.textContent = d.lim(e);
+      var tone = e.arrested && k !== 'SpO₂' ? 'hi' : (d.tone ? d.tone(e) : '');
+      box.classList.toggle('hi', tone === 'hi');
+      box.classList.toggle('mid', tone === 'mid');
+    }
   }
 
   function frame(now) {
@@ -2450,6 +2458,7 @@
       var kind = i < 0 ? one : one.slice(0, i), arg = i < 0 ? '' : one.slice(i + 1), n;
       if (kind === 'key') { if (keyNodes[arg]) out.push(keyNodes[arg].b); }
       else if (kind === 'val') {
+        if (MONITOR_VALS[arg]) { n = $(MONITOR_VALS[arg]); if (n) out.push(n.parentNode); }
         valNodes.forEach(function (o) { if (o.d.k === arg) out.push(o.n); });
       } else if (kind === 'hard') { n = $(arg); if (n) out.push(n); }
       else if (kind === 'mode' || kind === 'screen') {
@@ -2503,6 +2512,12 @@
     spotted = spec ? spotEls(spec) : [];
     spotted.forEach(function (n) { n.classList.add('spot'); n.dataset.spot = '1'; });
     revealTile();
+    /* ベッドサイドモニタの数字を光らせたとき、スマホで画面の外なら見える所まで動かす。 */
+    var mon = $('bmon');
+    if (S.lesson && mon && spotted.some(function (n) { return mon.contains(n); })) {
+      var r = mon.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > window.innerHeight) mon.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   }
 
   /* 計測値のタイルは枠の中でスクロールする（背の低い画面では SpO₂ や HR が枠の下に隠れる）。
