@@ -85,9 +85,9 @@ extension LessonLibrary {
             },
             .talk(.puku, "吐き残しを減らしたのに、どうして酸素が下がるの？"),
             .talk(.doctor, "吐き残しの圧が、潰れかけた肺胞を支えていたからです。その分を、設定の PEEP で支え直します。"),
-            .step("PEEP を 8 にし、SpO₂ 92% 以上を 30 秒保ってください。",
+            .step("PEEP を 8 にし、SpO₂ 92% 以上を 15 秒保ってください。",
                   hint: "足りなければ FiO₂ も少し上げます。PEEP を上げたら血圧も見ます。",
-                  hold: 30,
+                  hold: 15,
                   why: "たまたま残った圧ではなく、決めた圧で肺胞を支えます。いくつかけているかが分かる圧に置き換えた、ということです。",
                   check: { $0.settings.peep >= 8 && $0.engine.spo2 >= 92 })
                 .spotting(["key:peep", "key:fio2"]).watching(["SpO₂", "ABP mean", "Pplat"]),
@@ -201,8 +201,8 @@ extension LessonLibrary {
                     }
             }
                 .spotting(["hard:kO2", "hard:kSuc"]).watching(["PIP", "SpO₂"]),
-            .step("SpO₂ と心拍を 1 分見てください。",
-                  hold: 60,
+            .step("SpO₂ と心拍を 30 秒見てください。",
+                  hold: 30,
                   why: "吸引のあいだに SpO₂ は一度下がり、そこから戻っていきます。先に 100% で貯金したぶん、浅く済みます。乳児は吸引で徐脈にもなるので、心拍も一緒に見ます。",
                   check: { _ in true })
                 .spotting(["val:SpO₂"]).watching(["SpO₂", "HR", "PIP"]),
@@ -360,8 +360,8 @@ extension LessonLibrary {
                   hint: "実際は 2 ずつ上げて、Pplat と血圧を見ながら進めます。",
                   check: { $0.settings.peep >= 10 })
                 .spotting(["key:peep"]).watching(["SpO₂", "Pplat", "ABP mean"]),
-            .step("そのまま 60 秒、SpO₂ と Pplat と血圧を見てください。",
-                  hold: 60,
+            .step("そのまま 15 秒、SpO₂ と Pplat と血圧を見てください。",
+                  hold: 15,
                   check: { $0.settings.peep >= 10 })
                 .explaining { c in
                 let n = c.engine.norms
@@ -374,7 +374,7 @@ extension LessonLibrary {
             .talk(.doctor, "開いたら、酸素は下げる。100% のままにしないこと。この子の SpO₂ の目標は 92〜97% です。"),
             .step("SpO₂ 92% 以上のまま、FiO₂ を 60% 以下にしてください。",
                   hint: "5〜10% ずつ下げて SpO₂ を確かめます。",
-                  hold: 30,
+                  hold: 15,
                   why: "PEEP で開いてから FiO₂ を下げる。この順番でしたね。",
                   check: { $0.settings.fio2 <= 0.61 && $0.engine.spo2 >= 92 })
                 .spotting(["key:fio2"]).watching(["SpO₂"]),
@@ -448,14 +448,14 @@ extension LessonLibrary {
                    "順番があります。"],
                   why: "濃い酸素は肺を傷めるので、先に下げます。PEEP は肺胞を開いておく支えなので、最後まで残します。"),
             .step("SpO₂ 92% 以上のまま、FiO₂ を 40% 以下にしてください。",
-                  hold: 30,
+                  hold: 15,
                   why: "FiO₂ 40% まで下がりました。次は PEEP です。",
                   check: { $0.settings.fio2 <= 0.41 && $0.engine.spo2 >= 92 })
                 .spotting(["key:fio2"]).watching(["SpO₂"]),
             .talk(.doctor, "PEEP は 2 ずつ。下げたら、しばらく SpO₂ を見ます。落ちてくるなら、まだ肺胞が支えを必要としている証拠です。"),
-            .step("PEEP を 2 ずつ下げて 8 にし、90 秒 SpO₂ 92% 以上を保ってください。",
+            .step("PEEP を 2 ずつ下げて 8 にし、15 秒 SpO₂ 92% 以上を保ってください。",
                   hint: "「× 10」で早送りすると、変化がはやく見えます。",
-                  hold: 90,
+                  hold: 15,
                   why: "肺胞は潰れずに保たれています。Pplat が下がり、血圧も少し楽になりました。",
                   check: { $0.settings.peep <= 8 && $0.engine.spo2 >= 92 })
                 .spotting(["key:peep"]).watching(["SpO₂", "Pplat", "ABP mean"]),
@@ -518,8 +518,8 @@ extension LessonLibrary {
                  event: .modePSV,
                  why: "機械からの強制換気がなくなりました。すべての呼吸を、ミオちゃんが始めています。")
                 .spotting(["mode:PSV"]),
-            .step("PS を調整して Vte を 6〜8 mL/kg に入れ、30 秒保ってください。",
-                  hold: 30,
+            .step("PS を調整して Vte を 6〜8 mL/kg に入れ、15 秒保ってください。",
+                  hold: 15,
                   why: "楽に目標の量を出せています。呼吸回数も、この年齢の範囲です。",
                   check: { (5.5...8.5).contains($0.tidalPerKg) })
                 .hinting { c in
@@ -609,7 +609,7 @@ extension LessonLibrary {
             .talk(.puku, "いまは何 mL 入ってるの？")
                 .looking(["val:Vte"]),
             .step("P insp を下げて、Vte を 4〜6 mL/kg に入れてください。",
-                  hold: 20,
+                  hold: 15,
                   why: "蘇生のときは、肺を広げるために強めに押していました。そのままでは入れすぎで、CO₂ も下がりすぎます。",
                   check: { (4...6.4).contains($0.tidalPerKg) })
                 .hinting { c in
@@ -633,9 +633,9 @@ extension LessonLibrary {
                   check: { $0.settings.peep >= 7 })
                 .spotting(["key:peep"]).watching(["SpO₂", "Vte", "ABP mean"]),
             .talk(.doctor, "早産児の SpO₂ の目標は 90〜95%。上げすぎると、目の網膜の血管が異常に伸びます。未熟児網膜症です。"),
-            .step("FiO₂ を下げて、SpO₂ を 90〜95% に 30 秒入れてください。",
+            .step("FiO₂ を下げて、SpO₂ を 90〜95% に 15 秒入れてください。",
                   hint: "5〜10% ずつ下げます。95% を超えていたら、まだ下げられます。",
-                  hold: 30,
+                  hold: 15,
                   why: "酸素を「足りるだけ」に合わせました。多すぎても少なすぎても害になるのが、早産児の酸素です。",
                   check: { $0.settings.fio2 < 0.99 && (90...95).contains($0.engine.spo2) })
                 .spotting(["key:fio2"]).watching(["SpO₂"]),
@@ -678,8 +678,8 @@ extension LessonLibrary {
             .talk(.doctor, "サーファクタントが効いてきました。ここからの数時間は、呼吸器の前を離れられません。"),
             .talk(.puku, "良くなってるなら、安心なんじゃないの？"),
             .talk(.doctor, "PC は圧を約束するモードでした。肺が柔らかくなると、同じ圧で入る量が増えます。何が起きるか、見てみましょう。"),
-            .step("Vte と Cstat を 30 秒見てください。",
-                  hold: 30,
+            .step("Vte と Cstat を 15 秒見てください。",
+                  hold: 15,
                   check: { _ in true })
                 .explaining { c in
                 "Vte は " + String(format: "%.1f", c.tidalPerKg) + " mL/kg。圧は変えていないのに、目標の 6 を超えています。肺が柔らかくなった（Cstat が上がった）ぶんです。"
@@ -696,7 +696,7 @@ extension LessonLibrary {
                    "PC では圧は設定どおりです。"],
                   why: "肺胞が伸ばされすぎ（容量損傷）、CO₂ も吐き出されすぎます。圧を約束するモードでは、量を見張るのが人の仕事です。"),
             .step("P insp を下げて、Vte を 4〜6 mL/kg に戻してください。",
-                  hold: 20,
+                  hold: 15,
                   why: "同じ量を、より低い圧で入れられるようになりました。これが「肺が良くなった」の姿です。",
                   check: { (4...6.2).contains($0.tidalPerKg) && $0.settings.inspiratoryPressure < 12 })
                 .hinting { c in
@@ -705,7 +705,7 @@ extension LessonLibrary {
                 .spotting(["key:pinsp"]).watching(["Vte", "PIP", "ΔP"]),
             .talk(.doctor, "柔らかくなれば、酸素の通り道も開きます。SpO₂ を見てください。"),
             .step("SpO₂ 90〜95% を保ったまま、FiO₂ を 30% 以下にしてください。",
-                  hold: 30,
+                  hold: 15,
                   why: "酸素も下げられました。サーファクタントが効くと、FiO₂ は数時間で大きく下がります。",
                   check: { $0.settings.fio2 <= 0.31 && (90...96).contains($0.engine.spo2) })
                 .spotting(["key:fio2"]).watching(["SpO₂"]),
@@ -886,7 +886,7 @@ extension LessonLibrary {
                    "吐く量が増えて、吐き残しが増えます。"],
                   why: "肺胞を守る目安は Pplat と auto-PEEP。PIP は抵抗の分で高く出ます。PIP を下げようと流量を落とすのは、喘息ではよくある逆効果です。"),
             .step("SpO₂ 94% 以上のまま、FiO₂ を 40% 以下にしてください。",
-                  hold: 20,
+                  hold: 15,
                   why: "喘息の子の肺胞は潰れていないので、酸素はすぐ下げられます。問題は、吐けないことだけです。",
                   check: { $0.settings.fio2 <= 0.41 && $0.engine.spo2 >= 94 })
                 .spotting(["key:fio2"]).watching(["SpO₂"])
@@ -915,8 +915,8 @@ extension LessonLibrary {
             },
             .talk(.puku, "あれ、それってそうた君のときと同じ…"),
             .talk(.doctor, "同じ落とし穴です。数字だけを見ると、誰でも一度はやります。何が起きるか、モニターを見ていてください。"),
-            .step("平均動脈圧と auto-PEEP の動きを 40 秒見てください。",
-                  hold: 40,
+            .step("平均動脈圧と auto-PEEP の動きを 30 秒見てください。",
+                  hold: 30,
                   why: "回数を上げたぶん吐ききれず、空気がたまっていきます。平均動脈圧が下がってきました。",
                   check: { _ in true })
                 .spotting(["val:ABP mean", "val:auto-PEEP"]).watching(["ABP mean", "PIP", "SpO₂"]),
@@ -1073,8 +1073,8 @@ extension LessonLibrary {
             .talk(.puku, "休ませながら、鍛える？ どっちなの？"),
             .talk(.doctor, "両方です。筋肉は、使わなければ衰え、使いすぎれば疲れます。その間の、ちょうどいい負荷を探します。"),
             .talk(.doctor, "いまは PSV で、PS は 12。この子が吸うたびに、かなり強く後押ししています。呼吸は楽なはずです。"),
-            .step("呼吸回数と f/VT を 60 秒見てください。",
-                  hold: 60,
+            .step("呼吸回数と f/VT を 15 秒見てください。",
+                  hold: 15,
                   why: "ゆっくり深い呼吸です。いまは、ほとんど機械が仕事をしています。",
                   check: { $0.measured.rsbiPerKg != nil })
                 .passing { c in
@@ -1101,7 +1101,7 @@ extension LessonLibrary {
                    "疲れきるまで粘らせるのは、鍛えることになりません。"],
                   why: "浅く速くなってきたところが、今日の限界です。そこで手伝いを戻し、休ませる。明日は少し長く、少し低い PS で試します。"),
             .step("PS を 10 以上に戻し、呼吸回数が落ち着くのを見てください。",
-                  hold: 120,
+                  hold: 60,
                   why: "後押しが戻り、呼吸が深くゆっくりになりました。今日の練習はここまでです。",
                   check: { $0.settings.pressureSupport >= 10 })
                 .spotting(["key:ps"]).watching(["RR tot", "f/VT", "Vte"]),

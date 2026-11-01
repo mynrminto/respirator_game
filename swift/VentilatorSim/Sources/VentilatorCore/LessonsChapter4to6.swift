@@ -202,8 +202,8 @@ extension LessonLibrary {
                   hint: "実際は 2 cmH₂O ずつ上げて、Pplat と血圧を見ながら進めます。",
                   check: { $0.settings.peep >= 14 })
                 .spotting(["key:peep"]).watching(["SpO₂", "Pplat", "ABP mean"]),
-            .step("そのまま 60 秒、SpO₂ と Pplat と平均動脈圧を見てください。",
-                  hold: 60,
+            .step("そのまま 15 秒、SpO₂ と Pplat と平均動脈圧を見てください。",
+                  hold: 15,
                   check: { $0.settings.peep >= 14 })
                 .explaining { c in
                     let mapMin = c.engine.norms.meanArterialPressureMin
@@ -228,7 +228,7 @@ extension LessonLibrary {
                 .spotting(["hard:kAbg"]).watching(["SpO₂"]),
             .talk(.doctor, "開いたら、酸素は下げる。この順番が大事です。"),
             .step("SpO₂ 92% 以上を保ったまま、FiO₂ を 60% 以下に下げてください。",
-                  hold: 30,
+                  hold: 15,
                   why: "「PEEP で開いてから FiO₂ を下げる」という順番です。逆だと、FiO₂ だけが高いまま肺は潰れたまま、という状態が続きます。",
                   check: { $0.settings.fio2 <= 0.61 && $0.engine.spo2 >= 92 })
                 .spotting(["key:fio2"]).watching(["SpO₂"]),
@@ -420,7 +420,7 @@ extension LessonLibrary {
                     }
                 }
                 .spotting(["hard:kO2", "hard:kSuc"]).watching(["PIP", "SpO₂"]),
-            .step("SpO₂ の動きを 1 分見てください。", hold: 60,
+            .step("SpO₂ の動きを 30 秒見てください。", hold: 30,
                   why: "吸引のあいだは換気が止まり、陰圧で肺胞も潰れるので、SpO₂ が一時的に下がりました。押した瞬間ではなく、肺から指先のセンサーに届くまでの遅れのあとで底をつけます。先に 100% で貯金しておいたぶん、落ち込みは小さく、1〜2 分で戻ります。新生児では徐脈も起こるので心拍も一緒に見ます。",
                   check: { _ in true })
                 .spotting(["val:SpO₂"]).watching(["SpO₂", "HR", "PIP"])
@@ -448,8 +448,8 @@ extension LessonLibrary {
             .talk(.puku, "吐くのって、放っておけば出ていくんじゃないの？"),
             .talk(.doctor, "細い気道では、出ていく時間が足りません。波形に出ます。見てください。"),
             .talk(.doctor, "吐ききる前に次の吸気が来ると、肺に空気が残ります。残った空気が作る圧が auto-PEEP。設定の PEEP に上乗せされます。"),
-            .step("流量波形（真ん中、緑）を 20 秒見てください。呼気がゼロに戻りきっていますか。",
-                  hold: 20,
+            .step("流量波形（真ん中、緑）を 15 秒見てください。呼気がゼロに戻りきっていますか。",
+                  hold: 15,
                   why: "呼気が底からゼロに戻る前に、次の吸気で断ち切られています。これが吐き残しの形です。",
                   check: { _ in true })
                 .spotting(["wave"]).watching(["RR tot", "I:E"]),
@@ -559,8 +559,8 @@ extension LessonLibrary {
                          "リークなら Vte が減ります。Vte は保たれています。", "鎮静では片側の呼吸音は消えません。"],
                   why: "片肺挿管なら、チューブは右主気管支に入りやすいので消えるのは左。0.5〜1 cm 引き抜けば戻ります。チューブの深さが変わっていなければ、次に疑うのは気胸です。"),
             .talk(.scene, "チューブの深さは変わっていない。胸の X 線を撮ると、左に気胸があった。すぐに胸腔ドレーンが入る。"),
-            .step("SpO₂ と圧が戻るのを 40 秒見てください。",
-                  hold: 40,
+            .step("SpO₂ と圧が戻るのを 15 秒見てください。",
+                  hold: 15,
                   why: "肺が戻れば圧も酸素化も戻ります。人工呼吸器の設定をいじっても直らない原因があることが分かります。",
                   check: { _ in true })
                 .starting { c in

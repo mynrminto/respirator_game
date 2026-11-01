@@ -733,7 +733,7 @@ console.log('\n20. レッスンの目標が到達可能か');
     `SpO2 ${before.spo2.toFixed(0)}→${e53.spo2.toFixed(0)}%`);
   // ドレーン後の課題で元に戻ること
   // ドレーンを入れる課題（シャントと硬さを戻す onStart を持つ）まで進める
-  rt53.index = l53.tasks.findIndex(t => t.hold === 40);
+  rt53.index = l53.tasks.findIndex(t => /SpO₂ と圧が戻る/.test(t.say || "")); // ドレーン後の観察
   rt53.enter(ctx53());
   run(e53, 600, 0.01);
   ok('5-3 の処置で圧も酸素化も戻る',

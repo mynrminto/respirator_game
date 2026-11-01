@@ -565,11 +565,11 @@
             say: 'そこが落とし穴です。まず上げてみて、そのあと確かめましょう。'
           },
           {
-            say: '呼吸回数を上げて MV を 3.0〜4.2 L/分 に入れ、30 秒保ってください。',
+            say: '呼吸回数を上げて MV を 3.0〜4.2 L/分 に入れ、15 秒保ってください。',
             hint: 'Vt 150 mL なら RR 20〜28 のあたりです。',
             spot: 'key:rr', watch: ['MV', 'RR tot'],
             check: function (c) { return c.s.rr > 10 && c.m.mv >= 3.0 && c.m.mv <= 4.2; },
-            hold: 30,
+            hold: 15,
             why: '体重 25 kg では 120〜170 mL/kg/分 が安静時の目安です。'
               + '乳児はもっと多く要ります（200 mL/kg/分 前後）。代謝が体重あたりで大きいからです。'
           },
@@ -662,11 +662,11 @@
             say: 'とりあえずはそれで正解。ただ、下げ忘れないこと。まず下げるほうからやります。'
           },
           {
-            say: 'SpO₂ 94% 以上のまま、FiO₂ を 40% 以下に下げて 40 秒保ちます。',
+            say: 'SpO₂ 94% 以上のまま、FiO₂ を 40% 以下に下げて 15 秒保ちます。',
             hint: '5〜10% ずつ下げて SpO₂ を確かめます。急ぐときは「× 10」で早送りできます。',
             spot: 'key:fio2', watch: ['SpO₂'],
             check: function (c) { return c.s.fio2 <= 0.41 && c.e.spo2 >= 94; },
-            hold: 40,
+            hold: 15,
             why: 'この児は肺がほぼ正常なので、FiO₂ は早く下げられます。'
               + '高い FiO₂ は、着いた直後に安全を確かめるあいだだけ。SpO₂ を見ながら、目標を保てる最小の濃度まで下げていきます。'
           },
@@ -700,10 +700,10 @@
             say: '平均動脈圧（ABP mean）は、1 拍を通した血圧の平均。臓器に血液が届いているかの目安です。'
           },
           {
-            say: 'そのまま 45 秒、平均動脈圧を見てください。',
+            say: 'そのまま 30 秒、平均動脈圧を見てください。',
             spot: 'val:ABP mean', watch: ['ABP mean', 'SpO₂', 'Pplat'],
             check: function (c) { return c.s.peep >= 12; },
-            hold: 45,
+            hold: 30,
             why: function (c) {
               return '平均動脈圧 {ABP mean} mmHg（この年齢の下限は ' + c.e.nm.mapMin + '）。SpO₂ はほとんど変わっていません。'
                 + '胸腔内圧が上がって静脈還流が減り、心拍出量が落ちました。';
@@ -785,12 +785,12 @@
             say: 'P insp は、PC で決める吸気の圧。PEEP にどれだけ上乗せするかの値です。上げるほど、入る量が増えます。'
           },
           {
-            say: 'P insp を動かして Vte を 6 mL/kg 前後にし、20 秒保ってください。',
+            say: 'P insp を動かして Vte を 6 mL/kg 前後にし、15 秒保ってください。',
             hint: function (c) { return '体重 ' + c.pbw + ' kg なので目標は ' + mlkg(c, 6) + ' mL 前後です。'
               + 'P insp は PEEP への上乗せで、PIP ≒ PEEP ＋ P insp になります。'; },
             spot: 'key:pinsp', watch: ['Vte', 'PIP', 'Pplat'],
             check: function (c) { return Math.abs(vtPerKg(c) - 6) <= 1; },
-            hold: 20,
+            hold: 15,
             why: '同じ換気量を、今度は圧で作りました。VC と PC はゴールが同じで、道順が違うだけです。'
           },
           {
@@ -879,10 +879,10 @@
             say: 'やってみましょう。いちばん鈍くします。見るのは数字より圧波形です。'
           },
           {
-            say: 'トリガ感度を 8 L/分 にして確定し、圧波形を 25 秒見てください。',
+            say: 'トリガ感度を 8 L/分 にして確定し、圧波形を 15 秒見てください。',
             spot: ['key:trig', 'wave'], watch: ['RR tot'],
             check: function (c) { return c.s.trigFlow >= 7.5; },
-            hold: 25,
+            hold: 15,
             why: '送気の合間に、圧波形が小さく下へ沈んでいます（流量にも小さな山）。'
               + 'この子は吸おうとしているのに、機械が応えていません。'
           },
@@ -968,10 +968,10 @@
             why: '強制換気は設定 RR の回数だけになり、その合間の自発呼吸は PS で手伝われます。'
           },
           {
-            say: '30 秒待って、実測の呼吸回数と自発の回数を見比べてください。',
+            say: '15 秒待って、実測の呼吸回数と自発の回数を見比べてください。',
             spot: 'val:RR tot', watch: ['RR tot', 'Vte', 'MV'],
             check: function (c) { return true; },
-            hold: 30,
+            hold: 15,
             why: function (c) {
               var mand = Math.max(0, Math.round(c.m.rrTotal) - Math.round(c.m.rrSpont));
               return '実測 ' + Math.round(c.m.rrTotal) + ' 回/分のうち、強制換気が ' + mand
@@ -1006,11 +1006,11 @@
             why: '強制換気がなくなりました。すべての呼吸を患者が始めています。'
           },
           {
-            say: 'PS を調整して Vte を 6〜8 mL/kg に入れ、20 秒保ってください。',
+            say: 'PS を調整して Vte を 6〜8 mL/kg に入れ、15 秒保ってください。',
             hint: function (c) { return '体重 ' + c.pbw + ' kg なので目標は ' + mlkg(c, 6) + '〜' + mlkg(c, 8) + ' mL です。'; },
             spot: 'key:ps', watch: ['Vte', 'RR tot'],
             check: function (c) { var x = vtPerKg(c); return x >= 5.5 && x <= 8.5; },
-            hold: 20,
+            hold: 15,
             why: 'PS は「その子が楽に目標の換気量を出せる最小の圧」で決めます。'
               + '小児はチューブが細いぶん、同じ「ほとんど手伝わない」でも乳児 PS 8、学童 PS 5 と差がつきます。'
           },
@@ -1343,10 +1343,10 @@
             why: ''
           },
           {
-            say: 'そのまま 60 秒、SpO₂ と Pplat と平均動脈圧を見てください。',
+            say: 'そのまま 15 秒、SpO₂ と Pplat と平均動脈圧を見てください。',
             watch: ['SpO₂', 'Pplat', 'ABP mean'],
             check: function (c) { return c.s.peep >= 14; },
-            hold: 60,
+            hold: 15,
             why: function (c) {
               return 'ARDS の肺にはリクルートできる部分が多いので、酸素化が改善します。'
                 + (c.e.map < c.e.nm.mapMin
@@ -1374,7 +1374,7 @@
             say: 'SpO₂ 92% 以上を保ったまま、FiO₂ を 60% 以下に下げてください。',
             spot: 'key:fio2', watch: ['SpO₂'],
             check: function (c) { return c.s.fio2 <= 0.61 && c.e.spo2 >= 92; },
-            hold: 30,
+            hold: 15,
             why: '「PEEP で開いてから FiO₂ を下げる」という順番です。'
               + '逆だと、FiO₂ だけが高いまま肺は潰れたまま、という状態が続きます。'
           },
@@ -1638,10 +1638,10 @@
             why: '痰が取れました。抵抗が戻り、PIP が下がります。'
           },
           {
-            say: 'SpO₂ の動きを 1 分見てください。',
+            say: 'SpO₂ の動きを 30 秒見てください。',
             spot: 'val:SpO₂', watch: ['SpO₂', 'HR', 'PIP'],
             check: function (c) { return true; },
-            hold: 60,
+            hold: 30,
             why: '吸引のあいだは換気が止まり、陰圧で肺胞も潰れるので、SpO₂ が一時的に下がりました。'
               + '押した瞬間ではなく、肺から指先のセンサーに届くまでの遅れのあとで底をつけます。先に 100% で貯金しておいたぶん、落ち込みは小さく、1〜2 分で戻ります。新生児では徐脈も起こるので心拍も一緒に見ます。'
           }
@@ -1682,10 +1682,10 @@
             say: '吐ききる前に次の吸気が来ると、肺に空気が残ります。残った空気が作る圧が auto-PEEP。設定の PEEP に上乗せされます。'
           },
           {
-            say: '流量波形（真ん中、緑）を 20 秒見てください。呼気がゼロに戻りきっていますか。',
+            say: '流量波形（真ん中、緑）を 15 秒見てください。呼気がゼロに戻りきっていますか。',
             spot: 'wave', watch: ['RR tot', 'I:E'],
             check: function (c) { return true; },
-            hold: 20,
+            hold: 15,
             why: '呼気が底からゼロに戻る前に、次の吸気で断ち切られています。これが吐き残しの形です。'
           },
           {
@@ -1858,14 +1858,14 @@
             say: 'チューブの深さは変わっていない。胸の X 線を撮ると、左に気胸があった。すぐに胸腔ドレーンが入る。'
           },
           {
-            say: 'SpO₂ と圧が戻るのを 40 秒見てください。',
+            say: 'SpO₂ と圧が戻るのを 15 秒見てください。',
             onStart: function (c) {
               if (c.mem.c0) { c.e.C = c.mem.c0; }
               if (c.mem.sh0 != null) { c.e.p.shunt0 = c.mem.sh0; c.e.p.shuntMin = c.mem.shMin0; }
             },
             spot: 'val:SpO₂', watch: ['SpO₂', 'PIP', 'Pplat'],
             check: function (c) { return true; },
-            hold: 40,
+            hold: 15,
             why: '肺が戻れば圧も酸素化も戻ります。人工呼吸器の設定をいじっても直らない原因があることが分かります。'
           },
           {
@@ -2271,11 +2271,11 @@
             say: '吐き残しの圧が、潰れかけた肺胞を支えていたからです。その分を、設定の PEEP で支え直します。'
           },
           {
-            say: 'PEEP を 8 にし、SpO₂ 92% 以上を 30 秒保ってください。',
+            say: 'PEEP を 8 にし、SpO₂ 92% 以上を 15 秒保ってください。',
             hint: '足りなければ FiO₂ も少し上げます。PEEP を上げたら血圧も見ます。',
             spot: ['key:peep', 'key:fio2'], watch: ['SpO₂', 'ABP mean', 'Pplat'],
             check: function (c) { return c.s.peep >= 8 && c.e.spo2 >= 92; },
-            hold: 30,
+            hold: 15,
             why: 'たまたま残った圧ではなく、決めた圧で肺胞を支えます。いくつかけているかが分かる圧に置き換えた、ということです。'
           },
           {
@@ -2427,10 +2427,10 @@
             why: '粘い痰が取れました。抵抗が戻り、PIP が下がります。'
           },
           {
-            say: 'SpO₂ と心拍を 1 分見てください。',
+            say: 'SpO₂ と心拍を 30 秒見てください。',
             spot: 'val:SpO₂', watch: ['SpO₂', 'HR', 'PIP'],
             check: function (c) { return true; },
-            hold: 60,
+            hold: 30,
             why: '吸引のあいだに SpO₂ は一度下がり、そこから戻っていきます。先に 100% で貯金したぶん、浅く済みます。乳児は吸引で徐脈にもなるので、心拍も一緒に見ます。'
           },
           {
@@ -2666,10 +2666,10 @@
             why: ''
           },
           {
-            say: 'そのまま 60 秒、SpO₂ と Pplat と血圧を見てください。',
+            say: 'そのまま 15 秒、SpO₂ と Pplat と血圧を見てください。',
             watch: ['SpO₂', 'Pplat', 'ABP mean'],
             check: function (c) { return c.s.peep >= 10; },
-            hold: 60,
+            hold: 15,
             why: function (c) {
               return 'Pplat {Pplat} は上限 ' + c.e.nm.platMax + ' の内側です。'
                 + (c.e.map < c.e.nm.mapMin
@@ -2686,7 +2686,7 @@
             hint: '5〜10% ずつ下げて SpO₂ を確かめます。',
             spot: 'key:fio2', watch: ['SpO₂'],
             check: function (c) { return c.s.fio2 <= 0.61 && c.e.spo2 >= 92; },
-            hold: 30,
+            hold: 15,
             why: 'PEEP で開いてから FiO₂ を下げる。この順番でしたね。'
           },
           {
@@ -2778,7 +2778,7 @@
             say: 'SpO₂ 92% 以上のまま、FiO₂ を 40% 以下にしてください。',
             spot: 'key:fio2', watch: ['SpO₂'],
             check: function (c) { return c.s.fio2 <= 0.41 && c.e.spo2 >= 92; },
-            hold: 30,
+            hold: 15,
             why: 'FiO₂ 40% まで下がりました。次は PEEP です。'
           },
           {
@@ -2786,11 +2786,11 @@
             say: 'PEEP は 2 ずつ。下げたら、しばらく SpO₂ を見ます。落ちてくるなら、まだ肺胞が支えを必要としている証拠です。'
           },
           {
-            say: 'PEEP を 2 ずつ下げて 8 にし、90 秒 SpO₂ 92% 以上を保ってください。',
+            say: 'PEEP を 2 ずつ下げて 8 にし、15 秒 SpO₂ 92% 以上を保ってください。',
             hint: '「× 10」で早送りすると、変化がはやく見えます。',
             spot: 'key:peep', watch: ['SpO₂', 'Pplat', 'ABP mean'],
             check: function (c) { return c.s.peep <= 8 && c.e.spo2 >= 92; },
-            hold: 90,
+            hold: 15,
             why: '肺胞は潰れずに保たれています。Pplat が下がり、血圧も少し楽になりました。'
           },
           {
@@ -2874,11 +2874,11 @@
             why: '機械からの強制換気がなくなりました。すべての呼吸を、ミオちゃんが始めています。'
           },
           {
-            say: 'PS を調整して Vte を 6〜8 mL/kg に入れ、30 秒保ってください。',
+            say: 'PS を調整して Vte を 6〜8 mL/kg に入れ、15 秒保ってください。',
             hint: function (c) { return '体重 ' + c.pbw + ' kg なので目標は ' + mlkg(c, 6) + '〜' + mlkg(c, 8) + ' mL です。'; },
             spot: 'key:ps', watch: ['Vte', 'RR tot', 'f/VT'],
             check: function (c) { var x = vtPerKg(c); return x >= 5.5 && x <= 8.5; },
-            hold: 30,
+            hold: 15,
             why: '楽に目標の量を出せています。呼吸回数も、この年齢の範囲です。'
           },
           {
@@ -3022,7 +3022,7 @@
             hint: function (c) { return '体重 ' + c.pbw + ' kg なので ' + mlkg(c, 4) + '〜' + mlkg(c, 6) + ' mL。Vte のタイルの右上が mL/kg です。'; },
             spot: 'key:pinsp', watch: ['Vte', 'PIP', 'etCO₂'],
             check: function (c) { var x = vtPerKg(c); return x >= 4 && x <= 6.4; },
-            hold: 20,
+            hold: 15,
             why: '蘇生のときは、肺を広げるために強めに押していました。そのままでは入れすぎで、CO₂ も下がりすぎます。'
           },
           {
@@ -3052,11 +3052,11 @@
             say: '早産児の SpO₂ の目標は 90〜95%。上げすぎると、目の網膜の血管が異常に伸びます。未熟児網膜症です。'
           },
           {
-            say: 'FiO₂ を下げて、SpO₂ を 90〜95% に 30 秒入れてください。',
+            say: 'FiO₂ を下げて、SpO₂ を 90〜95% に 15 秒入れてください。',
             hint: '5〜10% ずつ下げます。95% を超えていたら、まだ下げられます。',
             spot: 'key:fio2', watch: ['SpO₂'],
             check: function (c) { return c.s.fio2 < 0.99 && c.e.spo2 >= 90 && c.e.spo2 <= 95; },
-            hold: 30,
+            hold: 15,
             why: '酸素を「足りるだけ」に合わせました。多すぎても少なすぎても害になるのが、早産児の酸素です。'
           },
           {
@@ -3107,10 +3107,10 @@
             say: 'PC は圧を約束するモードでした。肺が柔らかくなると、同じ圧で入る量が増えます。何が起きるか、見てみましょう。'
           },
           {
-            say: 'Vte と Cstat を 30 秒見てください。',
+            say: 'Vte と Cstat を 15 秒見てください。',
             spot: ['val:Vte', 'val:Cstat'], watch: ['Vte', 'Cstat', 'etCO₂'],
             check: function (c) { return true; },
-            hold: 30,
+            hold: 15,
             why: function (c) {
               return 'Vte は ' + vtPerKg(c).toFixed(1) + ' mL/kg。圧は変えていないのに、目標の 6 を超えています。肺が柔らかくなった（Cstat が上がった）ぶんです。';
             }
@@ -3130,7 +3130,7 @@
             hint: function (c) { return '目標は ' + mlkg(c, 4) + '〜' + mlkg(c, 6) + ' mL。1 ずつ下げて Vte を見ます。'; },
             spot: 'key:pinsp', watch: ['Vte', 'PIP', 'ΔP'],
             check: function (c) { var x = vtPerKg(c); return x >= 4 && x <= 6.2 && c.s.pinsp < 12; },
-            hold: 20,
+            hold: 15,
             why: '同じ量を、より低い圧で入れられるようになりました。これが「肺が良くなった」の姿です。'
           },
           {
@@ -3141,7 +3141,7 @@
             say: 'SpO₂ 90〜95% を保ったまま、FiO₂ を 30% 以下にしてください。',
             spot: 'key:fio2', watch: ['SpO₂'],
             check: function (c) { return c.s.fio2 <= 0.31 && c.e.spo2 >= 90 && c.e.spo2 <= 96; },
-            hold: 30,
+            hold: 15,
             why: '酸素も下げられました。サーファクタントが効くと、FiO₂ は数時間で大きく下がります。'
           },
           {
@@ -3398,7 +3398,7 @@
             say: 'SpO₂ 94% 以上のまま、FiO₂ を 40% 以下にしてください。',
             spot: 'key:fio2', watch: ['SpO₂'],
             check: function (c) { return c.s.fio2 <= 0.41 && c.e.spo2 >= 94; },
-            hold: 20,
+            hold: 15,
             why: '喘息の子の肺胞は潰れていないので、酸素はすぐ下げられます。問題は、吐けないことだけです。'
           }
         ]
@@ -3431,10 +3431,10 @@
             say: '同じ落とし穴です。数字だけを見ると、誰でも一度はやります。何が起きるか、モニターを見ていてください。'
           },
           {
-            say: '平均動脈圧と auto-PEEP の動きを 40 秒見てください。',
+            say: '平均動脈圧と auto-PEEP の動きを 30 秒見てください。',
             spot: ['val:ABP mean', 'val:auto-PEEP'], watch: ['ABP mean', 'PIP', 'SpO₂'],
             check: function (c) { return true; },
-            hold: 40,
+            hold: 30,
             why: '回数を上げたぶん吐ききれず、空気がたまっていきます。平均動脈圧が下がってきました。'
           },
           {
@@ -3650,10 +3650,10 @@
             say: 'いまは PSV で、PS は 12。この子が吸うたびに、かなり強く後押ししています。呼吸は楽なはずです。'
           },
           {
-            say: '呼吸回数と f/VT を 60 秒見てください。',
+            say: '呼吸回数と f/VT を 15 秒見てください。',
             spot: ['val:RR tot', 'val:f/VT'], watch: ['RR tot', 'f/VT', 'Vte'],
             check: function (c) { return c.m.rsbiKg != null; },
-            hold: 60,
+            hold: 15,
             onPass: function (c) { c.mem.rr111 = c.m.rrTotal; },
             why: 'ゆっくり深い呼吸です。いまは、ほとんど機械が仕事をしています。'
           },
@@ -3682,7 +3682,7 @@
             say: 'PS を 10 以上に戻し、呼吸回数が落ち着くのを見てください。',
             spot: 'key:ps', watch: ['RR tot', 'f/VT', 'Vte'],
             check: function (c) { return c.s.ps >= 10; },
-            hold: 120,
+            hold: 60,
             why: '後押しが戻り、呼吸が深くゆっくりになりました。今日の練習はここまでです。'
           },
           {
@@ -3907,7 +3907,7 @@
             hint: 'SpO₂ が 90% に届かなければ、MAP を 1〜2 上げてから FiO₂ を下げます。',
             spot: ['key:fio2', 'key:map'], watch: ['SpO₂', 'Pmean', 'ABP mean'],
             check: function (c) { return c.s.fio2 <= 0.41 && c.e.spo2 >= 90 && c.e.spo2 <= 95; },
-            hold: 30,
+            hold: 15,
             why: '70% だった酸素が {FiO₂}% まで下がりました。押さずに、開いて揺らす。これが HFO です。'
           }
         ]
@@ -3998,7 +3998,7 @@
             hint: '下がりすぎたら Amp を下げます。CO₂ の下がりすぎは、早産児の脳の血流を減らします。',
             spot: ['key:amp', 'key:freq'], watch: ['tcPCO₂', 'VThf'],
             check: function (c) { return c.e.tcpco2 >= 45 && c.e.tcpco2 <= 58; },
-            hold: 20,
+            hold: 15,
             why: 'CO₂ が目標に入りました。HFO の CO₂ は振幅と周波数、酸素化は MAP。つまみの役割が分かれています。'
           },
           {
@@ -4055,7 +4055,7 @@
             hint: 'MAP を 11 前後まで。SpO₂ が 90% を切るなら下げすぎです。',
             spot: 'key:map', watch: ['ABP mean', 'SpO₂', 'Pmean'],
             check: function (c) { return c.s.hfoMap <= 12 && c.e.map >= c.e.nm.mapMin + 2 && c.e.spo2 >= 90; },
-            hold: 20,
+            hold: 15,
             why: '膨らみすぎがとれて、血圧が戻りました。酸素化も落ちていません。'
           },
           {
@@ -4072,7 +4072,7 @@
             say: 'SpO₂ 90〜95% のまま、FiO₂ を 30% 以下に。',
             spot: 'key:fio2', watch: ['SpO₂', 'Pmean'],
             check: function (c) { return c.s.fio2 <= 0.31 && c.e.spo2 >= 90 && c.e.spo2 <= 95; },
-            hold: 30,
+            hold: 15,
             why: '酸素は {FiO₂}%、MAP は {MAP}。HFO を降りる日が見えてきました。'
           },
           {
@@ -4153,7 +4153,7 @@
             say: 'NAVA を 1.5 に上げて、Edi と Vte を見ます。',
             spot: 'key:nava', watch: ['Edi peak', 'Vte', 'PIP', 'RR tot'],
             check: function (c) { return c.s.navaLevel >= 1.45; },
-            hold: 40,
+            hold: 15,
             why: 'PIP は上がり、Edi peak は下がりました。Vte はあまり変わっていません。'
           },
           {
@@ -4176,7 +4176,7 @@
             hint: 'NAVA レベルは 0.5〜2 cmH₂O/µV が目安です。',
             spot: 'key:nava', watch: ['Edi peak', 'Vte', 'SpO₂'],
             check: function (c) { return c.m.ediPeak >= 5 && c.m.ediPeak <= 15 && c.e.spo2 >= 90; },
-            hold: 30,
+            hold: 15,
             why: 'つむぎちゃんのがんばりと、機械の手伝いの釣り合いがとれました。'
           }
         ]
@@ -4220,7 +4220,7 @@
             hint: 'PEEP を 1 ずつ。6〜7 が目安です。',
             spot: 'key:peep', watch: ['Edi min', 'Edi peak', 'SpO₂'],
             check: function (c) { return c.m.ediMin != null && c.m.ediMin < 3; },
-            hold: 20,
+            hold: 15,
             why: 'Edi min が下がりました。横隔膜が、吐くたびにブレーキをかけなくてよくなりました。'
           },
           {
@@ -4263,7 +4263,7 @@
             hint: 'NAVA レベルを下げても Edi が 15 を超えなければ、つむぎちゃんの力が戻ってきた印です。',
             spot: 'key:nava', watch: ['Edi peak', 'RR tot', 'SpO₂'],
             check: function (c) { return c.s.navaLevel <= 1.05 && c.m.ediPeak >= 5 && c.m.ediPeak <= 15 && c.e.spo2 >= 90; },
-            hold: 30,
+            hold: 15,
             why: '少ない手伝いで、自分の力で吸えています。チューブを抜く準備ができてきました。'
           }
         ]
@@ -4336,7 +4336,7 @@
             hint: 'Edi が 15 を超えるなら NAVA レベルを上げ、SpO₂ が高ければ FiO₂ を下げます。',
             spot: ['key:nava', 'key:fio2'], watch: ['Edi peak', 'RR tot', 'SpO₂'],
             check: function (c) { return c.m.ediPeak >= 5 && c.m.ediPeak <= 15 && c.e.spo2 >= 90 && c.e.spo2 <= 95; },
-            hold: 30,
+            hold: 15,
             why: 'チューブがなくても、つむぎちゃんの合図で呼吸器が動いています。'
           },
           {
@@ -4401,7 +4401,7 @@
             say: 'Flow を 6 L/min に上げてください。',
             spot: 'key:hflow', watch: ['RR tot', 'SpO₂', 'tcPCO₂'],
             check: function (c) { return c.s.hfncFlow >= 6; },
-            hold: 30,
+            hold: 15,
             why: '呼吸数が落ち着き、SpO₂ が上がりました。流れが死腔を洗い、少しの圧で肺胞を支えています。'
           },
           {
@@ -4415,10 +4415,10 @@
             }
           },
           {
-            say: 'FiO₂ を下げて、SpO₂ 90〜95% を 30 秒保ってください。',
+            say: 'FiO₂ を下げて、SpO₂ 90〜95% を 15 秒保ってください。',
             spot: 'key:fio2', watch: ['SpO₂', 'RR tot'],
             check: function (c) { return c.s.fio2 <= 0.29 && c.e.spo2 >= 90 && c.e.spo2 <= 95; },
-            hold: 30,
+            hold: 15,
             why: '酸素も下がりました。この流量なら、薄い酸素でも足ります。'
           },
           {
@@ -4439,7 +4439,7 @@
             say: 'Flow を 4 L/min まで下げ、SpO₂ 90% 以上を保ちます。',
             spot: 'key:hflow', watch: ['SpO₂', 'RR tot'],
             check: function (c) { return c.s.hfncFlow <= 4 && c.e.spo2 >= 90; },
-            hold: 30,
+            hold: 15,
             why: 'あおい君は、4 L/分でも落ち着いています。鼻から流れる風だけで、自分の息を続けています。'
           }
         ]

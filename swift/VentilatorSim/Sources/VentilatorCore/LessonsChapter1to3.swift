@@ -313,8 +313,8 @@ extension LessonLibrary {
             .talk(.doctor, "体の CO₂ は、吐く息でしか外に出られません。だから MV が増えれば CO₂ は下がり、減れば上がります。"),
             .talk(.puku, "じゃあ回数は、多いほどいいの？"),
             .talk(.doctor, "そこが落とし穴です。まず上げてみて、そのあと確かめましょう。"),
-            .step("呼吸回数を上げて MV を 3.0〜4.2 L/分 に入れ、30 秒保ってください。",
-                  hint: "Vt 150 mL なら RR 20〜28 のあたりです。", hold: 30,
+            .step("呼吸回数を上げて MV を 3.0〜4.2 L/分 に入れ、15 秒保ってください。",
+                  hint: "Vt 150 mL なら RR 20〜28 のあたりです。", hold: 15,
                   why: "体重 25 kg では 120〜170 mL/kg/分 が安静時の目安です。乳児はもっと多く要ります（200 mL/kg/分 前後）。代謝が体重あたりで大きいからです。",
                   check: { $0.settings.respiratoryRate > 10
                       && $0.measured.minuteVolume >= 3.0 && $0.measured.minuteVolume <= 4.2 })
@@ -371,8 +371,8 @@ extension LessonLibrary {
             .talk(.doctor, "SpO₂ は指先のセンサーで測る、血液が運んでいる酸素の割合です。この年齢の子の目標は 94〜98%。"),
             .talk(.puku, "SpO₂ が低かったら、とりあえず酸素を上げればいいんじゃないの？"),
             .talk(.doctor, "とりあえずはそれで正解。ただ、下げ忘れないこと。まず下げるほうからやります。"),
-            .step("SpO₂ 94% 以上のまま、FiO₂ を 40% 以下に下げて 40 秒保ちます。",
-                  hint: "5〜10% ずつ下げて SpO₂ を確かめます。急ぐときは「× 10」で早送りできます。", hold: 40,
+            .step("SpO₂ 94% 以上のまま、FiO₂ を 40% 以下に下げて 15 秒保ちます。",
+                  hint: "5〜10% ずつ下げて SpO₂ を確かめます。急ぐときは「× 10」で早送りできます。", hold: 15,
                   why: "この児は肺がほぼ正常なので、FiO₂ は早く下げられます。高い FiO₂ は、着いた直後に安全を確かめるあいだだけ。SpO₂ を見ながら、目標を保てる最小の濃度まで下げていきます。",
                   check: { $0.settings.fio2 <= 0.41 && $0.engine.spo2 >= 94 })
                 .spotting(["key:fio2"]).watching(["SpO₂"]),
@@ -390,7 +390,7 @@ extension LessonLibrary {
                   check: { $0.settings.peep >= 12 })
                 .spotting(["key:peep"]).watching(["ABP mean", "Pplat", "SpO₂"]),
             .talk(.doctor, "平均動脈圧（ABP mean）は、1 拍を通した血圧の平均。臓器に血液が届いているかの目安です。"),
-            .step("そのまま 45 秒、平均動脈圧を見てください。", hold: 45,
+            .step("そのまま 30 秒、平均動脈圧を見てください。", hold: 30,
                   check: { $0.settings.peep >= 12 })
                 .explaining { c in
                     String(format: "平均動脈圧 {ABP mean} mmHg（この年齢の下限は %.0f）。SpO₂ はほとんど変わっていません。胸腔内圧が上がって静脈還流が減り、心拍出量が落ちました。",
@@ -436,7 +436,7 @@ extension LessonLibrary {
                  why: "次の呼吸から、圧波形が四角い台形に変わります。設定した圧まで一気に上げ、吸気のあいだ保つからです。")
                 .spotting(["mode:A/C PC"]),
             .talk(.doctor, "P insp は、PC で決める吸気の圧。PEEP にどれだけ上乗せするかの値です。上げるほど、入る量が増えます。"),
-            .step("P insp を動かして Vte を 6 mL/kg 前後にし、20 秒保ってください。", hold: 20,
+            .step("P insp を動かして Vte を 6 mL/kg 前後にし、15 秒保ってください。", hold: 15,
                   why: "同じ換気量を、今度は圧で作りました。VC と PC はゴールが同じで、道順が違うだけです。",
                   check: { abs($0.tidalPerKg - 6) <= 1 })
                 .hinting { c in
@@ -497,7 +497,7 @@ extension LessonLibrary {
             .talk(.doctor, "トリガ感度は、回路にこれだけの流れ（L/分）が生まれたら「吸った」と見なす、というしきい値。数字が大きいほど鈍くなります。"),
             .talk(.puku, "感度を鈍くしたら、どうなるの？"),
             .talk(.doctor, "やってみましょう。いちばん鈍くします。見るのは数字より圧波形です。"),
-            .step("トリガ感度を 8 L/分 にして確定し、圧波形を 25 秒見てください。", hold: 25,
+            .step("トリガ感度を 8 L/分 にして確定し、圧波形を 15 秒見てください。", hold: 15,
                   why: "送気の合間に、圧波形が小さく下へ沈んでいます（流量にも小さな山）。この子は吸おうとしているのに、機械が応えていません。",
                   check: { $0.settings.triggerFlow >= 7.5 })
                 .spotting(["key:trig", "wave"]).watching(["RR tot"]),
@@ -550,7 +550,7 @@ extension LessonLibrary {
             .key("モードを「SIMV」に切り替えてください。", event: .modeSIMV,
                  why: "強制換気は設定 RR の回数だけになり、その合間の自発呼吸は PS で手伝われます。")
                 .spotting(["mode:SIMV+PS"]),
-            .step("30 秒待って、実測の呼吸回数と自発の回数を見比べてください。", hold: 30,
+            .step("15 秒待って、実測の呼吸回数と自発の回数を見比べてください。", hold: 15,
                   check: { _ in true })
                 .explaining { c in
                     let total = Int(c.measured.respiratoryRateTotal.rounded())
@@ -574,7 +574,7 @@ extension LessonLibrary {
             .key("今度は「PSV」に切り替えてください。", event: .modePSV,
                  why: "強制換気がなくなりました。すべての呼吸を患者が始めています。")
                 .spotting(["mode:PSV"]),
-            .step("PS を調整して Vte を 6〜8 mL/kg に入れ、20 秒保ってください。", hold: 20,
+            .step("PS を調整して Vte を 6〜8 mL/kg に入れ、15 秒保ってください。", hold: 15,
                   why: "PS は「その子が楽に目標の換気量を出せる最小の圧」で決めます。小児はチューブが細いぶん、同じ「ほとんど手伝わない」でも乳児 PS 8、学童 PS 5 と差がつきます。",
                   check: { $0.tidalPerKg >= 5.5 && $0.tidalPerKg <= 8.5 })
                 .hinting { c in

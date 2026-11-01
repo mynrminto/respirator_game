@@ -75,7 +75,7 @@ extension LessonLibrary {
             .talk(.doctor, "酸素化は MAP で決まります。肺が開いてきたら、FiO₂ から下げます。早産児の SpO₂ の目標は 90〜95% でしたね。"),
             .step("SpO₂ 90〜95% のまま、FiO₂ を 40% 以下に。",
                   hint: "SpO₂ が 90% に届かなければ、MAP を 1〜2 上げてから FiO₂ を下げます。",
-                  hold: 30,
+                  hold: 15,
                   why: "70% だった酸素が {FiO₂}% まで下がりました。押さずに、開いて揺らす。これが HFO です。",
                   check: { $0.settings.fio2 <= 0.41 && $0.engine.spo2 >= 90 && $0.engine.spo2 <= 95 })
                 .spotting(["key:fio2", "key:map"]).watching(["SpO₂", "Pmean", "ABP mean"])
@@ -138,7 +138,7 @@ extension LessonLibrary {
                   why: "周波数を下げると VThf が増え、CO₂ が出ます。従来の換気の「回数」と、向きが逆になるのが HFO です。"),
             .step("tcPCO₂ が 45〜58 mmHg に入るまで待ちます。",
                   hint: "下がりすぎたら Amp を下げます。CO₂ の下がりすぎは、早産児の脳の血流を減らします。",
-                  hold: 20,
+                  hold: 15,
                   why: "CO₂ が目標に入りました。HFO の CO₂ は振幅と周波数、酸素化は MAP。つまみの役割が分かれています。",
                   check: { $0.engine.tcpco2 >= 45 && $0.engine.tcpco2 <= 58 })
                 .spotting(["key:amp", "key:freq"]).watching(["tcPCO₂", "VThf"]),
@@ -187,7 +187,7 @@ extension LessonLibrary {
             .talk(.doctor, "肺が柔らかくなって、同じ MAP（平均気道内圧）では膨らみすぎたんです。膨らんだ肺が心臓を押し、血が戻りにくくなります。"),
             .step("MAP（平均気道内圧）を 1〜2 ずつ下げ、血圧（ABP mean）を保ってください。",
                   hint: "MAP を 11 前後まで。SpO₂ が 90% を切るなら下げすぎです。",
-                  hold: 20,
+                  hold: 15,
                   why: "膨らみすぎがとれて、血圧が戻りました。酸素化も落ちていません。",
                   check: { c in
                       c.settings.hfoMeanPressure <= 12
@@ -203,7 +203,7 @@ extension LessonLibrary {
                    "振幅が 0 では、CO₂ が出ていきません。"],
                   why: "酸素を先に、MAP はそのあと 1〜2 ずつ。開いた肺をしぼませないように、ゆっくり降ります。"),
             .step("SpO₂ 90〜95% のまま、FiO₂ を 30% 以下に。",
-                  hold: 30,
+                  hold: 15,
                   why: "酸素は {FiO₂}%、MAP は {MAP}。HFO を降りる日が見えてきました。",
                   check: { $0.settings.fio2 <= 0.31 && $0.engine.spo2 >= 90 && $0.engine.spo2 <= 95 })
                 .spotting(["key:fio2"]).watching(["SpO₂", "Pmean"]),
@@ -258,7 +258,7 @@ extension LessonLibrary {
                 .spotting(["val:Edi peak"]).watching(["Edi peak", "Edi min", "PIP", "RR tot"]),
             .talk(.doctor, "NAVA レベルは、Edi 1 µV あたりに足す圧（cmH₂O/µV）。いまは {NAVA}。手伝いが少ないので、Edi peak が {Edi peak} µV と高めです。"),
             .step("NAVA を 1.5 に上げて、Edi と Vte を見ます。",
-                  hold: 40,
+                  hold: 15,
                   why: "PIP は上がり、Edi peak は下がりました。Vte はあまり変わっていません。",
                   check: { $0.settings.navaLevel >= 1.45 })
                 .spotting(["key:nava"]).watching(["Edi peak", "Vte", "PIP", "RR tot"]),
@@ -275,7 +275,7 @@ extension LessonLibrary {
             .talk(.doctor, "Edi peak が 15 µV を超えるなら手伝い不足、5 µV を切るなら手伝いすぎ。その間に入る NAVA レベルを探します。"),
             .step("Edi peak を 5〜15 µV に入れて、保ってください。",
                   hint: "NAVA レベルは 0.5〜2 cmH₂O/µV が目安です。",
-                  hold: 30,
+                  hold: 15,
                   why: "つむぎちゃんのがんばりと、機械の手伝いの釣り合いがとれました。",
                   check: { c in
                       guard let peak = c.measured.ediPeak else { return false }
@@ -313,7 +313,7 @@ extension LessonLibrary {
             .talk(.doctor, "肺がしぼみかけていると、吐ききらないよう横隔膜がブレーキをかけます。PEEP で支えてあげれば、そのブレーキが要らなくなります。"),
             .step("PEEP を上げて、Edi min を 3 µV 未満にしてください。",
                   hint: "PEEP を 1 ずつ。6〜7 が目安です。",
-                  hold: 20,
+                  hold: 15,
                   why: "Edi min が下がりました。横隔膜が、吐くたびにブレーキをかけなくてよくなりました。",
                   check: { c in
                       guard let low = c.measured.ediMin else { return false }
@@ -343,7 +343,7 @@ extension LessonLibrary {
             .talk(.doctor, "無呼吸がくり返すなら、カフェインを確かめます。抜管の前にも欠かせない薬でした。"),
             .step("NAVA を 1.0 に下げ、Edi peak 5〜15 µV を保ちます。",
                   hint: "NAVA レベルを下げても Edi が 15 を超えなければ、つむぎちゃんの力が戻ってきた印です。",
-                  hold: 30,
+                  hold: 15,
                   why: "少ない手伝いで、自分の力で吸えています。チューブを抜く準備ができてきました。",
                   check: { c in
                       guard let peak = c.measured.ediPeak else { return false }
@@ -404,7 +404,7 @@ extension LessonLibrary {
             .talk(.doctor, "鼻からでは、量で見るのは難しい。Edi peak、呼吸数、SpO₂ で、手伝いが足りているかを見ます。"),
             .step("SpO₂ 90〜95% のまま、Edi peak 5〜15 µV を保ちます。",
                   hint: "Edi が 15 を超えるなら NAVA レベルを上げ、SpO₂ が高ければ FiO₂ を下げます。",
-                  hold: 30,
+                  hold: 15,
                   why: "チューブがなくても、つむぎちゃんの合図で呼吸器が動いています。",
                   check: { c in
                       guard let peak = c.measured.ediPeak else { return false }
@@ -458,7 +458,7 @@ extension LessonLibrary {
             .talk(.doctor, "朝につないだときの流量のままです。早産児なら 4〜8 L/分。この流量では、鼻と喉の死腔が洗いきれていません。")
                 .looking(["val:RR tot", "val:SpO₂"]),
             .step("Flow を 6 L/min に上げてください。",
-                  hold: 30,
+                  hold: 15,
                   why: "呼吸数が落ち着き、SpO₂ が上がりました。流れが死腔を洗い、少しの圧で肺胞を支えています。",
                   check: { $0.settings.hfncFlow >= 6 })
                 .spotting(["key:hflow"]).watching(["RR tot", "SpO₂", "tcPCO₂"]),
@@ -469,8 +469,8 @@ extension LessonLibrary {
                    "太いほど隙間がなくなります。",
                    "細いと圧は逃げやすくなります。"],
                   why: "隙間から余分な流れが逃げるので、圧が上がりすぎません。HFNC の圧は測れないぶん、逃げ道を残しておきます。"),
-            .step("FiO₂ を下げて、SpO₂ 90〜95% を 30 秒保ってください。",
-                  hold: 30,
+            .step("FiO₂ を下げて、SpO₂ 90〜95% を 15 秒保ってください。",
+                  hold: 15,
                   why: "酸素も下がりました。この流量なら、薄い酸素でも足ります。",
                   check: { $0.settings.fio2 <= 0.29 && $0.engine.spo2 >= 90 && $0.engine.spo2 <= 95 })
                 .spotting(["key:fio2"]).watching(["SpO₂", "RR tot"]),
@@ -483,7 +483,7 @@ extension LessonLibrary {
                   why: "HFNC は自分で息をする子を支えるだけ。止まった息は、刺激とバッグで戻します。NAVA のバックアップとの違いです。"),
             .talk(.doctor, "良くなってきたら、流量を 1 L/分ずつ下げていきます。呼吸数と SpO₂ が変わらなければ、次の段へ。"),
             .step("Flow を 4 L/min まで下げ、SpO₂ 90% 以上を保ちます。",
-                  hold: 30,
+                  hold: 15,
                   why: "あおい君は、4 L/分でも落ち着いています。鼻から流れる風だけで、自分の息を続けています。",
                   check: { $0.settings.hfncFlow <= 4 && $0.engine.spo2 >= 90 })
                 .spotting(["key:hflow"]).watching(["SpO₂", "RR tot"])
