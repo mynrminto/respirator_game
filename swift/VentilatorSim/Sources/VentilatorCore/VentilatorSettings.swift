@@ -35,6 +35,11 @@ public struct AlarmLimits: Codable, Equatable, Sendable {
     public var minuteVolumeHigh: Double = 15
     public var respiratoryRateHigh: Double = 35
     public var apneaSeconds: Double = 20
+    /// ここから下はベッドサイドモニターの枠（Web 版 alarms.spo2Low / spo2High / hrLow）。
+    /// SpO₂ 上限は 100（鳴らない）で始め、早産児で高すぎる酸素を見張りたいときに下げる。
+    public var spo2Low: Double = 94
+    public var spo2High: Double = 100
+    public var heartRateLow: Double = 60
     public init() {}
 }
 

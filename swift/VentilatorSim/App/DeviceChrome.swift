@@ -444,12 +444,13 @@ struct Readout: Identifiable {
                 tone: { ($0.measured.rsbiPerKg ?? 0) > 8 ? Chrome.warning : Chrome.screenInk }),
         Readout(caption: "SpO₂", unit: "%", value: { whole($0.spo2) },
                 limit: { "\(Int($0.norms.spo2Target.lowerBound))–\(Int($0.norms.spo2Target.upperBound))%" },
-                tone: { $0.spo2 < $0.norms.spo2Target.lowerBound ? Chrome.critical
-                    : ($0.spo2 > $0.norms.spo2Target.upperBound + 2 ? Chrome.warning : Chrome.good) }),
+                tone: { $0.spo2 < $0.settings.alarms.spo2Low || $0.spo2 > $0.settings.alarms.spo2High ? Chrome.critical
+                    : ($0.spo2 < $0.norms.spo2Target.lowerBound
+                       || $0.spo2 > $0.norms.spo2Target.upperBound + 2 ? Chrome.warning : Chrome.good) }),
         Readout(caption: "etCO₂", unit: "mmHg", value: { whole($0.etco2) }),
         Readout(caption: "HR", unit: "/min", value: { whole($0.heartRate) },
                 limit: { "\(Int($0.norms.heartRate.lowerBound))–\(Int($0.norms.heartRate.upperBound))" },
-                tone: { $0.heartRate < $0.norms.heartRate.lowerBound * 0.8 ? Chrome.critical
+                tone: { $0.heartRate < $0.settings.alarms.heartRateLow ? Chrome.critical
                     : ($0.heartRate > $0.norms.heartRate.upperBound * 1.15
                        || $0.heartRate < $0.norms.heartRate.lowerBound ? Chrome.warning : Chrome.screenInk) }),
         Readout(caption: "ABP mean", unit: "mmHg", value: { whole($0.meanArterialPressure) },
